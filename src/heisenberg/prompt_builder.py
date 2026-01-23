@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from heisenberg.docker_logs import ContainerLogs
+from heisenberg.log_compressor import compress_logs_for_llm
 from heisenberg.playwright_parser import PlaywrightReport
 
 
@@ -52,6 +53,8 @@ class PromptBuilder:
         report: PlaywrightReport,
         container_logs: dict[str, ContainerLogs] | None = None,
         max_log_lines: int = 50,
+        compress_logs: bool = True,
+        max_tokens: int | None = None,
     ):
         """
         Initialize prompt builder.
@@ -60,10 +63,14 @@ class PromptBuilder:
             report: Playwright test report with failure details.
             container_logs: Optional dict of container logs.
             max_log_lines: Maximum log lines to include per container.
+            compress_logs: Whether to compress/filter logs.
+            max_tokens: Optional token limit for logs section.
         """
         self.report = report
         self.container_logs = container_logs or {}
         self.max_log_lines = max_log_lines
+        self.compress_logs = compress_logs
+        self.max_tokens = max_tokens
 
     def build(self) -> str:
         """
@@ -138,17 +145,46 @@ class PromptBuilder:
             "Logs collected from containers around the time of test failure:\n"
         )
 
-        for name, logs in self.container_logs.items():
+        # Get focus timestamp from earliest failure
+        focus_timestamp = None
+        if self.report.failed_tests:
+            failure_times = [
+                t.start_time for t in self.report.failed_tests if t.start_time
+            ]
+            if failure_times:
+                focus_timestamp = min(failure_times)
+
+        # Compress logs if enabled
+        if self.compress_logs and self.container_logs:
+            compressed = compress_logs_for_llm(
+                self.container_logs,
+                max_tokens=self.max_tokens,
+                max_lines=self.max_log_lines * len(self.container_logs),
+                focus_timestamp=focus_timestamp,
+                deduplicate=True,
+                filter_noise=True,
+            )
+            logs_to_use = compressed.logs
+
+            if compressed.was_truncated:
+                lines.append(
+                    f"*(Logs compressed: {compressed.total_lines} of "
+                    f"{compressed.original_lines} lines, "
+                    f"~{compressed.estimated_tokens} tokens)*\n"
+                )
+        else:
+            logs_to_use = self.container_logs
+
+        for name, logs in logs_to_use.items():
             lines.append(f"### Container: {name}")
 
             if not logs.entries:
                 lines.append("*No logs available*")
                 continue
 
-            # Truncate if too many entries
+            # Truncate if too many entries (fallback if compression disabled)
             entries = logs.entries
-            if len(entries) > self.max_log_lines:
-                # Take entries around the middle/end (more relevant)
+            if not self.compress_logs and len(entries) > self.max_log_lines:
                 half = self.max_log_lines // 2
                 entries = entries[:half] + entries[-half:]
                 lines.append(f"*(Showing {self.max_log_lines} of {len(logs.entries)} lines)*\n")
