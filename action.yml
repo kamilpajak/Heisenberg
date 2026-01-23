@@ -23,6 +23,14 @@ inputs:
     description: 'Time window (in seconds) around test failure to collect logs'
     required: false
     default: '30'
+  ai-analysis:
+    description: 'Enable AI-powered root cause analysis'
+    required: false
+    default: 'false'
+  anthropic-api-key:
+    description: 'Anthropic API key for AI analysis (required if ai-analysis is true)'
+    required: false
+    default: ''
 
 outputs:
   comment-id:
@@ -53,9 +61,18 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         DOCKER_SERVICES: ${{ inputs.docker-services }}
         LOG_WINDOW_SECONDS: ${{ inputs.log-window-seconds }}
+        AI_ANALYSIS: ${{ inputs.ai-analysis }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
       run: |
+        AI_FLAG=""
+        if [ "$AI_ANALYSIS" = "true" ]; then
+          AI_FLAG="--ai-analysis"
+        fi
+
         heisenberg analyze \
           --report "$PLAYWRIGHT_REPORT" \
           --output-format github-comment \
           ${DOCKER_SERVICES:+--docker-services "$DOCKER_SERVICES"} \
-          --log-window "$LOG_WINDOW_SECONDS"
+          --log-window "$LOG_WINDOW_SECONDS" \
+          --post-comment \
+          $AI_FLAG

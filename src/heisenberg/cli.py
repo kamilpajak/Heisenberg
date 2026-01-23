@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from heisenberg.ai_analyzer import analyze_with_ai
 from heisenberg.analyzer import run_analysis
 from heisenberg.github_client import post_pr_comment
 
@@ -57,6 +58,12 @@ def main() -> int:
         action="store_true",
         help="Post result as GitHub PR comment (requires GITHUB_TOKEN)",
     )
+    analyze_parser.add_argument(
+        "--ai-analysis",
+        "-a",
+        action="store_true",
+        help="Enable AI-powered root cause analysis (requires ANTHROPIC_API_KEY)",
+    )
 
     args = parser.parse_args()
 
@@ -84,29 +91,49 @@ def run_analyze(args: argparse.Namespace) -> int:
         print(f"Error analyzing report: {e}", file=sys.stderr)
         return 1
 
+    # Run AI analysis if requested and there are failures
+    ai_result = None
+    if args.ai_analysis and result.has_failures:
+        try:
+            ai_result = analyze_with_ai(
+                report=result.report,
+                container_logs=result.container_logs,
+            )
+        except Exception as e:
+            print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
+
     # Format output
     if args.output_format == "github-comment":
         output = result.to_markdown()
+        if ai_result:
+            output += "\n\n" + ai_result.to_markdown()
     elif args.output_format == "json":
-        output = json.dumps(
-            {
-                "has_failures": result.has_failures,
-                "summary": result.summary,
-                "failed_tests_count": len(result.report.failed_tests),
-                "failed_tests": [
-                    {
-                        "name": t.full_name,
-                        "file": t.file,
-                        "status": t.status,
-                        "error": t.error_summary,
-                    }
-                    for t in result.report.failed_tests
-                ],
-            },
-            indent=2,
-        )
+        data = {
+            "has_failures": result.has_failures,
+            "summary": result.summary,
+            "failed_tests_count": len(result.report.failed_tests),
+            "failed_tests": [
+                {
+                    "name": t.full_name,
+                    "file": t.file,
+                    "status": t.status,
+                    "error": t.error_summary,
+                }
+                for t in result.report.failed_tests
+            ],
+        }
+        if ai_result:
+            data["ai_diagnosis"] = {
+                "root_cause": ai_result.diagnosis.root_cause,
+                "evidence": ai_result.diagnosis.evidence,
+                "suggested_fix": ai_result.diagnosis.suggested_fix,
+                "confidence": ai_result.diagnosis.confidence.value,
+                "tokens_used": ai_result.total_tokens,
+                "estimated_cost": ai_result.estimated_cost,
+            }
+        output = json.dumps(data, indent=2)
     else:
-        output = _format_text_output(result)
+        output = _format_text_output(result, ai_result)
 
     print(output)
 
@@ -126,7 +153,7 @@ def run_analyze(args: argparse.Namespace) -> int:
     return 1 if result.has_failures else 0
 
 
-def _format_text_output(result) -> str:
+def _format_text_output(result, ai_result=None) -> str:
     """Format result as plain text."""
     lines = [
         "Heisenberg Test Analysis",
@@ -161,6 +188,26 @@ def _format_text_output(result) -> str:
             if len(logs.entries) > 10:
                 lines.append(f"    ... and {len(logs.entries) - 10} more entries")
             lines.append("")
+
+    # Add AI diagnosis if available
+    if ai_result:
+        lines.append("AI Diagnosis:")
+        lines.append("-" * 40)
+        lines.append(f"  Root Cause: {ai_result.diagnosis.root_cause}")
+        lines.append("")
+        if ai_result.diagnosis.evidence:
+            lines.append("  Evidence:")
+            for item in ai_result.diagnosis.evidence:
+                lines.append(f"    - {item}")
+            lines.append("")
+        lines.append(f"  Suggested Fix: {ai_result.diagnosis.suggested_fix}")
+        lines.append("")
+        lines.append(f"  Confidence: {ai_result.diagnosis.confidence.value}")
+        if ai_result.diagnosis.confidence_explanation:
+            lines.append(f"  ({ai_result.diagnosis.confidence_explanation})")
+        lines.append("")
+        lines.append(f"  Tokens: {ai_result.total_tokens} | Cost: ${ai_result.estimated_cost:.4f}")
+        lines.append("")
 
     return "\n".join(lines)
 
