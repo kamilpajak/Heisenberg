@@ -101,6 +101,26 @@ class HealthResponse(BaseModel):
     version: str | None = None
 
 
+class DatabaseHealthStatus(BaseModel):
+    """Database health status details."""
+
+    connected: bool
+    latency_ms: float
+    error: str | None = None
+
+
+class DetailedHealthResponse(BaseModel):
+    """Detailed health check response with component status."""
+
+    status: str = Field(
+        ...,
+        description="Overall health status: healthy, degraded, or unhealthy",
+    )
+    version: str
+    database: DatabaseHealthStatus
+    timestamp: datetime = Field(default_factory=lambda: __import__("datetime").datetime.now(__import__("datetime").timezone.utc))
+
+
 # ============================================================================
 # Organization/API Key Schemas
 # ============================================================================

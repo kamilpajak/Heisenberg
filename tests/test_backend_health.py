@@ -1,0 +1,248 @@
+"""Tests for backend enhanced health check - TDD for Phase 5."""
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+
+class TestHealthModule:
+    """Test suite for health check module."""
+
+    def test_health_module_exists(self):
+        """Health module should be importable."""
+        from heisenberg.backend.health import check_database_health
+
+        assert check_database_health is not None
+
+    @pytest.mark.asyncio
+    async def test_check_database_health_returns_tuple(self):
+        """check_database_health should return (is_healthy, latency_ms)."""
+        from heisenberg.backend.health import check_database_health
+
+        # Given
+        mock_session_maker = MagicMock()
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_maker.return_value = mock_session
+
+        # When
+        is_healthy, latency_ms = await check_database_health(mock_session_maker)
+
+        # Then
+        assert isinstance(is_healthy, bool)
+        assert isinstance(latency_ms, float)
+
+    @pytest.mark.asyncio
+    async def test_check_database_health_returns_true_when_ok(self):
+        """check_database_health should return True when DB is healthy."""
+        from heisenberg.backend.health import check_database_health
+
+        # Given
+        mock_session_maker = MagicMock()
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_maker.return_value = mock_session
+
+        # When
+        is_healthy, latency_ms = await check_database_health(mock_session_maker)
+
+        # Then
+        assert is_healthy is True
+        assert latency_ms >= 0
+
+    @pytest.mark.asyncio
+    async def test_check_database_health_returns_false_on_error(self):
+        """check_database_health should return False when DB fails."""
+        from heisenberg.backend.health import check_database_health
+
+        # Given
+        mock_session_maker = MagicMock()
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(side_effect=Exception("Connection refused"))
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_maker.return_value = mock_session
+
+        # When
+        is_healthy, latency_ms = await check_database_health(mock_session_maker)
+
+        # Then
+        assert is_healthy is False
+        assert latency_ms == 0.0
+
+
+class TestDetailedHealthResponse:
+    """Test suite for detailed health response schema."""
+
+    def test_detailed_health_response_exists(self):
+        """DetailedHealthResponse schema should be importable."""
+        from heisenberg.backend.schemas import DetailedHealthResponse
+
+        assert DetailedHealthResponse is not None
+
+    def test_detailed_health_response_has_status(self):
+        """DetailedHealthResponse should have status field."""
+        from heisenberg.backend.schemas import (
+            DatabaseHealthStatus,
+            DetailedHealthResponse,
+        )
+
+        response = DetailedHealthResponse(
+            status="healthy",
+            version="0.1.0",
+            database=DatabaseHealthStatus(connected=True, latency_ms=5.0),
+        )
+        assert response.status == "healthy"
+
+    def test_detailed_health_response_has_database(self):
+        """DetailedHealthResponse should have database status."""
+        from heisenberg.backend.schemas import (
+            DatabaseHealthStatus,
+            DetailedHealthResponse,
+        )
+
+        response = DetailedHealthResponse(
+            status="healthy",
+            version="0.1.0",
+            database=DatabaseHealthStatus(connected=True, latency_ms=5.0),
+        )
+        assert response.database.connected is True
+        assert response.database.latency_ms == 5.0
+
+    def test_detailed_health_response_has_timestamp(self):
+        """DetailedHealthResponse should have timestamp."""
+        from datetime import datetime
+
+        from heisenberg.backend.schemas import (
+            DatabaseHealthStatus,
+            DetailedHealthResponse,
+        )
+
+        response = DetailedHealthResponse(
+            status="healthy",
+            version="0.1.0",
+            database=DatabaseHealthStatus(connected=True, latency_ms=5.0),
+        )
+        assert hasattr(response, "timestamp")
+        assert isinstance(response.timestamp, datetime)
+
+
+class TestHealthEndpoint:
+    """Test suite for /health endpoint."""
+
+    @pytest.fixture
+    def test_client(self):
+        """Create test client."""
+        from heisenberg.backend.app import app
+
+        return AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        )
+
+    @pytest.mark.asyncio
+    async def test_health_endpoint_returns_200(self, test_client: AsyncClient):
+        """Health endpoint should return 200."""
+        async with test_client as client:
+            response = await client.get("/health")
+            assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_health_includes_version(self, test_client: AsyncClient):
+        """Health response should include version."""
+        async with test_client as client:
+            response = await client.get("/health")
+            data = response.json()
+            assert "version" in data
+            assert data["version"] == "0.1.0"
+
+    @pytest.mark.asyncio
+    async def test_health_includes_status(self, test_client: AsyncClient):
+        """Health response should include status."""
+        async with test_client as client:
+            response = await client.get("/health")
+            data = response.json()
+            assert "status" in data
+            assert data["status"] in ["healthy", "degraded", "unhealthy"]
+
+
+class TestDetailedHealthEndpoint:
+    """Test suite for /health/detailed endpoint."""
+
+    @pytest.fixture
+    def test_client(self):
+        """Create test client."""
+        from heisenberg.backend.app import app
+
+        return AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        )
+
+    @pytest.mark.asyncio
+    async def test_detailed_health_endpoint_exists(self, test_client: AsyncClient):
+        """Detailed health endpoint should exist at /health/detailed."""
+        async with test_client as client:
+            response = await client.get("/health/detailed")
+            # Should not be 404
+            assert response.status_code != 404
+
+    @pytest.mark.asyncio
+    async def test_detailed_health_includes_database_status(
+        self, test_client: AsyncClient
+    ):
+        """Detailed health should include database status."""
+        async with test_client as client:
+            with patch(
+                "heisenberg.backend.app.check_database_health"
+            ) as mock_check, patch(
+                "heisenberg.backend.database._session_maker", MagicMock()
+            ):
+                mock_check.return_value = (True, 5.5)
+                response = await client.get("/health/detailed")
+                data = response.json()
+
+                assert "database" in data
+                assert "connected" in data["database"]
+                assert "latency_ms" in data["database"]
+
+    @pytest.mark.asyncio
+    async def test_detailed_health_returns_degraded_when_db_slow(
+        self, test_client: AsyncClient
+    ):
+        """Detailed health should return 'degraded' when DB is slow."""
+        async with test_client as client:
+            with patch(
+                "heisenberg.backend.app.check_database_health"
+            ) as mock_check, patch(
+                "heisenberg.backend.database._session_maker", MagicMock()
+            ):
+                # Simulate slow database (> 1000ms)
+                mock_check.return_value = (True, 1500.0)
+                response = await client.get("/health/detailed")
+                data = response.json()
+
+                assert data["status"] == "degraded"
+
+    @pytest.mark.asyncio
+    async def test_detailed_health_returns_unhealthy_when_db_down(
+        self, test_client: AsyncClient
+    ):
+        """Detailed health should return 'unhealthy' when DB is down."""
+        async with test_client as client:
+            with patch(
+                "heisenberg.backend.app.check_database_health"
+            ) as mock_check, patch(
+                "heisenberg.backend.database._session_maker", MagicMock()
+            ):
+                mock_check.return_value = (False, 0.0)
+                response = await client.get("/health/detailed")
+                data = response.json()
+
+                assert data["status"] == "unhealthy"
+                assert data["database"]["connected"] is False

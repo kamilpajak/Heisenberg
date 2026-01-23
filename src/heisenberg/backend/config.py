@@ -25,6 +25,18 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     debug: bool = False
 
+    # Logging
+    log_level: str = "INFO"
+    log_json_format: bool = True
+
+    # Retry
+    retry_max_retries: int = 3
+    retry_base_delay: float = 1.0
+    retry_max_delay: float = 60.0
+
+    # Rate Limiting
+    rate_limit_per_minute: int = 60
+
     # External Services
     anthropic_api_key: str | None = None
 
