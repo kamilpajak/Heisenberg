@@ -30,6 +30,7 @@ class TestCliAnalyze:
             output_format="text",
             docker_services="",
             log_window=30,
+            post_comment=False,
         )
 
         # When
@@ -46,6 +47,7 @@ class TestCliAnalyze:
             output_format="text",
             docker_services="",
             log_window=30,
+            post_comment=False,
         )
 
         # When
@@ -62,6 +64,7 @@ class TestCliAnalyze:
             output_format="text",
             docker_services="",
             log_window=30,
+            post_comment=False,
         )
 
         # When
@@ -78,6 +81,7 @@ class TestCliAnalyze:
             output_format="github-comment",
             docker_services="",
             log_window=30,
+            post_comment=False,
         )
 
         # When
@@ -96,6 +100,7 @@ class TestCliAnalyze:
             output_format="text",
             docker_services="",
             log_window=30,
+            post_comment=False,
         )
 
         # When
@@ -105,6 +110,27 @@ class TestCliAnalyze:
         # Then
         assert "Heisenberg Test Analysis" in captured.out
         assert "Failed Tests:" in captured.out
+
+    def test_analyze_json_format(self, sample_report_path: Path, capsys):
+        """Given json format, should output valid JSON."""
+        # Given
+        args = argparse.Namespace(
+            report=sample_report_path,
+            output_format="json",
+            docker_services="",
+            log_window=30,
+            post_comment=False,
+        )
+
+        # When
+        run_analyze(args)
+        captured = capsys.readouterr()
+
+        # Then
+        data = json.loads(captured.out)
+        assert data["has_failures"] is True
+        assert data["failed_tests_count"] == 2
+        assert len(data["failed_tests"]) == 2
 
 
 @pytest.fixture
