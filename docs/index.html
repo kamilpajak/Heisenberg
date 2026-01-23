@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heisenberg - AI Root Cause Analysis for Flaky Tests</title>
+    <meta name="description" content="Automatically diagnose why your E2E tests failed with AI-powered analysis">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --bg: #0f172a;
+            --bg-light: #1e293b;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent: #22c55e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        header {
+            padding: 20px 0;
+            border-bottom: 1px solid var(--bg-light);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-left: 30px;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 100px 0;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--text), var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero .tagline {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--bg-light);
+            color: var(--text);
+            border: 1px solid var(--text-muted);
+        }
+
+        .btn-secondary:hover {
+            background: #334155;
+        }
+
+        /* Features */
+        .features {
+            padding: 80px 0;
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 60px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .feature-card {
+            background: var(--bg-light);
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+        }
+
+        .feature-icon {
+            font-size: 1.5rem;
+        }
+
+        /* Quick Start */
+        .quickstart {
+            padding: 80px 0;
+            background: var(--bg-light);
+        }
+
+        .quickstart h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        .quickstart .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+        }
+
+        .code-block {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 30px;
+            overflow-x: auto;
+            max-width: 800px;
+            margin: 0 auto;
+            border: 1px solid #334155;
+        }
+
+        .code-block pre {
+            font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+
+        .code-block .comment {
+            color: #6b7280;
+        }
+
+        .code-block .key {
+            color: #93c5fd;
+        }
+
+        .code-block .string {
+            color: #86efac;
+        }
+
+        .code-block .value {
+            color: #fcd34d;
+        }
+
+        /* How it Works */
+        .how-it-works {
+            padding: 80px 0;
+        }
+
+        .how-it-works h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 60px;
+        }
+
+        .steps {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 40px;
+        }
+
+        .step {
+            text-align: center;
+            max-width: 250px;
+        }
+
+        .step-number {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 0 auto 20px;
+        }
+
+        .step h3 {
+            margin-bottom: 10px;
+        }
+
+        .step p {
+            color: var(--text-muted);
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            text-align: center;
+            border-top: 1px solid var(--bg-light);
+        }
+
+        footer p {
+            color: var(--text-muted);
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero .tagline {
+                font-size: 1.2rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav>
+                <a href="/" class="logo">Heisenberg</a>
+                <div class="nav-links">
+                    <a href="#features">Features</a>
+                    <a href="#quickstart">Quick Start</a>
+                    <a href="https://github.com/kamilpajak/heisenberg">GitHub</a>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1>Heisenberg</h1>
+                <p class="tagline">AI-powered root cause analysis for flaky tests. Stop wasting hours debugging - let AI diagnose why your E2E tests failed.</p>
+                <div class="cta-buttons">
+                    <a href="#quickstart" class="btn btn-primary">Get Started</a>
+                    <a href="https://github.com/kamilpajak/heisenberg" class="btn btn-secondary">View on GitHub</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="features" class="features">
+            <div class="container">
+                <h2>Features</h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3><span class="feature-icon">🤖</span> AI-Powered Diagnosis</h3>
+                        <p>Claude AI analyzes test failures, stack traces, and backend logs to identify the root cause automatically.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3><span class="feature-icon">📊</span> Playwright Integration</h3>
+                        <p>Parses Playwright JSON reports to extract failed tests, error messages, and timing information.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3><span class="feature-icon">🐳</span> Docker Log Collection</h3>
+                        <p>Automatically collects logs from your backend services around the time of failure.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3><span class="feature-icon">⏱️</span> Timeline Correlation</h3>
+                        <p>Aligns frontend errors with backend events to build a complete picture of what happened.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3><span class="feature-icon">💬</span> PR Comments</h3>
+                        <p>Posts formatted analysis directly as a comment on your Pull Request for easy review.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3><span class="feature-icon">📈</span> Confidence Scoring</h3>
+                        <p>AI rates its confidence in each diagnosis so you know when to trust the analysis.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="quickstart" class="quickstart">
+            <div class="container">
+                <h2>Quick Start</h2>
+                <p class="subtitle">Get started in under 5 minutes</p>
+                <div class="code-block">
+<pre><span class="comment"># .github/workflows/e2e-tests.yml</span>
+<span class="key">name:</span> <span class="string">E2E Tests</span>
+
+<span class="key">on:</span> [<span class="string">push</span>, <span class="string">pull_request</span>]
+
+<span class="key">jobs:</span>
+  <span class="key">test:</span>
+    <span class="key">runs-on:</span> <span class="string">ubuntu-latest</span>
+    <span class="key">steps:</span>
+      - <span class="key">uses:</span> <span class="string">actions/checkout@v4</span>
+
+      - <span class="key">name:</span> <span class="string">Run Playwright tests</span>
+        <span class="key">run:</span> <span class="string">npx playwright test</span>
+        <span class="key">continue-on-error:</span> <span class="value">true</span>
+
+      - <span class="key">name:</span> <span class="string">Analyze failures</span>
+        <span class="key">if:</span> <span class="string">failure()</span>
+        <span class="key">uses:</span> <span class="string">kamilpajak/heisenberg@v1</span>
+        <span class="key">with:</span>
+          <span class="key">playwright-report:</span> <span class="string">test-results/report.json</span>
+          <span class="key">ai-analysis:</span> <span class="value">true</span>
+          <span class="key">anthropic-api-key:</span> <span class="string">${{ secrets.ANTHROPIC_API_KEY }}</span></pre>
+                </div>
+            </div>
+        </section>
+
+        <section class="how-it-works">
+            <div class="container">
+                <h2>How It Works</h2>
+                <div class="steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <h3>Parse</h3>
+                        <p>Heisenberg reads your Playwright report and extracts failed tests</p>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <h3>Collect</h3>
+                        <p>Gathers Docker logs from your backend services</p>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <h3>Correlate</h3>
+                        <p>Aligns events by timestamp to build a timeline</p>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">4</div>
+                        <h3>Analyze</h3>
+                        <p>Claude AI examines all evidence to identify root cause</p>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">5</div>
+                        <h3>Report</h3>
+                        <p>Posts diagnosis as a PR comment</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>
+                MIT License |
+                <a href="https://github.com/kamilpajak/heisenberg">GitHub</a> |
+                <a href="https://github.com/kamilpajak/heisenberg/blob/main/README.md">Documentation</a>
+            </p>
+        </div>
+    </footer>
+</body>
+</html>
