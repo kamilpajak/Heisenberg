@@ -1,0 +1,61 @@
+name: 'Heisenberg Test Analysis'
+description: 'AI Root Cause Analysis for Flaky Tests - Diagnose why your E2E tests failed'
+author: 'Kamil Pajak'
+
+branding:
+  icon: 'search'
+  color: 'blue'
+
+inputs:
+  playwright-report:
+    description: 'Path to Playwright JSON report file'
+    required: true
+    default: 'test-results/report.json'
+  github-token:
+    description: 'GitHub token for posting PR comments'
+    required: true
+    default: ${{ github.token }}
+  docker-services:
+    description: 'Comma-separated list of Docker service names to collect logs from'
+    required: false
+    default: ''
+  log-window-seconds:
+    description: 'Time window (in seconds) around test failure to collect logs'
+    required: false
+    default: '30'
+
+outputs:
+  comment-id:
+    description: 'ID of the posted PR comment'
+  failed-tests-count:
+    description: 'Number of failed tests found'
+  analysis-summary:
+    description: 'Brief summary of the analysis'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Heisenberg
+      shell: bash
+      run: |
+        pip install ${{ github.action_path }}
+
+    - name: Run Analysis
+      id: analyze
+      shell: bash
+      env:
+        PLAYWRIGHT_REPORT: ${{ inputs.playwright-report }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        DOCKER_SERVICES: ${{ inputs.docker-services }}
+        LOG_WINDOW_SECONDS: ${{ inputs.log-window-seconds }}
+      run: |
+        heisenberg analyze \
+          --report "$PLAYWRIGHT_REPORT" \
+          --output-format github-comment \
+          ${DOCKER_SERVICES:+--docker-services "$DOCKER_SERVICES"} \
+          --log-window "$LOG_WINDOW_SECONDS"
