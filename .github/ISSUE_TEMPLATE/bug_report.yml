@@ -1,0 +1,103 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the form below to help us investigate.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear description of what the bug is.
+      placeholder: When I run heisenberg analyze, it fails with...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Run `heisenberg analyze --report report.json`
+        2. See error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Output / Logs
+      description: Please paste any error messages or relevant log output.
+      render: shell
+
+  - type: dropdown
+    id: usage
+    attributes:
+      label: How are you using Heisenberg?
+      options:
+        - GitHub Action
+        - CLI Tool
+        - Python Library
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Heisenberg Version
+      description: Run `heisenberg --version` or check your workflow
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python Version
+      placeholder: "3.11.4"
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Linux (GitHub Actions)
+        - Linux (other)
+        - macOS
+        - Windows
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: ai
+    attributes:
+      label: AI Analysis
+      options:
+        - label: I am using AI analysis (--ai-analysis flag)
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here.
