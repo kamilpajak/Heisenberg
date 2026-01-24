@@ -1,0 +1,15 @@
+{
+  "name": "heisenberg-validation-tests",
+  "version": "1.0.0",
+  "description": "Intentionally flaky Playwright tests for validating Heisenberg's diagnosis capabilities",
+  "scripts": {
+    "test": "playwright test",
+    "test:report": "playwright test",
+    "test:headed": "playwright test --headed",
+    "serve": "npx serve test-app -p 3333"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.0"
+  },
+  "keywords": ["playwright", "testing", "validation", "flaky-tests"]
+}
