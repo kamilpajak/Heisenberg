@@ -45,6 +45,7 @@ dev = [
     "httpx>=0.27.0",
     "ruff>=0.4.0",
     "pre-commit>=3.7.0",
+    "schemathesis>=3.38.0",
 ]
 
 [project.scripts]
@@ -64,6 +65,7 @@ addopts = "-v --tb=short"
 asyncio_mode = "strict"
 markers = [
     "integration: marks tests as integration tests (require API keys, use --run-integration)",
+    "fuzz: marks tests as fuzz tests (slower, use --run-fuzz)",
 ]
 
 [tool.ruff]
