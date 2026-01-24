@@ -9,7 +9,7 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://heisenberg:heisenberg@postgres:5432/heisenberg
-      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}

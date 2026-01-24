@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 
 from heisenberg.backend.health import check_database_health
+from heisenberg.backend.logging import configure_logging, get_logger
+from heisenberg.backend.middleware import RateLimitMiddleware, RequestIDMiddleware
 from heisenberg.backend.routers import analyze, feedback, tasks, usage
 from heisenberg.backend.schemas import (
     DatabaseHealthStatus,
@@ -24,6 +27,8 @@ __version__ = "0.1.0"
 # API prefix
 API_PREFIX = "/api/v1"
 
+logger = get_logger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -33,10 +38,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Handles startup and shutdown events.
     """
     # Startup
-    # Database initialization would happen here in production
+    from heisenberg.backend.config import get_settings
+    from heisenberg.backend.database import close_db, init_db
+
+    settings = get_settings()
+
+    # Configure logging
+    configure_logging(
+        log_level=settings.log_level,
+        json_format=settings.log_json_format,
+    )
+
+    # Initialize database if DATABASE_URL is set
+    if os.environ.get("DATABASE_URL"):
+        init_db(settings)
+        logger.info("database_initialized", database_url=settings.database_url[:20] + "...")
+
+    logger.info("app_started", version=__version__)
+
     yield
+
     # Shutdown
-    # Database cleanup would happen here
+    await close_db()
+    logger.info("app_shutdown")
 
 
 app = FastAPI(
@@ -45,6 +69,10 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
+
+# Add middleware (order matters - first added is outermost)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
+app.add_middleware(RequestIDMiddleware)
 
 # Include routers
 app.include_router(analyze.router, prefix=API_PREFIX)
