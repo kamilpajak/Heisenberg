@@ -12,13 +12,15 @@ For production deployments, replace with your server URL.
 
 ## Authentication
 
-All `/api/v1/*` endpoints require an API key in the `X-API-Key` header:
+The `/api/v1/analyze` endpoint requires an API key in the `X-API-Key` header:
 
 ```http
 X-API-Key: YOUR_API_KEY
 ```
 
 Requests without a valid API key receive `401 Unauthorized`.
+
+> **Note:** Other endpoints (`/feedback`, `/tasks`, `/usage`) are currently unauthenticated. This may change in future versions.
 
 ---
 
@@ -241,7 +243,7 @@ Get usage summary for an organization.
   "total_output_tokens": 250000,
   "total_cost_usd": "123.45",
   "by_model": {
-    "claude-sonnet-4-20250514": {"requests": 1000, "cost_usd": "100.00"},
+    "claude-3-5-sonnet-20241022": {"requests": 1000, "cost_usd": "100.00"},
     "gpt-4-turbo": {"requests": 250, "cost_usd": "23.45"}
   }
 }
@@ -260,7 +262,7 @@ Get usage breakdown by LLM model.
 ```json
 [
   {
-    "model_name": "claude-sonnet-4-20250514",
+    "model_name": "claude-3-5-sonnet-20241022",
     "requests": 1000,
     "input_tokens": 4000000,
     "output_tokens": 200000,

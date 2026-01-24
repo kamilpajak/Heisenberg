@@ -56,7 +56,7 @@ jobs:
         if: failure()
         uses: kamilpajak/heisenberg@v1
         with:
-          playwright-report: test-results/report.json
+          playwright-report: test-results.json
           docker-services: api,database,redis
           ai-analysis: true
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -81,7 +81,7 @@ Push a commit or open a PR. When tests fail, Heisenberg will post a diagnosis co
 ```yaml
 - uses: kamilpajak/heisenberg@v1
   with:
-    playwright-report: test-results/report.json
+    playwright-report: test-results.json
 ```
 
 ### As a CLI Tool
@@ -104,7 +104,7 @@ heisenberg analyze --report test-results/report.json --ai-analysis
 ```yaml
 - uses: kamilpajak/heisenberg@v1
   with:
-    playwright-report: test-results/report.json
+    playwright-report: test-results.json
 ```
 
 This will parse failures and post a structured report without AI analysis.
@@ -114,7 +114,7 @@ This will parse failures and post a structured report without AI analysis.
 ```yaml
 - uses: kamilpajak/heisenberg@v1
   with:
-    playwright-report: test-results/report.json
+    playwright-report: test-results.json
     ai-analysis: true
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -124,8 +124,8 @@ This will parse failures and post a structured report without AI analysis.
 ```yaml
 - uses: kamilpajak/heisenberg@v1
   with:
-    playwright-report: test-results/report.json
-    docker-services: api,postgres,redis
+    playwright-report: test-results.json
+    docker-services: api,database,redis
     log-window-seconds: 60
     ai-analysis: true
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -181,12 +181,15 @@ heisenberg fetch-github --repo owner/repo --ai-analysis --provider openai
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `playwright-report` | Path to Playwright JSON report | Yes | `test-results/report.json` |
-| `github-token` | GitHub token for PR comments | Yes | `${{ github.token }}` |
+| `playwright-report` | Path to Playwright JSON report | No | `test-results.json` |
+| `github-token` | GitHub token for PR comments | No | `${{ github.token }}` |
 | `docker-services` | Comma-separated Docker service names | No | `""` |
 | `log-window-seconds` | Time window for log collection | No | `30` |
 | `ai-analysis` | Enable AI-powered analysis | No | `false` |
-| `anthropic-api-key` | Anthropic API key (required if ai-analysis is true) | No | `""` |
+| `ai-provider` | LLM provider: `claude`, `openai`, `gemini` | No | `claude` |
+| `anthropic-api-key` | Anthropic API key (for Claude) | No | `""` |
+| `openai-api-key` | OpenAI API key (for GPT-4) | No | `""` |
+| `google-api-key` | Google API key (for Gemini) | No | `""` |
 
 ## Outputs
 
