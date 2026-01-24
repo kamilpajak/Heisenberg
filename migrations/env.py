@@ -3,15 +3,27 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 
 # Import models for autogenerate support
 from heisenberg.backend.models import Base
+
+
+def get_database_url() -> str:
+    """Get database URL from environment."""
+    url = os.environ.get("DATABASE_URL", "")
+    if not url:
+        raise ValueError("DATABASE_URL environment variable is required")
+    # Convert postgresql:// to postgresql+asyncpg:// for async support
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url
 
 # Alembic Config object
 config = context.config
@@ -33,7 +45,7 @@ def run_migrations_offline() -> None:
 
     Calls to context.execute() here emit the given string to the script output.
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = get_database_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -55,9 +67,8 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Run migrations in async mode."""
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    connectable = create_async_engine(
+        get_database_url(),
         poolclass=pool.NullPool,
     )
 

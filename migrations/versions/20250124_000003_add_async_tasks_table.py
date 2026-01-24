@@ -8,7 +8,7 @@ Create Date: 2025-01-24 00:00:03.000000
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
@@ -16,17 +16,17 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "004"
-down_revision: Union[str, None] = "003"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "003"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # Create task status enum
+    # Create task status enum (checkfirst to handle if already exists)
     task_status_enum = postgresql.ENUM(
         "pending", "running", "completed", "failed",
         name="taskstatus",
-        create_type=True,
+        create_type=False,  # Don't auto-create, we do it manually
     )
     task_status_enum.create(op.get_bind(), checkfirst=True)
 
@@ -38,7 +38,7 @@ def upgrade() -> None:
         sa.Column("task_type", sa.String(length=50), nullable=False),
         sa.Column(
             "status",
-            task_status_enum,
+            postgresql.ENUM("pending", "running", "completed", "failed", name="taskstatus", create_type=False),
             nullable=False,
             server_default="pending",
         ),

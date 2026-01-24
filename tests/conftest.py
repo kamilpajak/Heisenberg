@@ -1,6 +1,14 @@
 """Pytest configuration and fixtures."""
 
+from __future__ import annotations
+
+import os
+from typing import TYPE_CHECKING
+
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 def pytest_addoption(parser):
@@ -44,3 +52,41 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_integration)
         if "fuzz" in item.keywords and not run_fuzz:
             item.add_marker(skip_fuzz)
+
+
+@pytest.fixture(scope="session")
+def database_url() -> str | None:
+    """Get database URL from environment."""
+    return os.environ.get("DATABASE_URL")
+
+
+@pytest.fixture(scope="session")
+def setup_test_database(
+    request: pytest.FixtureRequest, database_url: str | None
+) -> Generator[None, None, None]:
+    """
+    Apply database migrations for integration tests.
+
+    This fixture mirrors production deployment by running Alembic migrations.
+    Note: Database connection initialization is left to the app lifespan
+    to avoid event loop conflicts with async test runners.
+
+    Only activates when:
+    - DATABASE_URL is set
+    - Running integration tests
+    """
+    run_integration = request.config.getoption("--run-integration", default=False)
+
+    # Skip if not running integration tests or no DATABASE_URL
+    if not run_integration or not database_url:
+        yield
+        return
+
+    # Run Alembic migrations (mirrors production deployment)
+    from alembic import command
+    from alembic.config import Config
+
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+
+    yield
