@@ -260,61 +260,67 @@ def run_analyze(args: argparse.Namespace) -> int:
     return 1 if result.has_failures else 0
 
 
+def _format_failed_tests_section(failed_tests: list) -> list[str]:
+    """Format failed tests section."""
+    lines = ["Failed Tests:", "-" * 40]
+    for test in failed_tests:
+        lines.append(f"  - {test.full_name}")
+        lines.append(f"    File: {test.file}")
+        lines.append(f"    Status: {test.status}")
+        if test.errors:
+            error_msg = test.errors[0].message
+            if len(error_msg) > 100:
+                error_msg = error_msg[:100] + "..."
+            lines.append(f"    Error: {error_msg}")
+        lines.append("")
+    return lines
+
+
+def _format_container_logs_section(container_logs: dict) -> list[str]:
+    """Format container logs section."""
+    lines = ["Backend Logs:", "-" * 40]
+    for name, logs in container_logs.items():
+        lines.append(f"  [{name}]")
+        for entry in logs.entries[:10]:
+            lines.append(f"    {entry}")
+        if len(logs.entries) > 10:
+            lines.append(f"    ... and {len(logs.entries) - 10} more entries")
+        lines.append("")
+    return lines
+
+
+def _format_ai_diagnosis_section(ai_result) -> list[str]:
+    """Format AI diagnosis section."""
+    lines = ["AI Diagnosis:", "-" * 40]
+    lines.append(f"  Root Cause: {ai_result.diagnosis.root_cause}")
+    lines.append("")
+    if ai_result.diagnosis.evidence:
+        lines.append("  Evidence:")
+        lines.extend(f"    - {item}" for item in ai_result.diagnosis.evidence)
+        lines.append("")
+    lines.append(f"  Suggested Fix: {ai_result.diagnosis.suggested_fix}")
+    lines.append("")
+    lines.append(f"  Confidence: {ai_result.diagnosis.confidence.value}")
+    if ai_result.diagnosis.confidence_explanation:
+        lines.append(f"  ({ai_result.diagnosis.confidence_explanation})")
+    lines.append("")
+    lines.append(f"  Tokens: {ai_result.total_tokens} | Cost: ${ai_result.estimated_cost:.4f}")
+    lines.append("")
+    return lines
+
+
 def _format_text_output(result, ai_result=None) -> str:
     """Format result as plain text."""
-    lines = [
-        "Heisenberg Test Analysis",
-        "=" * 40,
-        "",
-        f"Summary: {result.summary}",
-        "",
-    ]
+    lines = ["Heisenberg Test Analysis", "=" * 40, "", f"Summary: {result.summary}", ""]
 
     if result.has_failures:
-        lines.append("Failed Tests:")
-        lines.append("-" * 40)
-        for test in result.report.failed_tests:
-            lines.append(f"  - {test.full_name}")
-            lines.append(f"    File: {test.file}")
-            lines.append(f"    Status: {test.status}")
-            if test.errors:
-                error_msg = test.errors[0].message
-                if len(error_msg) > 100:
-                    error_msg = error_msg[:100] + "..."
-                lines.append(f"    Error: {error_msg}")
-            lines.append("")
+        lines.extend(_format_failed_tests_section(result.report.failed_tests))
 
-    # Add container logs if available
     if result.container_logs:
-        lines.append("Backend Logs:")
-        lines.append("-" * 40)
-        for name, logs in result.container_logs.items():
-            lines.append(f"  [{name}]")
-            for entry in logs.entries[:10]:  # Limit to 10 entries per container
-                lines.append(f"    {entry}")
-            if len(logs.entries) > 10:
-                lines.append(f"    ... and {len(logs.entries) - 10} more entries")
-            lines.append("")
+        lines.extend(_format_container_logs_section(result.container_logs))
 
-    # Add AI diagnosis if available
     if ai_result:
-        lines.append("AI Diagnosis:")
-        lines.append("-" * 40)
-        lines.append(f"  Root Cause: {ai_result.diagnosis.root_cause}")
-        lines.append("")
-        if ai_result.diagnosis.evidence:
-            lines.append("  Evidence:")
-            for item in ai_result.diagnosis.evidence:
-                lines.append(f"    - {item}")
-            lines.append("")
-        lines.append(f"  Suggested Fix: {ai_result.diagnosis.suggested_fix}")
-        lines.append("")
-        lines.append(f"  Confidence: {ai_result.diagnosis.confidence.value}")
-        if ai_result.diagnosis.confidence_explanation:
-            lines.append(f"  ({ai_result.diagnosis.confidence_explanation})")
-        lines.append("")
-        lines.append(f"  Tokens: {ai_result.total_tokens} | Cost: ${ai_result.estimated_cost:.4f}")
-        lines.append("")
+        lines.extend(_format_ai_diagnosis_section(ai_result))
 
     return "\n".join(lines)
 

@@ -71,13 +71,11 @@ def _extract_evidence(response: str) -> list[str]:
     if not evidence_section:
         return []
 
-    # Extract bullet points (lines starting with -)
+    # Extract bullet points (lines starting with - or *)
     evidence = []
     for line in evidence_section.split("\n"):
         line = line.strip()
-        if line.startswith("-"):
-            evidence.append(line[1:].strip())
-        elif line.startswith("*"):
+        if line.startswith(("-", "*")):
             evidence.append(line[1:].strip())
 
     return evidence
@@ -86,7 +84,7 @@ def _extract_evidence(response: str) -> list[str]:
 def _extract_confidence(response: str) -> tuple[ConfidenceLevel, str | None]:
     """Extract confidence level and explanation from response."""
     # Look for confidence section
-    confidence_pattern = r"##\s*Confidence\s*(?:Score|Level)?\s*\n(.*?)(?=##|$)"
+    confidence_pattern = r"##\s*Confidence\s*(?:Score|Level)?\s*\n(.+?)(?=##|$)"
     match = re.search(confidence_pattern, response, re.DOTALL | re.IGNORECASE)
 
     if not match:

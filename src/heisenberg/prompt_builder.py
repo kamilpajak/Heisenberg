@@ -138,57 +138,59 @@ class PromptBuilder:
 
         return "\n".join(lines)
 
+    def _get_focus_timestamp(self):
+        """Get earliest failure timestamp for log focusing."""
+        if not self.report.failed_tests:
+            return None
+        failure_times = [t.start_time for t in self.report.failed_tests if t.start_time]
+        return min(failure_times) if failure_times else None
+
+    def _get_logs_to_use(self, lines: list[str]):
+        """Get logs to use, optionally compressed."""
+        if not (self.compress_logs and self.container_logs):
+            return self.container_logs
+
+        compressed = compress_logs_for_llm(
+            self.container_logs,
+            max_tokens=self.max_tokens,
+            max_lines=self.max_log_lines * len(self.container_logs),
+            focus_timestamp=self._get_focus_timestamp(),
+            deduplicate=True,
+            filter_noise=True,
+        )
+        if compressed.was_truncated:
+            lines.append(
+                f"*(Logs compressed: {compressed.total_lines} of "
+                f"{compressed.original_lines} lines, "
+                f"~{compressed.estimated_tokens} tokens)*\n"
+            )
+        return compressed.logs
+
+    def _format_container_entries(self, logs, lines: list[str]) -> None:
+        """Format log entries for a container."""
+        entries = logs.entries
+        if not self.compress_logs and len(entries) > self.max_log_lines:
+            half = self.max_log_lines // 2
+            entries = entries[:half] + entries[-half:]
+            lines.append(f"*(Showing {self.max_log_lines} of {len(logs.entries)} lines)*\n")
+
+        lines.append("```")
+        lines.extend(str(entry) for entry in entries)
+        lines.append("```")
+
     def _build_logs_section(self) -> str:
         """Build section for container logs."""
         lines = ["## Backend Container Logs"]
         lines.append("Logs collected from containers around the time of test failure:\n")
 
-        # Get focus timestamp from earliest failure
-        focus_timestamp = None
-        if self.report.failed_tests:
-            failure_times = [t.start_time for t in self.report.failed_tests if t.start_time]
-            if failure_times:
-                focus_timestamp = min(failure_times)
-
-        # Compress logs if enabled
-        if self.compress_logs and self.container_logs:
-            compressed = compress_logs_for_llm(
-                self.container_logs,
-                max_tokens=self.max_tokens,
-                max_lines=self.max_log_lines * len(self.container_logs),
-                focus_timestamp=focus_timestamp,
-                deduplicate=True,
-                filter_noise=True,
-            )
-            logs_to_use = compressed.logs
-
-            if compressed.was_truncated:
-                lines.append(
-                    f"*(Logs compressed: {compressed.total_lines} of "
-                    f"{compressed.original_lines} lines, "
-                    f"~{compressed.estimated_tokens} tokens)*\n"
-                )
-        else:
-            logs_to_use = self.container_logs
+        logs_to_use = self._get_logs_to_use(lines)
 
         for name, logs in logs_to_use.items():
             lines.append(f"### Container: {name}")
-
             if not logs.entries:
                 lines.append("*No logs available*")
                 continue
-
-            # Truncate if too many entries (fallback if compression disabled)
-            entries = logs.entries
-            if not self.compress_logs and len(entries) > self.max_log_lines:
-                half = self.max_log_lines // 2
-                entries = entries[:half] + entries[-half:]
-                lines.append(f"*(Showing {self.max_log_lines} of {len(logs.entries)} lines)*\n")
-
-            lines.append("```")
-            for entry in entries:
-                lines.append(str(entry))
-            lines.append("```")
+            self._format_container_entries(logs, lines)
 
         return "\n".join(lines)
 

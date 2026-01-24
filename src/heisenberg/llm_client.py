@@ -8,6 +8,12 @@ from dataclasses import dataclass, field
 import anthropic
 
 
+class LLMClientError(Exception):
+    """Exception raised for LLM client errors."""
+
+    pass
+
+
 @dataclass
 class LLMConfig:
     """Configuration for LLM client."""
@@ -125,4 +131,4 @@ class LLMClient:
             )
 
         except anthropic.APIError as e:
-            raise Exception(f"LLM API request failed: {e.message}") from e
+            raise LLMClientError(f"LLM API request failed: {e.message}") from e

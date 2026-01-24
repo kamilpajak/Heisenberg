@@ -12,6 +12,12 @@ import requests
 HEISENBERG_MARKER = "## Heisenberg Test Analysis"
 
 
+class GitHubClientError(Exception):
+    """Exception raised for GitHub client errors."""
+
+    pass
+
+
 @dataclass
 class GitHubContext:
     """Context information from GitHub Actions environment."""
@@ -130,7 +136,7 @@ class GitHubClient:
         )
 
         if response.status_code not in (200, 201):
-            raise Exception(
+            raise GitHubClientError(
                 f"Failed to post comment: {response.status_code} - "
                 f"{response.json().get('message', 'Unknown error')}"
             )
@@ -167,7 +173,7 @@ class GitHubClient:
         )
 
         if response.status_code != 200:
-            raise Exception(
+            raise GitHubClientError(
                 f"Failed to update comment: {response.status_code} - "
                 f"{response.json().get('message', 'Unknown error')}"
             )

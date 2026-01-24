@@ -123,6 +123,19 @@ def parse_playwright_report(report_path: Path) -> PlaywrightReport:
     )
 
 
+def _extract_failed_specs(
+    specs: list[dict[str, Any]], file: str, suite_title: str
+) -> list[FailedTest]:
+    """Extract failed tests from a list of specs."""
+    failed_tests = []
+    for spec in specs:
+        if not spec.get("ok", True):
+            failed_test = _parse_failed_spec(spec, file, suite_title)
+            if failed_test:
+                failed_tests.append(failed_test)
+    return failed_tests
+
+
 def _extract_failed_tests(suites: list[dict[str, Any]], parent_file: str = "") -> list[FailedTest]:
     """Recursively extract failed tests from suites."""
     failed_tests = []
@@ -132,30 +145,11 @@ def _extract_failed_tests(suites: list[dict[str, Any]], parent_file: str = "") -
         suite_title = suite.get("title", "")
 
         # Process specs in this suite
-        for spec in suite.get("specs", []):
-            if not spec.get("ok", True):
-                failed_test = _parse_failed_spec(spec, file, suite_title)
-                if failed_test:
-                    failed_tests.append(failed_test)
+        failed_tests.extend(_extract_failed_specs(suite.get("specs", []), file, suite_title))
 
         # Recursively process nested suites
         nested_suites = suite.get("suites", [])
-        if nested_suites:
-            # For nested suites, use the parent suite's title as the suite name
-            for nested_suite in nested_suites:
-                nested_file = nested_suite.get("file", file)
-                nested_title = nested_suite.get("title", suite_title)
-
-                for spec in nested_suite.get("specs", []):
-                    if not spec.get("ok", True):
-                        failed_test = _parse_failed_spec(spec, nested_file, nested_title)
-                        if failed_test:
-                            failed_tests.append(failed_test)
-
-                # Go deeper if needed
-                deeper_suites = nested_suite.get("suites", [])
-                if deeper_suites:
-                    failed_tests.extend(_extract_failed_tests(deeper_suites, nested_file))
+        failed_tests.extend(_extract_failed_tests(nested_suites, file))
 
     return failed_tests
 
