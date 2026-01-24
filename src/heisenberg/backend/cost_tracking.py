@@ -34,6 +34,10 @@ MODEL_PRICING: dict[str, dict[str, Decimal]] = {
         "output": Decimal("30.00"),
     },
     # Gemini models
+    "gemini-3-pro-preview": {
+        "input": Decimal("1.25"),
+        "output": Decimal("5.00"),
+    },
     "gemini-2.0-flash": {
         "input": Decimal("0.10"),
         "output": Decimal("0.40"),

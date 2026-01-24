@@ -19,7 +19,7 @@ class GeminiProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "gemini-2.0-flash",
+        model: str = "gemini-3-pro-preview",
         max_tokens: int = 4096,
     ) -> None:
         """

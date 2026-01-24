@@ -192,7 +192,7 @@ class GeminiCompatibleClient:
 
     def __init__(self, api_key: str, model: str | None = None):
         self.api_key = api_key
-        self.model = model or "gemini-2.0-flash"
+        self.model = model or "gemini-3-pro-preview"
 
     def analyze(self, prompt: str, system_prompt: str | None = None) -> LLMResponse:
         """Send analysis request to Gemini."""
