@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     # External Services
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
+    google_api_key: str | None = None
 
     # Server
     host: str = "0.0.0.0"

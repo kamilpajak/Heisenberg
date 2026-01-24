@@ -33,6 +33,19 @@ MODEL_PRICING: dict[str, dict[str, Decimal]] = {
         "input": Decimal("10.00"),
         "output": Decimal("30.00"),
     },
+    # Gemini models
+    "gemini-2.0-flash": {
+        "input": Decimal("0.10"),
+        "output": Decimal("0.40"),
+    },
+    "gemini-1.5-pro": {
+        "input": Decimal("1.25"),
+        "output": Decimal("5.00"),
+    },
+    "gemini-1.5-flash": {
+        "input": Decimal("0.075"),
+        "output": Decimal("0.30"),
+    },
 }
 
 
@@ -52,6 +65,10 @@ class CostCalculator:
     def supported_models(self) -> list[str]:
         """Get list of supported models."""
         return list(self._pricing.keys())
+
+    def get_supported_models(self) -> list[str]:
+        """Get list of supported models."""
+        return self.supported_models
 
     def calculate_cost(
         self,

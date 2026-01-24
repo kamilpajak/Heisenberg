@@ -31,7 +31,7 @@ AI-powered root cause analysis for Playwright test failures.
 |-------|----------|---------|-------------|
 | `report-path` | Yes | - | Path to Playwright JSON report file |
 | `api-key` | Yes | - | API key for LLM provider |
-| `provider` | No | `claude` | LLM provider (`claude` or `openai`) |
+| `provider` | No | `claude` | LLM provider (`claude`, `openai`, or `gemini`) |
 | `fail-on-flaky` | No | `false` | Fail workflow if flaky tests detected |
 | `model` | No | - | Specific model to use |
 | `container-logs` | No | - | Path to container logs for context |
@@ -80,6 +80,18 @@ jobs:
     api-key: ${{ secrets.OPENAI_API_KEY }}
     provider: openai
     model: gpt-4o
+```
+
+### With Gemini
+
+```yaml
+- name: Analyze Failures
+  uses: kamilpajak/heisenberg/action@v1
+  with:
+    report-path: test-results.json
+    api-key: ${{ secrets.GOOGLE_API_KEY }}
+    provider: gemini
+    model: gemini-2.0-flash
 ```
 
 ### Fail on Flaky Tests

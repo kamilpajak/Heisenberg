@@ -12,6 +12,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - LLM_PRIMARY_PROVIDER=${LLM_PRIMARY_PROVIDER:-claude}
       - LLM_FALLBACK_PROVIDER=${LLM_FALLBACK_PROVIDER:-}
       - DEBUG=${DEBUG:-false}

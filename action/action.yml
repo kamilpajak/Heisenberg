@@ -14,7 +14,7 @@ inputs:
     description: "API key for LLM provider (Anthropic or OpenAI)"
     required: true
   provider:
-    description: "LLM provider to use (claude or openai)"
+    description: "LLM provider to use (claude, openai, or gemini)"
     required: false
     default: "claude"
   fail-on-flaky:
@@ -63,6 +63,7 @@ runs:
       env:
         ANTHROPIC_API_KEY: ${{ inputs.provider == 'claude' && inputs.api-key || '' }}
         OPENAI_API_KEY: ${{ inputs.provider == 'openai' && inputs.api-key || '' }}
+        GOOGLE_API_KEY: ${{ inputs.provider == 'gemini' && inputs.api-key || '' }}
       run: |
         # Run heisenberg analysis
         ARGS="--report ${{ inputs.report-path }} --provider ${{ inputs.provider }}"
