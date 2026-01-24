@@ -147,6 +147,36 @@ heisenberg analyze --report report.json --docker-services api,db --ai-analysis
 heisenberg analyze --report report.json --output-format json
 ```
 
+### Fetching from GitHub Actions
+
+Analyze reports directly from GitHub Actions workflow runs:
+
+```bash
+# Fetch and analyze the latest failed run
+heisenberg fetch-github --repo owner/repo --ai-analysis
+
+# Fetch a specific run
+heisenberg fetch-github --repo owner/repo --run-id 1234567890
+
+# Save report locally instead of analyzing
+heisenberg fetch-github --repo owner/repo --output report.json
+
+# Use a different LLM provider
+heisenberg fetch-github --repo owner/repo --ai-analysis --provider openai
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--repo, -r` | Repository in `owner/repo` format (required) |
+| `--token, -t` | GitHub token (or set `GITHUB_TOKEN` env) |
+| `--run-id` | Specific workflow run ID (default: latest failed) |
+| `--output, -o` | Save report to file instead of analyzing |
+| `--artifact-name` | Artifact name pattern (default: `playwright`) |
+| `--ai-analysis, -a` | Enable AI analysis |
+| `--provider, -p` | LLM provider: `claude`, `openai`, `gemini` |
+
 ## Inputs
 
 | Input | Description | Required | Default |
@@ -211,6 +241,16 @@ HIGH (85%) - Strong correlation between database errors and test failure timing.
 4. **Analyze** - Claude AI examines all evidence to identify the root cause
 5. **Report** - A formatted analysis is posted as a PR comment
 
+## API Documentation
+
+Heisenberg provides a REST API for programmatic access. See [docs/API.md](docs/API.md) for:
+
+- Authentication with API keys
+- Health check endpoints
+- Analysis submission
+- Feedback collection
+- Usage tracking
+
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -241,8 +281,12 @@ MIT - see [LICENSE](LICENSE) for details.
 
 ## Roadmap
 
+- [x] OpenAI GPT-4 support as alternative to Claude
+- [x] Google Gemini support
+- [x] GitHub Actions artifact fetching (`fetch-github` command)
+- [x] REST API backend with usage tracking
 - [ ] Support for more test frameworks (Jest, Cypress, Selenium)
-- [ ] OpenAI GPT-4 support as alternative to Claude
 - [ ] Historical analysis dashboard
 - [ ] Pattern detection across multiple failures
+- [ ] Kubernetes log collection
 - [ ] Slack/Discord notifications
