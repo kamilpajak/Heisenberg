@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
 from heisenberg.backend.health import check_database_health
-from heisenberg.backend.routers import analyze
+from heisenberg.backend.routers import analyze, feedback, tasks, usage
 from heisenberg.backend.schemas import (
     DatabaseHealthStatus,
     DetailedHealthResponse,
@@ -45,6 +45,9 @@ app = FastAPI(
 
 # Include routers
 app.include_router(analyze.router, prefix="/api/v1")
+app.include_router(feedback.router, prefix="/api/v1")
+app.include_router(usage.router, prefix="/api/v1")
+app.include_router(tasks.router, prefix="/api/v1")
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
