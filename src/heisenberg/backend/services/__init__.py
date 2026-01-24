@@ -15,6 +15,33 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
+def _get_api_keys(
+    anthropic_api_key: str | None = None,
+    openai_api_key: str | None = None,
+) -> dict[str, str | None]:
+    """Get API keys from arguments or environment."""
+    return {
+        "claude": anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY"),
+        "openai": openai_api_key or os.environ.get("OPENAI_API_KEY"),
+    }
+
+
+def _create_single_provider(provider_name: str, api_keys: dict[str, str | None]):
+    """Create a single LLM provider.
+
+    Raises:
+        ValueError: If provider is unknown or API key is missing.
+    """
+    if provider_name not in api_keys:
+        raise ValueError(f"Unknown provider: {provider_name}")
+
+    api_key = api_keys[provider_name]
+    if not api_key:
+        raise ValueError(f"API key required for {provider_name} provider")
+
+    return create_provider(provider_name, api_key=api_key)
+
+
 def create_llm_service(
     primary_provider: str,
     fallback_provider: str | None = None,
@@ -36,36 +63,12 @@ def create_llm_service(
     Raises:
         ValueError: If required API key is missing.
     """
-    providers = []
+    api_keys = _get_api_keys(anthropic_api_key, openai_api_key)
 
-    # Get API keys from environment if not provided
-    anthropic_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
-    openai_key = openai_api_key or os.environ.get("OPENAI_API_KEY")
+    providers = [_create_single_provider(primary_provider, api_keys)]
 
-    # Create primary provider
-    if primary_provider == "claude":
-        if not anthropic_key:
-            raise ValueError("Anthropic API key required for Claude provider")
-        providers.append(create_provider("claude", api_key=anthropic_key))
-    elif primary_provider == "openai":
-        if not openai_key:
-            raise ValueError("OpenAI API key required for OpenAI provider")
-        providers.append(create_provider("openai", api_key=openai_key))
-    else:
-        raise ValueError(f"Unknown provider: {primary_provider}")
-
-    # Create fallback provider if specified
     if fallback_provider:
-        if fallback_provider == "claude":
-            if not anthropic_key:
-                raise ValueError("Anthropic API key required for Claude fallback")
-            providers.append(create_provider("claude", api_key=anthropic_key))
-        elif fallback_provider == "openai":
-            if not openai_key:
-                raise ValueError("OpenAI API key required for OpenAI fallback")
-            providers.append(create_provider("openai", api_key=openai_key))
-        else:
-            raise ValueError(f"Unknown fallback provider: {fallback_provider}")
+        providers.append(_create_single_provider(fallback_provider, api_keys))
 
     return LLMRouter(providers=providers)
 

@@ -257,6 +257,30 @@ class GitHubArtifactClient:
         url = f"{self.BASE_URL}/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/zip"
         return await self._download(url)
 
+    @staticmethod
+    def _is_playwright_report(data: Any) -> bool:
+        """Check if data looks like a Playwright report."""
+        return isinstance(data, dict) and ("suites" in data or "stats" in data)
+
+    @staticmethod
+    def _try_parse_json_file(zf: zipfile.ZipFile, filename: str) -> dict | None:
+        """Try to parse a JSON file and check if it's a Playwright report."""
+        try:
+            content = zf.read(filename)
+            data = json.loads(content)
+            if GitHubArtifactClient._is_playwright_report(data):
+                return data
+        except (json.JSONDecodeError, KeyError):
+            pass
+        return None
+
+    @staticmethod
+    def _get_prioritized_json_files(json_files: list[str]) -> list[str]:
+        """Get JSON files ordered by priority (report/results files first)."""
+        priority_files = [f for f in json_files if "report" in f.lower() or "results" in f.lower()]
+        other_files = [f for f in json_files if f not in priority_files]
+        return priority_files + other_files
+
     def extract_playwright_report(self, zip_content: bytes) -> dict | None:
         """Extract Playwright JSON report from a zip file.
 
@@ -272,44 +296,16 @@ class GitHubArtifactClient:
         try:
             zip_buffer = io.BytesIO(zip_content)
             with zipfile.ZipFile(zip_buffer, "r") as zf:
-                # Find all JSON files
                 json_files = [name for name in zf.namelist() if name.endswith(".json")]
-
                 if not json_files:
                     return None
 
-                # Prioritize files with 'report' or 'results' in name
-                priority_files = [
-                    f for f in json_files if "report" in f.lower() or "results" in f.lower()
-                ]
-
-                files_to_check = priority_files if priority_files else json_files
-
-                for json_file in files_to_check:
-                    try:
-                        content = zf.read(json_file)
-                        data = json.loads(content)
-
-                        # Check if it looks like a Playwright report
-                        if isinstance(data, dict) and ("suites" in data or "stats" in data):
-                            return data
-                    except (json.JSONDecodeError, KeyError):
-                        continue
-
-                # If no Playwright report found, try all JSON files
-                for json_file in json_files:
-                    if json_file in files_to_check:
-                        continue
-                    try:
-                        content = zf.read(json_file)
-                        data = json.loads(content)
-                        if isinstance(data, dict) and ("suites" in data or "stats" in data):
-                            return data
-                    except (json.JSONDecodeError, KeyError):
-                        continue
+                for json_file in self._get_prioritized_json_files(json_files):
+                    report = self._try_parse_json_file(zf, json_file)
+                    if report:
+                        return report
 
                 return None
-
         except zipfile.BadZipFile:
             return None
 

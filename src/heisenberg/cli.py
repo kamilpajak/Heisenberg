@@ -147,17 +147,103 @@ def main() -> int:
     return 1
 
 
+def _load_container_logs(args, result):
+    """Load container logs from file if provided."""
+    container_logs = result.container_logs
+    container_logs_path = getattr(args, "container_logs", None)
+
+    if not (container_logs_path and container_logs_path.exists()):
+        return container_logs
+
+    try:
+        container_logs_content = container_logs_path.read_text()
+        if container_logs is None:
+            container_logs = {}
+        container_logs["logs_file"] = container_logs_content
+    except Exception as e:
+        print(f"Warning: Failed to read container logs: {e}", file=sys.stderr)
+
+    return container_logs
+
+
+def _run_ai_analysis(args, result, container_logs):
+    """Run AI analysis if requested and there are failures."""
+    if not (getattr(args, "ai_analysis", False) and result.has_failures):
+        return None
+
+    try:
+        return analyze_with_ai(
+            report=result.report,
+            container_logs=container_logs,
+            provider=getattr(args, "provider", "claude"),
+            model=getattr(args, "model", None),
+        )
+    except Exception as e:
+        print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
+        return None
+
+
+def _format_json_output(result, ai_result) -> str:
+    """Format result as JSON."""
+    flaky_detected = any(
+        getattr(t, "retry_count", 0) > 0 or t.status == "flaky" for t in result.report.failed_tests
+    )
+    data = {
+        "has_failures": result.has_failures,
+        "flaky_detected": flaky_detected,
+        "summary": result.summary,
+        "failed_tests_count": len(result.report.failed_tests),
+        "failed_tests": [
+            {"name": t.full_name, "file": t.file, "status": t.status, "error": t.error_summary}
+            for t in result.report.failed_tests
+        ],
+    }
+    if ai_result:
+        data["ai_diagnosis"] = {
+            "root_cause": ai_result.diagnosis.root_cause,
+            "evidence": ai_result.diagnosis.evidence,
+            "suggested_fix": ai_result.diagnosis.suggested_fix,
+            "confidence": ai_result.diagnosis.confidence.value,
+            "tokens_used": ai_result.total_tokens,
+            "estimated_cost": ai_result.estimated_cost,
+        }
+    return json.dumps(data, indent=2)
+
+
+def _format_output(args, result, ai_result) -> str:
+    """Format output based on requested format."""
+    if args.output_format == "github-comment":
+        output = result.to_markdown()
+        if ai_result:
+            output += "\n\n" + ai_result.to_markdown()
+        return output
+    elif args.output_format == "json":
+        return _format_json_output(result, ai_result)
+    return _format_text_output(result, ai_result)
+
+
+def _post_github_comment(args, result):
+    """Post result to GitHub if requested."""
+    if not (args.post_comment and args.output_format == "github-comment"):
+        return
+
+    try:
+        response = post_pr_comment(result.to_markdown())
+        if response:
+            print(f"\nComment posted: {response.get('html_url', 'success')}", file=sys.stderr)
+    except Exception as e:
+        print(f"Warning: Failed to post comment: {e}", file=sys.stderr)
+
+
 def run_analyze(args: argparse.Namespace) -> int:
     """Run the analyze command."""
-    report_path = args.report
-
-    if not report_path.exists():
-        print(f"Error: Report file not found: {report_path}", file=sys.stderr)
+    if not args.report.exists():
+        print(f"Error: Report file not found: {args.report}", file=sys.stderr)
         return 1
 
     try:
         result = run_analysis(
-            report_path=report_path,
+            report_path=args.report,
             docker_services=args.docker_services,
             log_window_seconds=args.log_window,
         )
@@ -165,86 +251,12 @@ def run_analyze(args: argparse.Namespace) -> int:
         print(f"Error analyzing report: {e}", file=sys.stderr)
         return 1
 
-    # Load container logs from file if provided
-    container_logs = result.container_logs
-    container_logs_path = getattr(args, "container_logs", None)
-    if container_logs_path and container_logs_path.exists():
-        try:
-            container_logs_content = container_logs_path.read_text()
-            # Add file-based logs to container_logs dict
-            if container_logs is None:
-                container_logs = {}
-            container_logs["logs_file"] = container_logs_content
-        except Exception as e:
-            print(f"Warning: Failed to read container logs: {e}", file=sys.stderr)
+    container_logs = _load_container_logs(args, result)
+    ai_result = _run_ai_analysis(args, result, container_logs)
 
-    # Run AI analysis if requested and there are failures
-    ai_result = None
-    if getattr(args, "ai_analysis", False) and result.has_failures:
-        try:
-            ai_result = analyze_with_ai(
-                report=result.report,
-                container_logs=container_logs,
-                provider=getattr(args, "provider", "claude"),
-                model=getattr(args, "model", None),
-            )
-        except Exception as e:
-            print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
+    print(_format_output(args, result, ai_result))
+    _post_github_comment(args, result)
 
-    # Format output
-    if args.output_format == "github-comment":
-        output = result.to_markdown()
-        if ai_result:
-            output += "\n\n" + ai_result.to_markdown()
-    elif args.output_format == "json":
-        # Detect flaky tests (tests with retries or intermittent failures)
-        flaky_detected = any(
-            getattr(t, "retry_count", 0) > 0 or t.status == "flaky"
-            for t in result.report.failed_tests
-        )
-        data = {
-            "has_failures": result.has_failures,
-            "flaky_detected": flaky_detected,
-            "summary": result.summary,
-            "failed_tests_count": len(result.report.failed_tests),
-            "failed_tests": [
-                {
-                    "name": t.full_name,
-                    "file": t.file,
-                    "status": t.status,
-                    "error": t.error_summary,
-                }
-                for t in result.report.failed_tests
-            ],
-        }
-        if ai_result:
-            data["ai_diagnosis"] = {
-                "root_cause": ai_result.diagnosis.root_cause,
-                "evidence": ai_result.diagnosis.evidence,
-                "suggested_fix": ai_result.diagnosis.suggested_fix,
-                "confidence": ai_result.diagnosis.confidence.value,
-                "tokens_used": ai_result.total_tokens,
-                "estimated_cost": ai_result.estimated_cost,
-            }
-        output = json.dumps(data, indent=2)
-    else:
-        output = _format_text_output(result, ai_result)
-
-    print(output)
-
-    # Post to GitHub if requested
-    if args.post_comment and args.output_format == "github-comment":
-        try:
-            response = post_pr_comment(result.to_markdown())
-            if response:
-                print(
-                    f"\nComment posted: {response.get('html_url', 'success')}",
-                    file=sys.stderr,
-                )
-        except Exception as e:
-            print(f"Warning: Failed to post comment: {e}", file=sys.stderr)
-
-    # Return non-zero if there are failures
     return 1 if result.has_failures else 0
 
 
@@ -307,6 +319,35 @@ def _format_text_output(result, ai_result=None) -> str:
     return "\n".join(lines)
 
 
+async def _fetch_report_from_run(client, owner: str, repo: str, run_id: int, artifact_name: str):
+    """Fetch Playwright report from a specific workflow run."""
+    artifacts = await client.get_artifacts(owner, repo, run_id=run_id)
+    matching = [a for a in artifacts if artifact_name.lower() in a.name.lower()]
+
+    if not matching:
+        return None
+
+    zip_data = await client.download_artifact(owner, repo, matching[0].id)
+    return client.extract_playwright_report(zip_data)
+
+
+def _analyze_report_data(report_data: dict, args) -> int:
+    """Analyze fetched report data and print results."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(report_data, f)
+        temp_path = Path(f.name)
+
+    try:
+        result = run_analysis(report_path=temp_path)
+        ai_result = _run_ai_analysis(args, result, None)
+        print(_format_text_output(result, ai_result))
+        return 1 if result.has_failures else 0
+    finally:
+        temp_path.unlink()
+
+
 def run_fetch_github(args: argparse.Namespace) -> int:
     """Run the fetch-github command."""
     import asyncio
@@ -314,13 +355,11 @@ def run_fetch_github(args: argparse.Namespace) -> int:
 
     from heisenberg.github_artifacts import GitHubAPIError, GitHubArtifactClient
 
-    # Get token from args or environment
     token = args.token or os.environ.get("GITHUB_TOKEN")
     if not token:
         print("Error: GitHub token required. Use --token or set GITHUB_TOKEN", file=sys.stderr)
         return 1
 
-    # Parse owner/repo
     repo_parts = args.repo.split("/")
     if len(repo_parts) != 2:
         print("Error: Invalid repo format. Use owner/repo", file=sys.stderr)
@@ -328,76 +367,38 @@ def run_fetch_github(args: argparse.Namespace) -> int:
 
     owner, repo = repo_parts
 
-    async def fetch_and_analyze():
+    async def fetch_report():
         client = GitHubArtifactClient(token=token)
 
-        try:
-            if args.run_id:
-                # Fetch specific run
-                artifacts = await client.get_artifacts(owner, repo, run_id=args.run_id)
-                matching = [a for a in artifacts if args.artifact_name.lower() in a.name.lower()]
+        if args.run_id:
+            return await _fetch_report_from_run(
+                client, owner, repo, args.run_id, args.artifact_name
+            )
+        return await client.fetch_latest_report(
+            owner, repo, artifact_name_pattern=args.artifact_name
+        )
 
-                if not matching:
-                    print(f"No artifacts matching '{args.artifact_name}' found", file=sys.stderr)
-                    return 1
+    try:
+        report_data = asyncio.run(fetch_report())
+    except GitHubAPIError as e:
+        print(f"GitHub API error: {e}", file=sys.stderr)
+        return 1
 
-                zip_data = await client.download_artifact(owner, repo, matching[0].id)
-                report_data = client.extract_playwright_report(zip_data)
-            else:
-                # Fetch latest failed run
-                report_data = await client.fetch_latest_report(
-                    owner,
-                    repo,
-                    artifact_name_pattern=args.artifact_name,
-                )
+    if not report_data:
+        msg = (
+            f"No artifacts matching '{args.artifact_name}' found"
+            if args.run_id
+            else "No Playwright report found"
+        )
+        print(msg, file=sys.stderr)
+        return 1
 
-            if not report_data:
-                print("No Playwright report found in artifacts", file=sys.stderr)
-                return 1
+    if args.output:
+        args.output.write_text(json.dumps(report_data, indent=2))
+        print(f"Report saved to {args.output}")
+        return 0
 
-            # Save to file if requested
-            if args.output:
-                args.output.write_text(json.dumps(report_data, indent=2))
-                print(f"Report saved to {args.output}")
-                return 0
-
-            # Otherwise, analyze
-
-            # Create a temp file for the report
-            import tempfile
-
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-                json.dump(report_data, f)
-                temp_path = Path(f.name)
-
-            try:
-                from heisenberg.analyzer import run_analysis
-
-                result = run_analysis(report_path=temp_path)
-
-                # Run AI analysis if requested
-                ai_result = None
-                if getattr(args, "ai_analysis", False) and result.has_failures:
-                    try:
-                        ai_result = analyze_with_ai(
-                            report=result.report,
-                            provider=getattr(args, "provider", "claude"),
-                        )
-                    except Exception as e:
-                        print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
-
-                # Print results
-                print(_format_text_output(result, ai_result))
-                return 1 if result.has_failures else 0
-
-            finally:
-                temp_path.unlink()
-
-        except GitHubAPIError as e:
-            print(f"GitHub API error: {e}", file=sys.stderr)
-            return 1
-
-    return asyncio.run(fetch_and_analyze())
+    return _analyze_report_data(report_data, args)
 
 
 if __name__ == "__main__":
