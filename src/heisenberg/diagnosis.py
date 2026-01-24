@@ -83,8 +83,8 @@ def _extract_evidence(response: str) -> list[str]:
 
 def _extract_confidence(response: str) -> tuple[ConfidenceLevel, str | None]:
     """Extract confidence level and explanation from response."""
-    # Look for confidence section
-    confidence_pattern = r"##\s*Confidence\s*(?:Score|Level)?\s*\n(.+?)(?=##|$)"
+    # Look for confidence section - capture everything until next ## or end
+    confidence_pattern = r"##\s*Confidence\s*(?:Score|Level)?\s*\n((?:(?!##).)+)"
     match = re.search(confidence_pattern, response, re.DOTALL | re.IGNORECASE)
 
     if not match:
