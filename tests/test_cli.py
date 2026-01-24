@@ -8,10 +8,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from heisenberg.cli import (
+    _analyze_report_data,
+    _fetch_report_from_run,
     _format_ai_diagnosis_section,
     _format_container_logs_section,
     _format_failed_tests_section,
+    _load_container_logs,
+    _run_ai_analysis,
     run_analyze,
+    run_fetch_github,
 )
 
 
@@ -354,6 +359,144 @@ class TestCliAIAnalysis:
         data = json.loads(captured.out)
         assert "ai_diagnosis" in data
         assert data["ai_diagnosis"]["confidence"] == "HIGH"
+
+
+class TestFetchGitHubHelpers:
+    """Test suite for fetch-github helper functions."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_report_from_run_returns_none_for_no_matching_artifacts(self):
+        """Should return None when no matching artifacts found."""
+        mock_client = MagicMock()
+        mock_client.get_artifacts = MagicMock(return_value=[])
+        mock_client.get_artifacts.return_value = []
+
+        # Make it awaitable
+        async def mock_get_artifacts(*args, **kwargs):
+            return []
+
+        mock_client.get_artifacts = mock_get_artifacts
+
+        result = await _fetch_report_from_run(mock_client, "owner", "repo", 123, "playwright")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_fetch_report_from_run_downloads_matching_artifact(self):
+        """Should download artifact when matching name found."""
+        mock_artifact = MagicMock()
+        mock_artifact.name = "playwright-report"
+        mock_artifact.id = 456
+
+        mock_client = MagicMock()
+
+        async def mock_get_artifacts(*args, **kwargs):
+            return [mock_artifact]
+
+        async def mock_download(*args, **kwargs):
+            return b"fake zip data"
+
+        mock_client.get_artifacts = mock_get_artifacts
+        mock_client.download_artifact = mock_download
+        mock_client.extract_playwright_report = MagicMock(return_value={"suites": []})
+
+        result = await _fetch_report_from_run(mock_client, "owner", "repo", 123, "playwright")
+
+        assert result == {"suites": []}
+
+    def test_analyze_report_data_returns_exit_code(self, tmp_path):
+        """Should return exit code based on test failures."""
+        report_data = {
+            "suites": [],
+            "stats": {"expected": 5, "unexpected": 0, "flaky": 0, "skipped": 0},
+        }
+        args = MagicMock()
+        args.ai_analysis = False
+
+        result = _analyze_report_data(report_data, args)
+
+        assert result == 0  # No failures
+
+    def test_run_fetch_github_fails_without_token(self, monkeypatch):
+        """Should fail when no token provided."""
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+        args = MagicMock()
+        args.token = None
+        args.repo = "owner/repo"
+
+        result = run_fetch_github(args)
+
+        assert result == 1
+
+    def test_run_fetch_github_fails_with_invalid_repo_format(self, monkeypatch):
+        """Should fail when repo format is invalid."""
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        args = MagicMock()
+        args.token = None
+        args.repo = "invalid-format"
+
+        result = run_fetch_github(args)
+
+        assert result == 1
+
+
+class TestLoadContainerLogs:
+    """Test suite for _load_container_logs helper."""
+
+    def test_returns_original_logs_when_no_path_provided(self):
+        """Should return original logs when no container_logs path."""
+        args = MagicMock()
+        args.container_logs = None
+
+        result_mock = MagicMock()
+        result_mock.container_logs = {"api": "logs"}
+
+        result = _load_container_logs(args, result_mock)
+
+        assert result == {"api": "logs"}
+
+    def test_adds_file_logs_when_path_exists(self, tmp_path):
+        """Should add logs from file when path exists."""
+        log_file = tmp_path / "logs.txt"
+        log_file.write_text("file log content")
+
+        args = MagicMock()
+        args.container_logs = log_file
+
+        result_mock = MagicMock()
+        result_mock.container_logs = None
+
+        result = _load_container_logs(args, result_mock)
+
+        assert result["logs_file"] == "file log content"
+
+
+class TestRunAIAnalysis:
+    """Test suite for _run_ai_analysis helper."""
+
+    def test_returns_none_when_ai_analysis_disabled(self):
+        """Should return None when ai_analysis is False."""
+        args = MagicMock()
+        args.ai_analysis = False
+
+        result_mock = MagicMock()
+        result_mock.has_failures = True
+
+        result = _run_ai_analysis(args, result_mock, None)
+
+        assert result is None
+
+    def test_returns_none_when_no_failures(self):
+        """Should return None when no test failures."""
+        args = MagicMock()
+        args.ai_analysis = True
+
+        result_mock = MagicMock()
+        result_mock.has_failures = False
+
+        result = _run_ai_analysis(args, result_mock, None)
+
+        assert result is None
 
 
 @pytest.fixture
