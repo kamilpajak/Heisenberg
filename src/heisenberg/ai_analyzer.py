@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from heisenberg.diagnosis import Diagnosis, parse_diagnosis
 from heisenberg.docker_logs import ContainerLogs
-from heisenberg.llm_client import LLMClient
+from heisenberg.llm_client import LLMClient, LLMResponse
 from heisenberg.playwright_parser import PlaywrightReport
 from heisenberg.prompt_builder import build_analysis_prompt
 
@@ -78,6 +78,8 @@ class AIAnalyzer:
         report: PlaywrightReport,
         container_logs: dict[str, ContainerLogs] | None = None,
         api_key: str | None = None,
+        provider: str = "claude",
+        model: str | None = None,
     ):
         """
         Initialize AI analyzer.
@@ -85,11 +87,15 @@ class AIAnalyzer:
         Args:
             report: Playwright test report.
             container_logs: Optional container logs for context.
-            api_key: Anthropic API key. If None, uses from_environment().
+            api_key: API key. If None, uses from_environment().
+            provider: LLM provider (claude, openai, gemini).
+            model: Specific model to use.
         """
         self.report = report
         self.container_logs = container_logs or {}
         self.api_key = api_key
+        self.provider = provider
+        self.model = model
 
     def analyze(self) -> AIAnalysisResult:
         """
@@ -104,11 +110,8 @@ class AIAnalyzer:
             container_logs=self.container_logs,
         )
 
-        # Get LLM client
-        if self.api_key:
-            llm = LLMClient(api_key=self.api_key)
-        else:
-            llm = LLMClient.from_environment()
+        # Get LLM client based on provider
+        llm = self._get_llm_client()
 
         # Call LLM
         response = llm.analyze(user_prompt, system_prompt=system_prompt)
@@ -122,26 +125,138 @@ class AIAnalyzer:
             output_tokens=response.output_tokens,
         )
 
+    def _get_llm_client(self):
+        """Get appropriate LLM client based on provider."""
+        import os
+
+        from heisenberg.llm_client import LLMConfig
+
+        # Use appropriate client based on provider
+        if self.provider == "claude":
+            config = LLMConfig()
+            if self.model:
+                config.model = self.model
+            # Use from_environment if no api_key provided (for mockability)
+            if self.api_key:
+                return LLMClient(api_key=self.api_key, config=config)
+            else:
+                return LLMClient.from_environment(config=config)
+        elif self.provider == "openai":
+            api_key = self.api_key or os.environ.get("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY environment variable is not set.")
+            return OpenAICompatibleClient(api_key=api_key, model=self.model)
+        elif self.provider == "gemini":
+            api_key = self.api_key or os.environ.get("GOOGLE_API_KEY")
+            if not api_key:
+                raise ValueError("GOOGLE_API_KEY environment variable is not set.")
+            return GeminiCompatibleClient(api_key=api_key, model=self.model)
+        else:
+            raise ValueError(f"Unknown provider: {self.provider}")
+
+
+class OpenAICompatibleClient:
+    """OpenAI-compatible LLM client for CLI."""
+
+    def __init__(self, api_key: str, model: str | None = None):
+        self.api_key = api_key
+        self.model = model or "gpt-4o"
+
+    def analyze(self, prompt: str, system_prompt: str | None = None) -> LLMResponse:
+        """Send analysis request to OpenAI."""
+        from openai import OpenAI
+
+        client = OpenAI(api_key=self.api_key)
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=4096,
+            temperature=0.3,
+        )
+
+        return LLMResponse(
+            content=response.choices[0].message.content or "",
+            input_tokens=response.usage.prompt_tokens if response.usage else 0,
+            output_tokens=response.usage.completion_tokens if response.usage else 0,
+        )
+
+
+class GeminiCompatibleClient:
+    """Gemini-compatible LLM client for CLI."""
+
+    def __init__(self, api_key: str, model: str | None = None):
+        self.api_key = api_key
+        self.model = model or "gemini-2.0-flash"
+
+    def analyze(self, prompt: str, system_prompt: str | None = None) -> LLMResponse:
+        """Send analysis request to Gemini."""
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=self.api_key)
+
+        config = types.GenerateContentConfig(
+            system_instruction=system_prompt or "",
+            max_output_tokens=4096,
+        )
+
+        response = client.models.generate_content(
+            model=self.model,
+            contents=prompt,
+            config=config,
+        )
+
+        input_tokens = 0
+        output_tokens = 0
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0) or 0
+            output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0) or 0
+
+        return LLMResponse(
+            content=response.text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
 
 def analyze_with_ai(
     report: PlaywrightReport,
-    container_logs: dict[str, ContainerLogs] | None = None,
+    container_logs: dict[str, ContainerLogs] | str | None = None,
     api_key: str | None = None,
+    provider: str = "claude",
+    model: str | None = None,
 ) -> AIAnalysisResult:
     """
     Convenience function for AI analysis.
 
     Args:
         report: Playwright test report.
-        container_logs: Optional container logs.
+        container_logs: Optional container logs (dict or string).
         api_key: Optional API key. If None, reads from environment.
+        provider: LLM provider to use (claude, openai, gemini).
+        model: Specific model to use (provider-dependent).
 
     Returns:
         AIAnalysisResult with diagnosis.
     """
+    # Convert string logs to dict format if needed
+    logs_dict = None
+    if isinstance(container_logs, str):
+        logs_dict = {"logs": type("Logs", (), {"entries": container_logs.split("\n")})()}
+    elif container_logs:
+        logs_dict = container_logs
+
     analyzer = AIAnalyzer(
         report=report,
-        container_logs=container_logs,
+        container_logs=logs_dict,
         api_key=api_key,
+        provider=provider,
+        model=model,
     )
     return analyzer.analyze()

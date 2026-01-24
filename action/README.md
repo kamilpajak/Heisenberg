@@ -5,9 +5,10 @@ AI-powered root cause analysis for Playwright test failures.
 ## Features
 
 - Analyzes Playwright JSON reports to identify failed tests
-- Uses AI (Claude or OpenAI) to diagnose root causes
+- Uses AI (Claude, OpenAI, or Gemini) to diagnose root causes
 - Detects flaky test patterns
 - Provides confidence-scored diagnoses
+- Posts analysis as PR comments
 - Supports container logs for additional context
 
 ## Usage
@@ -32,9 +33,11 @@ AI-powered root cause analysis for Playwright test failures.
 | `report-path` | Yes | - | Path to Playwright JSON report file |
 | `api-key` | Yes | - | API key for LLM provider |
 | `provider` | No | `claude` | LLM provider (`claude`, `openai`, or `gemini`) |
-| `fail-on-flaky` | No | `false` | Fail workflow if flaky tests detected |
 | `model` | No | - | Specific model to use |
+| `fail-on-flaky` | No | `false` | Fail workflow if flaky tests detected |
 | `container-logs` | No | - | Path to container logs for context |
+| `post-comment` | No | `false` | Post analysis as PR comment |
+| `github-token` | No | - | GitHub token for PR comments |
 
 ## Outputs
 
@@ -94,6 +97,18 @@ jobs:
     model: gemini-2.0-flash
 ```
 
+### Post PR Comment
+
+```yaml
+- name: Analyze Failures
+  uses: kamilpajak/heisenberg/action@v1
+  with:
+    report-path: test-results.json
+    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    post-comment: true
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
 ### Fail on Flaky Tests
 
 ```yaml
@@ -108,6 +123,10 @@ jobs:
 ### With Container Logs
 
 ```yaml
+- name: Save Docker Logs
+  if: failure()
+  run: docker-compose logs > docker-logs.txt
+
 - name: Analyze Failures
   uses: kamilpajak/heisenberg/action@v1
   with:
@@ -126,20 +145,53 @@ jobs:
     report-path: test-results.json
     api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
-- name: Comment on PR
-  if: github.event_name == 'pull_request'
-  uses: actions/github-script@v7
-  with:
-    script: |
-      const analysis = `${{ steps.heisenberg.outputs.analysis }}`;
-      const failedCount = '${{ steps.heisenberg.outputs.failed-tests-count }}';
+- name: Check Results
+  run: |
+    echo "Failed tests: ${{ steps.heisenberg.outputs.failed-tests-count }}"
+    echo "Flaky detected: ${{ steps.heisenberg.outputs.flaky-detected }}"
+```
 
-      github.rest.issues.createComment({
-        issue_number: context.issue.number,
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        body: `## Test Analysis\n\n**Failed Tests:** ${failedCount}\n\n\`\`\`json\n${analysis}\n\`\`\``
-      });
+## Complete Workflow Example
+
+```yaml
+name: E2E Tests with AI Analysis
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Playwright Tests
+        run: npx playwright test --reporter=json --output=test-results.json
+        continue-on-error: true
+
+      - name: Analyze with Heisenberg
+        if: always()
+        uses: kamilpajak/heisenberg/action@v1
+        with:
+          report-path: test-results.json
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          provider: claude
+          post-comment: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-flaky: true
 ```
 
 ## License

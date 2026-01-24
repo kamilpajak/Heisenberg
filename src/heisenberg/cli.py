@@ -62,7 +62,28 @@ def main() -> int:
         "--ai-analysis",
         "-a",
         action="store_true",
-        help="Enable AI-powered root cause analysis (requires ANTHROPIC_API_KEY)",
+        help="Enable AI-powered root cause analysis (requires API key)",
+    )
+    analyze_parser.add_argument(
+        "--provider",
+        "-p",
+        choices=["claude", "openai", "gemini"],
+        default="claude",
+        help="LLM provider to use (default: claude)",
+    )
+    analyze_parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        default=None,
+        help="Specific model to use (provider-dependent)",
+    )
+    analyze_parser.add_argument(
+        "--container-logs",
+        "-l",
+        type=Path,
+        default=None,
+        help="Path to container logs file for additional context",
     )
 
     args = parser.parse_args()
@@ -91,13 +112,28 @@ def run_analyze(args: argparse.Namespace) -> int:
         print(f"Error analyzing report: {e}", file=sys.stderr)
         return 1
 
+    # Load container logs from file if provided
+    container_logs = result.container_logs
+    container_logs_path = getattr(args, "container_logs", None)
+    if container_logs_path and container_logs_path.exists():
+        try:
+            container_logs_content = container_logs_path.read_text()
+            # Add file-based logs to container_logs dict
+            if container_logs is None:
+                container_logs = {}
+            container_logs["logs_file"] = container_logs_content
+        except Exception as e:
+            print(f"Warning: Failed to read container logs: {e}", file=sys.stderr)
+
     # Run AI analysis if requested and there are failures
     ai_result = None
-    if args.ai_analysis and result.has_failures:
+    if getattr(args, "ai_analysis", False) and result.has_failures:
         try:
             ai_result = analyze_with_ai(
                 report=result.report,
-                container_logs=result.container_logs,
+                container_logs=container_logs,
+                provider=getattr(args, "provider", "claude"),
+                model=getattr(args, "model", None),
             )
         except Exception as e:
             print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
@@ -108,8 +144,14 @@ def run_analyze(args: argparse.Namespace) -> int:
         if ai_result:
             output += "\n\n" + ai_result.to_markdown()
     elif args.output_format == "json":
+        # Detect flaky tests (tests with retries or intermittent failures)
+        flaky_detected = any(
+            getattr(t, "retry_count", 0) > 0 or t.status == "flaky"
+            for t in result.report.failed_tests
+        )
         data = {
             "has_failures": result.has_failures,
+            "flaky_detected": flaky_detected,
             "summary": result.summary,
             "failed_tests_count": len(result.report.failed_tests),
             "failed_tests": [

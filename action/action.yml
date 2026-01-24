@@ -11,7 +11,7 @@ inputs:
     description: "Path to Playwright JSON report file"
     required: true
   api-key:
-    description: "API key for LLM provider (Anthropic or OpenAI)"
+    description: "API key for LLM provider (Anthropic, OpenAI, or Google)"
     required: true
   provider:
     description: "LLM provider to use (claude, openai, or gemini)"
@@ -27,6 +27,14 @@ inputs:
     default: ""
   container-logs:
     description: "Path to container logs file for additional context"
+    required: false
+    default: ""
+  post-comment:
+    description: "Post analysis result as PR comment"
+    required: false
+    default: "false"
+  github-token:
+    description: "GitHub token for posting PR comments (required if post-comment is true)"
     required: false
     default: ""
 
@@ -64,24 +72,39 @@ runs:
         ANTHROPIC_API_KEY: ${{ inputs.provider == 'claude' && inputs.api-key || '' }}
         OPENAI_API_KEY: ${{ inputs.provider == 'openai' && inputs.api-key || '' }}
         GOOGLE_API_KEY: ${{ inputs.provider == 'gemini' && inputs.api-key || '' }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
-        # Run heisenberg analysis
-        ARGS="--report ${{ inputs.report-path }} --provider ${{ inputs.provider }}"
+        # Build arguments
+        ARGS="--report ${{ inputs.report-path }}"
+        ARGS="$ARGS --provider ${{ inputs.provider }}"
+        ARGS="$ARGS --ai-analysis"
+        ARGS="$ARGS --output-format json"
 
         if [ -n "${{ inputs.model }}" ]; then
           ARGS="$ARGS --model ${{ inputs.model }}"
         fi
 
         if [ -n "${{ inputs.container-logs }}" ]; then
-          ARGS="$ARGS --logs ${{ inputs.container-logs }}"
+          ARGS="$ARGS --container-logs ${{ inputs.container-logs }}"
         fi
 
         # Run analysis and capture output
-        OUTPUT=$(heisenberg analyze $ARGS --output json 2>&1) || true
+        set +e
+        OUTPUT=$(heisenberg analyze $ARGS 2>&1)
+        EXIT_CODE=$?
+        set -e
 
-        # Parse results
-        FAILED_COUNT=$(echo "$OUTPUT" | jq -r '.failed_tests_count // 0')
-        FLAKY=$(echo "$OUTPUT" | jq -r '.flaky_detected // false')
+        # Check if output is valid JSON
+        if echo "$OUTPUT" | jq empty 2>/dev/null; then
+          # Parse results from JSON
+          FAILED_COUNT=$(echo "$OUTPUT" | jq -r '.failed_tests_count // 0')
+          FLAKY=$(echo "$OUTPUT" | jq -r '.flaky_detected // false')
+        else
+          # If not valid JSON, there was an error
+          echo "::error::Heisenberg analysis failed: $OUTPUT"
+          FAILED_COUNT=0
+          FLAKY=false
+        fi
 
         # Set outputs
         echo "analysis<<EOF" >> $GITHUB_OUTPUT
@@ -89,6 +112,29 @@ runs:
         echo "EOF" >> $GITHUB_OUTPUT
         echo "failed_count=$FAILED_COUNT" >> $GITHUB_OUTPUT
         echo "flaky_detected=$FLAKY" >> $GITHUB_OUTPUT
+
+    - name: Post PR Comment
+      if: ${{ inputs.post-comment == 'true' && inputs.github-token != '' }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        # Re-run with github-comment format and post
+        ARGS="--report ${{ inputs.report-path }}"
+        ARGS="$ARGS --provider ${{ inputs.provider }}"
+        ARGS="$ARGS --ai-analysis"
+        ARGS="$ARGS --output-format github-comment"
+        ARGS="$ARGS --post-comment"
+
+        if [ -n "${{ inputs.model }}" ]; then
+          ARGS="$ARGS --model ${{ inputs.model }}"
+        fi
+
+        if [ -n "${{ inputs.container-logs }}" ]; then
+          ARGS="$ARGS --container-logs ${{ inputs.container-logs }}"
+        fi
+
+        heisenberg analyze $ARGS || echo "::warning::Failed to post PR comment"
 
     - name: Check Flaky Tests
       if: ${{ inputs.fail-on-flaky == 'true' && steps.analyze.outputs.flaky_detected == 'true' }}
