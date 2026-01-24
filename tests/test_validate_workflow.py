@@ -130,12 +130,6 @@ class TestValidateWorkflowSecrets:
         live_job = jobs.get("validate-live")
 
         if live_job:
-            # Check env or secrets reference
-            job_str = str(live_job)
-            has_api_key = any(
-                key in job_str
-                for key in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"]
-            )
             # This is optional, so just verify the structure is correct
             assert "steps" in live_job
 

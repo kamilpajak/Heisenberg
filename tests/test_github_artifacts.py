@@ -7,8 +7,7 @@ Playwright reports from GitHub Actions artifacts.
 import io
 import json
 import zipfile
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -16,8 +15,8 @@ import pytest
 try:
     from heisenberg.github_artifacts import (
         Artifact,
-        GitHubArtifactClient,
         GitHubAPIError,
+        GitHubArtifactClient,
         WorkflowRun,
     )
 except ImportError:

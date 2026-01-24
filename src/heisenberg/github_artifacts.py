@@ -128,7 +128,7 @@ class GitHubArtifactClient:
                 return response.json()
 
             except httpx.RequestError as e:
-                raise GitHubAPIError(f"Request failed: {e}")
+                raise GitHubAPIError(f"Request failed: {e}") from e
 
     async def _download(self, url: str) -> bytes:
         """Download binary content from a URL.
@@ -159,7 +159,7 @@ class GitHubArtifactClient:
                 return response.content
 
             except httpx.RequestError as e:
-                raise GitHubAPIError(f"Download failed: {e}")
+                raise GitHubAPIError(f"Download failed: {e}") from e
 
     async def list_workflow_runs(
         self,

@@ -3,8 +3,6 @@
 import subprocess
 import sys
 
-import pytest
-
 
 class TestFetchGitHubCLIExists:
     """Verify fetch-github subcommand exists."""

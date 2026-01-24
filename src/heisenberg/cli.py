@@ -312,7 +312,7 @@ def run_fetch_github(args: argparse.Namespace) -> int:
     import asyncio
     import os
 
-    from heisenberg.github_artifacts import GitHubArtifactClient, GitHubAPIError
+    from heisenberg.github_artifacts import GitHubAPIError, GitHubArtifactClient
 
     # Get token from args or environment
     token = args.token or os.environ.get("GITHUB_TOKEN")
@@ -323,7 +323,7 @@ def run_fetch_github(args: argparse.Namespace) -> int:
     # Parse owner/repo
     repo_parts = args.repo.split("/")
     if len(repo_parts) != 2:
-        print(f"Error: Invalid repo format. Use owner/repo", file=sys.stderr)
+        print("Error: Invalid repo format. Use owner/repo", file=sys.stderr)
         return 1
 
     owner, repo = repo_parts
@@ -361,7 +361,6 @@ def run_fetch_github(args: argparse.Namespace) -> int:
                 return 0
 
             # Otherwise, analyze
-            from heisenberg.playwright_parser import PlaywrightReport
 
             # Create a temp file for the report
             import tempfile
