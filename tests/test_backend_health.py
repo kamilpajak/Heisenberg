@@ -237,3 +237,112 @@ class TestDetailedHealthEndpoint:
 
                 assert data["status"] == "unhealthy"
                 assert not data["database"]["connected"]
+
+
+class TestAppLifespan:
+    """Test suite for app lifespan context manager."""
+
+    @pytest.mark.asyncio
+    async def test_lifespan_initializes_logging(self):
+        """Lifespan should configure logging on startup."""
+        from heisenberg.backend.app import app, lifespan
+
+        with (
+            patch("heisenberg.backend.app.configure_logging") as mock_logging,
+            patch.dict("os.environ", {"DATABASE_URL": ""}, clear=False),
+            patch("heisenberg.backend.database.close_db", new_callable=AsyncMock),
+        ):
+            # Mock get_settings to avoid validation errors
+            mock_settings = MagicMock()
+            mock_settings.log_level = "INFO"
+            mock_settings.log_json_format = True
+            mock_settings.database_url = "postgresql://test"
+            with patch("heisenberg.backend.config.get_settings", return_value=mock_settings):
+                async with lifespan(app):
+                    pass
+
+            mock_logging.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_lifespan_initializes_db_when_url_set(self):
+        """Lifespan should init DB when DATABASE_URL is set."""
+        from heisenberg.backend.app import app, lifespan
+
+        mock_settings = MagicMock()
+        mock_settings.log_level = "INFO"
+        mock_settings.log_json_format = True
+        mock_settings.database_url = "postgresql://test:test@localhost/test"
+
+        with (
+            patch("heisenberg.backend.app.configure_logging"),
+            patch.dict("os.environ", {"DATABASE_URL": "postgresql://test"}, clear=False),
+            patch("heisenberg.backend.config.get_settings", return_value=mock_settings),
+            patch("heisenberg.backend.database.init_db") as mock_init_db,
+            patch("heisenberg.backend.database.close_db", new_callable=AsyncMock),
+        ):
+            async with lifespan(app):
+                pass
+
+            mock_init_db.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_lifespan_skips_db_when_no_url(self):
+        """Lifespan should skip DB init when no DATABASE_URL."""
+        from heisenberg.backend.app import app, lifespan
+
+        mock_settings = MagicMock()
+        mock_settings.log_level = "INFO"
+        mock_settings.log_json_format = True
+        mock_settings.database_url = ""
+
+        # Ensure DATABASE_URL is not set
+        import os
+
+        env_backup = os.environ.get("DATABASE_URL")
+        if "DATABASE_URL" in os.environ:
+            del os.environ["DATABASE_URL"]
+
+        try:
+            with (
+                patch("heisenberg.backend.app.configure_logging"),
+                patch("heisenberg.backend.config.get_settings", return_value=mock_settings),
+                patch("heisenberg.backend.database.init_db") as mock_init_db,
+                patch("heisenberg.backend.database.close_db", new_callable=AsyncMock),
+            ):
+                async with lifespan(app):
+                    pass
+
+                mock_init_db.assert_not_called()
+        finally:
+            if env_backup:
+                os.environ["DATABASE_URL"] = env_backup
+
+    @pytest.mark.asyncio
+    async def test_lifespan_closes_db_on_shutdown(self):
+        """Lifespan should close DB on shutdown."""
+        from heisenberg.backend.app import app, lifespan
+
+        mock_settings = MagicMock()
+        mock_settings.log_level = "INFO"
+        mock_settings.log_json_format = True
+        mock_settings.database_url = ""
+
+        import os
+
+        env_backup = os.environ.get("DATABASE_URL")
+        if "DATABASE_URL" in os.environ:
+            del os.environ["DATABASE_URL"]
+
+        try:
+            with (
+                patch("heisenberg.backend.app.configure_logging"),
+                patch("heisenberg.backend.config.get_settings", return_value=mock_settings),
+                patch("heisenberg.backend.database.close_db", new_callable=AsyncMock) as mock_close,
+            ):
+                async with lifespan(app):
+                    pass
+
+                mock_close.assert_called_once()
+        finally:
+            if env_backup:
+                os.environ["DATABASE_URL"] = env_backup
