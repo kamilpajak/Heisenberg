@@ -1,0 +1,100 @@
+{
+  "config": {
+    "configFile": "/app/apps/web/playwright.config.ts",
+    "rootDir": "/app/apps/web",
+    "fullyParallel": true,
+    "reporter": [["json", {"outputFile": "test-results/report.json"}]],
+    "projects": [
+      {
+        "name": "chromium",
+        "testDir": "/app/apps/web/playwright",
+        "timeout": 30000
+      }
+    ],
+    "version": "1.42.1"
+  },
+  "suites": [
+    {
+      "title": "playwright/availability.spec.ts",
+      "file": "playwright/availability.spec.ts",
+      "suites": [
+        {
+          "title": "Availability Calendar",
+          "file": "playwright/availability.spec.ts",
+          "line": 8,
+          "specs": [
+            {
+              "title": "should display calendar grid",
+              "ok": false,
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "expectedStatus": "passed",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "status": "failed",
+                      "duration": 15234,
+                      "errors": [
+                        {
+                          "message": "expect(locator).toBeVisible()\n\nLocator: getByTestId('calendar-grid')\nExpected: visible\nReceived: <element not found>\n\nCall log:\n  - expect.toBeVisible with timeout 5000ms\n  - waiting for getByTestId('calendar-grid')\n  - no matching element found",
+                          "stack": "Error: expect(locator).toBeVisible()\n\nLocator: getByTestId('calendar-grid')\nExpected: visible\nReceived: <element not found>\n    at /app/apps/web/playwright/availability.spec.ts:23:35\n    at Object.<anonymous> (/app/apps/web/playwright/availability.spec.ts:15:3)"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2024-01-20T15:10:00.000Z",
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "test-results/availability-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ]
+            },
+            {
+              "title": "should select date from calendar",
+              "ok": false,
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "expectedStatus": "passed",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "status": "failed",
+                      "duration": 8432,
+                      "errors": [
+                        {
+                          "message": "locator.click: Error: strict mode violation: getByRole('button', { name: /15/ }) resolved to 3 elements:\n    1) <button class=\"day-button\">15</button>\n    2) <button class=\"time-slot\">15:00</button>\n    3) <button class=\"time-slot\">15:30</button>",
+                          "stack": "Error: locator.click: Error: strict mode violation\n    at /app/apps/web/playwright/availability.spec.ts:31:22"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2024-01-20T15:10:15.000Z",
+                      "attachments": []
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2024-01-20T15:10:00.000Z",
+    "duration": 23666,
+    "expected": 0,
+    "unexpected": 2,
+    "flaky": 0,
+    "skipped": 0
+  }
+}

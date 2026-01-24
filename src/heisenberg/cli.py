@@ -86,10 +86,63 @@ def main() -> int:
         help="Path to container logs file for additional context",
     )
 
+    # fetch-github command
+    fetch_parser = subparsers.add_parser(
+        "fetch-github",
+        help="Fetch and analyze Playwright report from GitHub Actions",
+    )
+    fetch_parser.add_argument(
+        "--repo",
+        "-r",
+        type=str,
+        required=True,
+        help="GitHub repository in owner/repo format",
+    )
+    fetch_parser.add_argument(
+        "--token",
+        "-t",
+        type=str,
+        default=None,
+        help="GitHub token (or set GITHUB_TOKEN env var)",
+    )
+    fetch_parser.add_argument(
+        "--run-id",
+        type=int,
+        default=None,
+        help="Specific workflow run ID (default: latest failed)",
+    )
+    fetch_parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        default=None,
+        help="Save report to file instead of analyzing",
+    )
+    fetch_parser.add_argument(
+        "--artifact-name",
+        default="playwright",
+        help="Pattern to match artifact name (default: playwright)",
+    )
+    fetch_parser.add_argument(
+        "--ai-analysis",
+        "-a",
+        action="store_true",
+        help="Enable AI-powered root cause analysis",
+    )
+    fetch_parser.add_argument(
+        "--provider",
+        "-p",
+        choices=["claude", "openai", "gemini"],
+        default="claude",
+        help="LLM provider to use (default: claude)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "analyze":
         return run_analyze(args)
+    elif args.command == "fetch-github":
+        return run_fetch_github(args)
 
     return 1
 
@@ -252,6 +305,98 @@ def _format_text_output(result, ai_result=None) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+def run_fetch_github(args: argparse.Namespace) -> int:
+    """Run the fetch-github command."""
+    import asyncio
+    import os
+
+    from heisenberg.github_artifacts import GitHubArtifactClient, GitHubAPIError
+
+    # Get token from args or environment
+    token = args.token or os.environ.get("GITHUB_TOKEN")
+    if not token:
+        print("Error: GitHub token required. Use --token or set GITHUB_TOKEN", file=sys.stderr)
+        return 1
+
+    # Parse owner/repo
+    repo_parts = args.repo.split("/")
+    if len(repo_parts) != 2:
+        print(f"Error: Invalid repo format. Use owner/repo", file=sys.stderr)
+        return 1
+
+    owner, repo = repo_parts
+
+    async def fetch_and_analyze():
+        client = GitHubArtifactClient(token=token)
+
+        try:
+            if args.run_id:
+                # Fetch specific run
+                artifacts = await client.get_artifacts(owner, repo, run_id=args.run_id)
+                matching = [a for a in artifacts if args.artifact_name.lower() in a.name.lower()]
+
+                if not matching:
+                    print(f"No artifacts matching '{args.artifact_name}' found", file=sys.stderr)
+                    return 1
+
+                zip_data = await client.download_artifact(owner, repo, matching[0].id)
+                report_data = client.extract_playwright_report(zip_data)
+            else:
+                # Fetch latest failed run
+                report_data = await client.fetch_latest_report(
+                    owner, repo,
+                    artifact_name_pattern=args.artifact_name,
+                )
+
+            if not report_data:
+                print("No Playwright report found in artifacts", file=sys.stderr)
+                return 1
+
+            # Save to file if requested
+            if args.output:
+                args.output.write_text(json.dumps(report_data, indent=2))
+                print(f"Report saved to {args.output}")
+                return 0
+
+            # Otherwise, analyze
+            from heisenberg.playwright_parser import PlaywrightReport
+
+            # Create a temp file for the report
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                json.dump(report_data, f)
+                temp_path = Path(f.name)
+
+            try:
+                from heisenberg.analyzer import run_analysis
+
+                result = run_analysis(report_path=temp_path)
+
+                # Run AI analysis if requested
+                ai_result = None
+                if getattr(args, "ai_analysis", False) and result.has_failures:
+                    try:
+                        ai_result = analyze_with_ai(
+                            report=result.report,
+                            provider=getattr(args, "provider", "claude"),
+                        )
+                    except Exception as e:
+                        print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
+
+                # Print results
+                print(_format_text_output(result, ai_result))
+                return 1 if result.has_failures else 0
+
+            finally:
+                temp_path.unlink()
+
+        except GitHubAPIError as e:
+            print(f"GitHub API error: {e}", file=sys.stderr)
+            return 1
+
+    return asyncio.run(fetch_and_analyze())
 
 
 if __name__ == "__main__":

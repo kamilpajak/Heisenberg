@@ -1,0 +1,105 @@
+{
+  "config": {
+    "configFile": "/app/e2e/playwright.config.ts",
+    "rootDir": "/app/e2e",
+    "fullyParallel": true,
+    "reporter": [["json", {"outputFile": "playwright-report/results.json"}]],
+    "projects": [
+      {
+        "name": "chromium",
+        "testDir": "/app/e2e/tests",
+        "timeout": 60000
+      }
+    ],
+    "version": "1.43.0"
+  },
+  "suites": [
+    {
+      "title": "tests/dashboard-api.spec.ts",
+      "file": "tests/dashboard-api.spec.ts",
+      "suites": [
+        {
+          "title": "Dashboard API Integration",
+          "file": "tests/dashboard-api.spec.ts",
+          "line": 12,
+          "specs": [
+            {
+              "title": "should fetch dashboard data from API",
+              "ok": false,
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "expectedStatus": "passed",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "status": "failed",
+                      "duration": 12543,
+                      "errors": [
+                        {
+                          "message": "page.waitForResponse: Request failed with status 502\n\nAPI endpoint: /api/dashboards/uid/abc123\nResponse: 502 Bad Gateway\nResponse body: {\"message\":\"upstream connect error or disconnect/reset before headers\"}\n\nCall log:\n  - waiting for response matching /api/dashboards/\n  - received response with status 502",
+                          "stack": "Error: page.waitForResponse: Request failed with status 502\n    at /app/e2e/tests/dashboard-api.spec.ts:28:32\n    at Object.<anonymous> (/app/e2e/tests/dashboard-api.spec.ts:20:5)"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2024-01-21T09:15:00.000Z",
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "playwright-report/dashboard-api-chromium/trace.zip"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "playwright-report/dashboard-api-chromium/test-failed-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ]
+            },
+            {
+              "title": "should handle API timeout gracefully",
+              "ok": false,
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "expectedStatus": "passed",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "status": "failed",
+                      "duration": 30123,
+                      "errors": [
+                        {
+                          "message": "page.waitForResponse: Timeout 30000ms exceeded.\n\nWaiting for response from /api/datasources/proxy/1/query\nThe API request did not complete within the expected time.\n\nPossible causes:\n- Backend service is overloaded\n- Network connectivity issues\n- Database query timeout",
+                          "stack": "Error: page.waitForResponse: Timeout 30000ms exceeded\n    at /app/e2e/tests/dashboard-api.spec.ts:45:32"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2024-01-21T09:15:15.000Z",
+                      "attachments": []
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2024-01-21T09:15:00.000Z",
+    "duration": 42666,
+    "expected": 0,
+    "unexpected": 2,
+    "flaky": 0,
+    "skipped": 0
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "config": {
+    "configFile": "/app/apps/web/playwright.config.ts",
+    "rootDir": "/app/apps/web",
+    "fullyParallel": true,
+    "reporter": [["json", {"outputFile": "test-results/report.json"}]],
+    "projects": [
+      {
+        "name": "chromium",
+        "testDir": "/app/apps/web/playwright",
+        "timeout": 30000
+      }
+    ],
+    "version": "1.42.1"
+  },
+  "suites": [
+    {
+      "title": "playwright/booking-flow.spec.ts",
+      "file": "playwright/booking-flow.spec.ts",
+      "suites": [
+        {
+          "title": "Booking Flow",
+          "file": "playwright/booking-flow.spec.ts",
+          "line": 5,
+          "specs": [
+            {
+              "title": "should complete booking with payment",
+              "ok": false,
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "expectedStatus": "passed",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "status": "timedOut",
+                      "duration": 30000,
+                      "errors": [
+                        {
+                          "message": "Test timeout of 30000ms exceeded while waiting for payment confirmation.\n\nCall log:\n  - waiting for locator('[data-testid=\"payment-success\"]')\n  - locator resolved to <div data-testid=\"payment-loading\">Processing...</div>\n  - unexpected value \"Processing...\"\n  - retrying locator('[data-testid=\"payment-success\"]')\n  - locator resolved to <div data-testid=\"payment-loading\">Processing...</div>",
+                          "stack": "Error: Test timeout of 30000ms exceeded while waiting for payment confirmation.\n    at /app/apps/web/playwright/booking-flow.spec.ts:45:5\n    at waitForPaymentConfirmation (/app/apps/web/playwright/helpers/payment.ts:23:10)"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2024-01-20T14:30:00.000Z",
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "test-results/booking-flow-chromium/trace.zip"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "test-results/booking-flow-chromium/test-failed-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ]
+            },
+            {
+              "title": "should show available time slots",
+              "ok": true,
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "expectedStatus": "passed",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "status": "passed",
+                      "duration": 4523,
+                      "errors": [],
+                      "retry": 0,
+                      "startTime": "2024-01-20T14:29:00.000Z"
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2024-01-20T14:29:00.000Z",
+    "duration": 34523,
+    "expected": 1,
+    "unexpected": 1,
+    "flaky": 0,
+    "skipped": 0
+  }
+}

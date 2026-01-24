@@ -1,0 +1,100 @@
+{
+  "config": {
+    "configFile": "/app/apps/web/playwright.config.ts",
+    "rootDir": "/app/apps/web",
+    "fullyParallel": true,
+    "reporter": [["json", {"outputFile": "test-results/report.json"}]],
+    "projects": [
+      {
+        "name": "chromium",
+        "testDir": "/app/apps/web/playwright",
+        "timeout": 30000
+      }
+    ],
+    "version": "1.42.1"
+  },
+  "suites": [
+    {
+      "title": "playwright/event-types.spec.ts",
+      "file": "playwright/event-types.spec.ts",
+      "suites": [
+        {
+          "title": "Event Type Configuration",
+          "file": "playwright/event-types.spec.ts",
+          "line": 10,
+          "specs": [
+            {
+              "title": "should set correct availability window",
+              "ok": false,
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "expectedStatus": "passed",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "status": "failed",
+                      "duration": 5234,
+                      "errors": [
+                        {
+                          "message": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 60\nReceived: 30\n\nThe availability window should be set to 60 days but received 30 days.",
+                          "stack": "Error: expect(received).toBe(expected)\n    at /app/apps/web/playwright/event-types.spec.ts:42:38\n    at runTest (/app/node_modules/@playwright/test/lib/runner.js:123:15)"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2024-01-20T16:00:00.000Z",
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "test-results/event-types-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ]
+            },
+            {
+              "title": "should validate event duration",
+              "ok": false,
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "expectedStatus": "passed",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "status": "failed",
+                      "duration": 3120,
+                      "errors": [
+                        {
+                          "message": "expect(received).toEqual(expected) // deep equality\n\nExpected: {\"duration\": 30, \"buffer\": 15}\nReceived: {\"duration\": 30, \"buffer\": 0}\n\nDifference:\n- Expected\n+ Received\n\n  Object {\n    \"duration\": 30,\n-   \"buffer\": 15,\n+   \"buffer\": 0,\n  }",
+                          "stack": "Error: expect(received).toEqual(expected)\n    at /app/apps/web/playwright/event-types.spec.ts:58:25"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2024-01-20T16:00:05.000Z",
+                      "attachments": []
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2024-01-20T16:00:00.000Z",
+    "duration": 8354,
+    "expected": 0,
+    "unexpected": 2,
+    "flaky": 0,
+    "skipped": 0
+  }
+}

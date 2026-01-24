@@ -1,0 +1,116 @@
+{
+  "config": {
+    "configFile": "/app/e2e/playwright.config.ts",
+    "rootDir": "/app/e2e",
+    "fullyParallel": true,
+    "retries": 2,
+    "reporter": [["json", {"outputFile": "playwright-report/results.json"}]],
+    "projects": [
+      {
+        "name": "chromium",
+        "testDir": "/app/e2e/tests",
+        "timeout": 60000
+      }
+    ],
+    "version": "1.43.0"
+  },
+  "suites": [
+    {
+      "title": "tests/dashboard-panels.spec.ts",
+      "file": "tests/dashboard-panels.spec.ts",
+      "suites": [
+        {
+          "title": "Dashboard Panel Loading",
+          "file": "tests/dashboard-panels.spec.ts",
+          "line": 8,
+          "specs": [
+            {
+              "title": "should render all panels without errors",
+              "ok": true,
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "expectedStatus": "passed",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "status": "failed",
+                      "duration": 25432,
+                      "errors": [
+                        {
+                          "message": "expect(locator).toHaveCount(expected)\n\nLocator: [data-testid=\"panel-container\"]\nExpected: 6\nReceived: 4\n\nSome panels did not load in time. This may be a race condition.",
+                          "stack": "Error: expect(locator).toHaveCount(expected)\n    at /app/e2e/tests/dashboard-panels.spec.ts:35:25"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2024-01-21T10:30:00.000Z",
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "playwright-report/dashboard-panels-retry-0/test-failed-1.png"
+                        }
+                      ]
+                    },
+                    {
+                      "status": "failed",
+                      "duration": 28765,
+                      "errors": [
+                        {
+                          "message": "expect(locator).toHaveCount(expected)\n\nLocator: [data-testid=\"panel-container\"]\nExpected: 6\nReceived: 5\n\nOne panel still missing after retry.",
+                          "stack": "Error: expect(locator).toHaveCount(expected)\n    at /app/e2e/tests/dashboard-panels.spec.ts:35:25"
+                        }
+                      ],
+                      "retry": 1,
+                      "startTime": "2024-01-21T10:30:30.000Z",
+                      "attachments": []
+                    },
+                    {
+                      "status": "passed",
+                      "duration": 22100,
+                      "errors": [],
+                      "retry": 2,
+                      "startTime": "2024-01-21T10:31:00.000Z",
+                      "attachments": []
+                    }
+                  ],
+                  "status": "flaky"
+                }
+              ]
+            },
+            {
+              "title": "should update panel on time range change",
+              "ok": true,
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "expectedStatus": "passed",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "status": "passed",
+                      "duration": 8432,
+                      "errors": [],
+                      "retry": 0,
+                      "startTime": "2024-01-21T10:31:30.000Z"
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2024-01-21T10:30:00.000Z",
+    "duration": 98729,
+    "expected": 1,
+    "unexpected": 0,
+    "flaky": 1,
+    "skipped": 0
+  }
+}
