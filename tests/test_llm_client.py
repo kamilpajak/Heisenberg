@@ -22,7 +22,7 @@ class TestLLMConfig:
         # Then
         assert config.model == "claude-sonnet-4-20250514"
         assert config.max_tokens == 4096
-        assert config.temperature == 0.3
+        assert config.temperature == pytest.approx(0.3)
 
     def test_config_accepts_custom_values(self):
         """Config should accept custom values."""
@@ -36,7 +36,7 @@ class TestLLMConfig:
         # Then
         assert config.model == "claude-3-opus-20240229"
         assert config.max_tokens == 8192
-        assert config.temperature == 0.5
+        assert config.temperature == pytest.approx(0.5)
 
 
 class TestLLMClient:

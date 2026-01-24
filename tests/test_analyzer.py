@@ -111,7 +111,7 @@ class TestAnalysisResult:
         result = analyzer.analyze()
 
         # Then
-        assert result.report.has_failures is True
+        assert result.report.has_failures
 
     def test_result_has_container_logs(self, sample_report_path: Path):
         """Result should contain container logs dict."""
@@ -146,7 +146,7 @@ class TestAnalysisResult:
         result = analyzer.analyze()
 
         # Then
-        assert result.has_failures is True
+        assert result.has_failures
 
     def test_result_summary_property(self, sample_report_path: Path):
         """Result should provide summary string."""
@@ -182,7 +182,7 @@ class TestRunAnalysisHelper:
         result = run_analysis(report_path=sample_report_path)
 
         # Then
-        assert result.has_failures is True
+        assert result.has_failures
 
 
 class TestAnalyzerWithDockerLogs:

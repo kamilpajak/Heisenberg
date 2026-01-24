@@ -26,7 +26,7 @@ class TestSlidingWindowRateLimiter:
         allowed, headers = limiter.is_allowed("test-key")
 
         # Then
-        assert allowed is True
+        assert allowed
 
     def test_rate_limiter_blocks_over_limit(self):
         """Rate limiter should block requests over the limit."""
@@ -38,13 +38,13 @@ class TestSlidingWindowRateLimiter:
         # When - make 3 allowed requests
         for _ in range(3):
             allowed, _ = limiter.is_allowed("test-key")
-            assert allowed is True
+            assert allowed
 
         # 4th request should be blocked
         allowed, headers = limiter.is_allowed("test-key")
 
         # Then
-        assert allowed is False
+        assert not allowed
 
     def test_rate_limiter_tracks_by_key(self):
         """Rate limiter should track requests by key."""
@@ -62,8 +62,8 @@ class TestSlidingWindowRateLimiter:
         allowed_key2, _ = limiter.is_allowed("key2")
 
         # Then
-        assert allowed_key1 is False
-        assert allowed_key2 is True
+        assert not allowed_key1
+        assert allowed_key2
 
     def test_rate_limiter_returns_headers(self):
         """Rate limiter should return rate limit headers."""
@@ -93,7 +93,7 @@ class TestSlidingWindowRateLimiter:
         limiter.is_allowed("key")
         limiter.is_allowed("key")
         allowed, _ = limiter.is_allowed("key")
-        assert allowed is False
+        assert not allowed
 
         # When - simulate time passing (clear old requests)
         with patch("heisenberg.backend.rate_limit.time.time") as mock_time:
@@ -102,7 +102,7 @@ class TestSlidingWindowRateLimiter:
             allowed, _ = limiter.is_allowed("key")
 
         # Then
-        assert allowed is True
+        assert allowed
 
 
 class TestRateLimitMiddleware:

@@ -52,7 +52,7 @@ class TestHealthModule:
         is_healthy, latency_ms = await check_database_health(mock_session_maker)
 
         # Then
-        assert is_healthy is True
+        assert is_healthy
         assert latency_ms >= 0
 
     @pytest.mark.asyncio
@@ -72,8 +72,8 @@ class TestHealthModule:
         is_healthy, latency_ms = await check_database_health(mock_session_maker)
 
         # Then
-        assert is_healthy is False
-        assert latency_ms == 0.0
+        assert not is_healthy
+        assert latency_ms == pytest.approx(0.0)
 
 
 class TestDetailedHealthResponse:
@@ -111,8 +111,8 @@ class TestDetailedHealthResponse:
             version="0.1.0",
             database=DatabaseHealthStatus(connected=True, latency_ms=5.0),
         )
-        assert response.database.connected is True
-        assert response.database.latency_ms == 5.0
+        assert response.database.connected
+        assert response.database.latency_ms == pytest.approx(5.0)
 
     def test_detailed_health_response_has_timestamp(self):
         """DetailedHealthResponse should have timestamp."""
@@ -236,4 +236,4 @@ class TestDetailedHealthEndpoint:
                 data = response.json()
 
                 assert data["status"] == "unhealthy"
-                assert data["database"]["connected"] is False
+                assert not data["database"]["connected"]

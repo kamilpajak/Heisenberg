@@ -21,6 +21,9 @@ if TYPE_CHECKING:
 # Application version
 __version__ = "0.1.0"
 
+# API prefix
+API_PREFIX = "/api/v1"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -44,10 +47,10 @@ app = FastAPI(
 )
 
 # Include routers
-app.include_router(analyze.router, prefix="/api/v1")
-app.include_router(feedback.router, prefix="/api/v1")
-app.include_router(usage.router, prefix="/api/v1")
-app.include_router(tasks.router, prefix="/api/v1")
+app.include_router(analyze.router, prefix=API_PREFIX)
+app.include_router(feedback.router, prefix=API_PREFIX)
+app.include_router(usage.router, prefix=API_PREFIX)
+app.include_router(tasks.router, prefix=API_PREFIX)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])

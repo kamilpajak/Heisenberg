@@ -117,7 +117,7 @@ class TestArtifactDataclass:
         assert artifact.id == 67890
         assert artifact.name == "playwright-report"
         assert artifact.size_in_bytes == 1024000
-        assert artifact.expired is False
+        assert not artifact.expired
 
 
 class TestListWorkflowRuns:

@@ -50,7 +50,7 @@ class TestDatabaseConfig:
             secret_key="test-secret-key",
         )
         assert settings.api_v1_prefix == "/api/v1"
-        assert settings.debug is False
+        assert not settings.debug
 
 
 class TestDatabaseSession:

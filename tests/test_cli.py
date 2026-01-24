@@ -134,7 +134,7 @@ class TestCliAnalyze:
 
         # Then
         data = json.loads(captured.out)
-        assert data["has_failures"] is True
+        assert data["has_failures"]
         assert data["failed_tests_count"] == 2
         assert len(data["failed_tests"]) == 2
 

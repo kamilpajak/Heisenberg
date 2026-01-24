@@ -267,7 +267,7 @@ class TestWebhookCallback:
                 result={"analysis": "done"},
             )
 
-            assert result is True
+            assert result
 
 
 class TestTaskMigration:

@@ -87,7 +87,7 @@ class TestActionInputs:
         action_file = ACTION_DIR / "action.yml"
         content = yaml.safe_load(action_file.read_text())
         report_path = content.get("inputs", {}).get("report-path", {})
-        assert report_path.get("required") is True
+        assert report_path.get("required")
 
     def test_has_api_key_input(self):
         """Action should have api-key input."""
@@ -101,7 +101,7 @@ class TestActionInputs:
         action_file = ACTION_DIR / "action.yml"
         content = yaml.safe_load(action_file.read_text())
         api_key = content.get("inputs", {}).get("api-key", {})
-        assert api_key.get("required") is True
+        assert api_key.get("required")
 
     def test_has_provider_input(self):
         """Action should have provider input."""

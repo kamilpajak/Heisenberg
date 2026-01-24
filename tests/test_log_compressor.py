@@ -179,7 +179,7 @@ class TestCompressedLogs:
         # Then
         assert compressed.original_lines == 500
         assert compressed.total_lines == 100
-        assert compressed.compression_ratio == 0.2
+        assert compressed.compression_ratio == pytest.approx(0.2)
 
     def test_compressed_logs_to_text(self, sample_logs: dict[str, ContainerLogs]):
         """CompressedLogs should convert to text for LLM prompt."""

@@ -223,7 +223,7 @@ class TestBudgetAlerts:
             secret_key="test-secret-key",
             budget_alert_threshold_usd=100.0,
         )
-        assert settings.budget_alert_threshold_usd == 100.0
+        assert settings.budget_alert_threshold_usd == pytest.approx(100.0)
 
     def test_check_budget_alert_function_exists(self):
         """check_budget_alert function should exist."""
@@ -239,8 +239,8 @@ class TestBudgetAlerts:
             current_spend=Decimal("50.00"),
             threshold=Decimal("100.00"),
         )
-        assert result["alert"] is False
-        assert result["percentage"] == 50.0
+        assert not result["alert"]
+        assert result["percentage"] == pytest.approx(50.0)
 
     def test_check_budget_alert_triggers_at_threshold(self):
         """check_budget_alert should trigger at threshold."""
@@ -250,8 +250,8 @@ class TestBudgetAlerts:
             current_spend=Decimal("100.00"),
             threshold=Decimal("100.00"),
         )
-        assert result["alert"] is True
-        assert result["percentage"] == 100.0
+        assert result["alert"]
+        assert result["percentage"] == pytest.approx(100.0)
 
 
 class TestOrganizationUsageRelation:

@@ -58,7 +58,7 @@ class TestGitHubContext:
 
         # Then
         assert context.pr_number is None
-        assert context.is_pull_request is False
+        assert not context.is_pull_request
 
     def test_context_is_pull_request_property(self, monkeypatch):
         """Should correctly identify PR context."""
@@ -72,7 +72,7 @@ class TestGitHubContext:
         context = GitHubContext.from_environment()
 
         # Then
-        assert context.is_pull_request is True
+        assert context.is_pull_request
 
 
 class TestGitHubClient:

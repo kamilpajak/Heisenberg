@@ -51,7 +51,7 @@ class TestFeedbackSchemas:
         from heisenberg.backend.schemas import FeedbackCreate
 
         feedback = FeedbackCreate(is_helpful=True)
-        assert feedback.is_helpful is True
+        assert feedback.is_helpful
 
     def test_feedback_create_optional_comment(self):
         """FeedbackCreate should have optional comment."""
@@ -81,7 +81,7 @@ class TestFeedbackSchemas:
             created_at=datetime.now(UTC),
         )
         assert response.id is not None
-        assert response.is_helpful is True
+        assert response.is_helpful
 
 
 class TestFeedbackEndpoint:
@@ -236,7 +236,7 @@ class TestFeedbackEndpoint:
                 )
                 assert response.status_code == 201
                 data = response.json()
-                assert data["is_helpful"] is False
+                assert not data["is_helpful"]
                 assert data["comment"] == "Wrong diagnosis"
                 assert "id" in data
                 assert "created_at" in data
@@ -262,7 +262,7 @@ class TestFeedbackStats:
             helpful_percentage=80.0,
         )
         assert stats.total_feedback == 100
-        assert stats.helpful_percentage == 80.0
+        assert stats.helpful_percentage == pytest.approx(80.0)
 
     @pytest.mark.asyncio
     async def test_feedback_stats_endpoint_exists(self):

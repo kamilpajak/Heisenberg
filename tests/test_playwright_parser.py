@@ -124,7 +124,7 @@ class TestPlaywrightReportModel:
         result = parse_playwright_report(sample_report_path)
 
         # Then
-        assert result.has_failures is True
+        assert result.has_failures
 
     def test_report_provides_summary(self, sample_report_path: Path):
         """Given a report, should provide human-readable summary."""

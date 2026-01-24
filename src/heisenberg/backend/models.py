@@ -11,6 +11,10 @@ from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, St
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+# Constants for relationship cascade
+CASCADE_DELETE_ORPHAN = "all, delete-orphan"
+ORGANIZATIONS_FK = "organizations.id"
+
 
 class TaskStatus(enum.Enum):
     """Status values for async tasks."""
@@ -48,22 +52,22 @@ class Organization(Base):
     api_keys: Mapped[list[APIKey]] = relationship(
         "APIKey",
         back_populates="organization",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_DELETE_ORPHAN,
     )
     test_runs: Mapped[list[TestRun]] = relationship(
         "TestRun",
         back_populates="organization",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_DELETE_ORPHAN,
     )
     usage_records: Mapped[list[UsageRecord]] = relationship(
         "UsageRecord",
         back_populates="organization",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_DELETE_ORPHAN,
     )
     async_tasks: Mapped[list[AsyncTask]] = relationship(
         "AsyncTask",
         back_populates="organization",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_DELETE_ORPHAN,
     )
 
 
@@ -81,7 +85,7 @@ class APIKey(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=True)
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("organizations.id"),
+        ForeignKey(ORGANIZATIONS_FK),
         nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -114,7 +118,7 @@ class TestRun(Base):
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("organizations.id"),
+        ForeignKey(ORGANIZATIONS_FK),
         nullable=False,
     )
     repository: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -139,7 +143,7 @@ class TestRun(Base):
     analyses: Mapped[list[Analysis]] = relationship(
         "Analysis",
         back_populates="test_run",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_DELETE_ORPHAN,
     )
 
 
@@ -184,7 +188,7 @@ class Analysis(Base):
     feedbacks: Mapped[list[Feedback]] = relationship(
         "Feedback",
         back_populates="analysis",
-        cascade="all, delete-orphan",
+        cascade=CASCADE_DELETE_ORPHAN,
     )
     usage_record: Mapped[UsageRecord | None] = relationship(
         "UsageRecord",
@@ -235,7 +239,7 @@ class UsageRecord(Base):
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("organizations.id"),
+        ForeignKey(ORGANIZATIONS_FK),
         nullable=False,
     )
     analysis_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -280,7 +284,7 @@ class AsyncTask(Base):
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("organizations.id"),
+        ForeignKey(ORGANIZATIONS_FK),
         nullable=False,
     )
     task_type: Mapped[str] = mapped_column(String(50), nullable=False)

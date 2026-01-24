@@ -92,7 +92,7 @@ class TestContainerLogs:
         logs = ContainerLogs(container_name="api", entries=entries)
 
         # Then
-        assert logs.has_errors is True
+        assert logs.has_errors
 
     def test_container_logs_to_markdown(self):
         """ContainerLogs should format as markdown."""

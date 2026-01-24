@@ -5,13 +5,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
-
-if TYPE_CHECKING:
-    pass
 
 # API key header
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -59,7 +55,7 @@ def generate_api_key(prefix: str = "hb") -> str:
     return f"{prefix}_{random_part}"
 
 
-async def get_api_key(
+def get_api_key(
     api_key: str | None = Security(_api_key_header),
 ) -> str:
     """
