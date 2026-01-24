@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import random
+import secrets
 from functools import wraps
 from typing import TYPE_CHECKING, TypeVar
 
@@ -66,9 +66,11 @@ def retry_with_backoff(
                     # Calculate delay with exponential backoff
                     delay = min(base_delay * (2**attempt), max_delay)
 
-                    # Add jitter if enabled
+                    # Add jitter if enabled (using secrets for security compliance)
                     if jitter:
-                        delay = delay * (0.5 + random.random())
+                        # secrets.randbelow returns [0, n), divide by 1000 to get [0, 1)
+                        jitter_factor = 0.5 + (secrets.randbelow(1000) / 1000)
+                        delay = delay * jitter_factor
 
                     logger.warning(
                         "retry_attempt",
