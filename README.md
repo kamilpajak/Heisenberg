@@ -4,7 +4,9 @@
 [![codecov](https://codecov.io/gh/kamilpajak/heisenberg/branch/main/graph/badge.svg)](https://codecov.io/gh/kamilpajak/heisenberg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**AI Root Cause Analysis for Flaky Tests**
+**AI Root Cause Analysis for E2E Test Failures**
+
+*Instantly diagnose flaky tests and other CI errors.*
 
 > "I am the one who diagnoses." - Heisenberg
 
@@ -12,9 +14,9 @@
 
 Heisenberg is a GitHub Action that automatically diagnoses why your E2E tests failed by correlating Playwright traces with backend logs and using AI to identify the root cause.
 
-**The Problem:** Flaky tests are a plague. They waste developer time, erode trust in CI/CD, and are notoriously hard to debug. Finding the root cause often requires correlating frontend errors with backend logs across multiple services.
+**The Problem:** CI failures waste engineering time. Flaky tests erode trust, but even consistent failures require tedious debugging - correlating frontend errors with backend logs across multiple services.
 
-**The Solution:** Heisenberg automates this forensic analysis. It collects all the evidence, correlates events by timestamp, and uses Claude AI to provide an intelligent diagnosis right in your PR.
+**The Solution:** Heisenberg automates this forensic analysis for *all* test failures. It collects all the evidence, correlates events by timestamp, and uses AI to provide an intelligent diagnosis right in your PR - whether it's a flaky test, a real bug, or an infrastructure issue.
 
 ## Features
 

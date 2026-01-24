@@ -2,11 +2,11 @@
 
 ## 1. Executive Summary
 
-**The Heisenberg** to agent AI typu SaaS, który automatycznie diagnozuje przyczyny niestabilnych testów (flaky tests) w środowiskach CI/CD.
+**The Heisenberg** to agent AI typu SaaS, który automatycznie diagnozuje przyczyny błędów testów E2E w środowiskach CI/CD - zarówno flaky tests, jak i stabilnych failures.
 
 | Element | Opis |
 |---------|------|
-| **Problem** | Inżynierowie tracą 10-20% czasu na debugowanie testów, które "raz działają, raz nie" |
+| **Problem** | Inżynierowie tracą 10-20% czasu na debugowanie błędów CI - flaky tests, prawdziwe bugi, problemy infrastrukturalne |
 | **Rozwiązanie** | Automatyczna korelacja trace'ów z testów E2E z logami backendowymi i metrykami infrastruktury |
 | **Rynek docelowy** | Średnie i duże zespoły deweloperskie z architekturą mikroserwisową |
 | **Model biznesowy** | B2B SaaS, pricing per-seat ($29/user/mies.) |
@@ -19,9 +19,10 @@
 
 W nowoczesnych zespołach deweloperskich (szczególnie w architekturze mikroserwisów):
 
-- **Koszt czasowy:** Inżynierowie tracą 10-20% czasu na debugowanie niestabilnych testów
+- **Koszt czasowy:** Inżynierowie tracą 10-20% czasu na debugowanie błędów CI - flaky tests, realne bugi, problemy infrastrukturalne
 - **Utrata zaufania:** Zespoły ignorują czerwone testy ("to tylko ten flaky test, puść deploy"), co prowadzi do błędów na produkcji
 - **Silosy danych:** Narzędzia frontendowe (Playwright Trace Viewer) nie widzą problemów backendowych (GC pause, locki w bazie)
+- **Brak automatycznej diagnozy:** GitHub nie oferuje natywnego narzędzia AI do analizy przyczyn błędów testów w CI/CD
 
 ### Obecne rozwiązania i ich ograniczenia
 
@@ -70,7 +71,7 @@ W nowoczesnych zespołach deweloperskich (szczególnie w architekturze mikroserw
 
 ## 4. Propozycja wartości
 
-> **Pomagamy zespołom deweloperskim skrócić czas debugowania flaky testów z godzin do minut poprzez automatyczną korelację trace'ów E2E z logami backendowymi i dostarczenie diagnozy w komentarzu do PR.**
+> **Pomagamy zespołom deweloperskim skrócić czas debugowania błędów testów E2E z godzin do minut poprzez automatyczną korelację trace'ów z logami backendowymi i dostarczenie diagnozy w komentarzu do PR - niezależnie czy to flaky test, prawdziwy bug, czy problem infrastrukturalny.**
 
 ### Kluczowe benefity
 
