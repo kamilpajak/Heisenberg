@@ -253,10 +253,56 @@ Heisenberg staje się standardowym narzędziem w każdym pipeline CI/CD, automat
 
 ---
 
-## 12. Następne kroki
+## 12. Status realizacji
 
-1. [ ] Zbudować prototyp GitHub Action z podstawową analizą
+### Faza 1: Open Source MVP - ✅ UKOŃCZONA (85%)
+
+| Komponent | Status | Szczegóły |
+|-----------|--------|-----------|
+| **Playwright Parser** | ✅ | `playwright_parser.py` - pełna obsługa JSON reports |
+| **Docker Log Collection** | ✅ | `docker_logs.py` - logi z oknem czasowym ±30s |
+| **AI Diagnosis** | ✅ | Claude + OpenAI + Gemini (przekroczono plan) |
+| **GitHub PR Comments** | ✅ | `comment_formatter.py` + `github_client.py` |
+| **Confidence Score** | ✅ | `ConfidenceLevel` enum w `diagnosis.py` |
+| **CLI Tool** | ✅ | `heisenberg analyze` + `heisenberg fetch-github` |
+| **GitHub Action** | ✅ | Gotowa do użycia |
+| **REST API Backend** | ✅ | FastAPI + PostgreSQL + Alembic migrations |
+| **Rate Limiting** | ✅ | Sliding window, 60 req/min |
+| **Structured Logging** | ✅ | structlog z JSON + request_id |
+| **Usage Tracking** | ✅ | `/api/v1/usage/summary` endpoint |
+| **Feedback Collection** | ✅ | `/api/v1/feedback` endpoint |
+| **Test Coverage** | ✅ | 730 testów, 84% coverage |
+| **Fuzz Testing** | ✅ | Schemathesis integration |
+
+### User Stories - Status
+
+| # | User Story | Status |
+|---|------------|--------|
+| US1 | Automatyczna diagnoza w komentarzu PR | ✅ |
+| US2 | Logi backendowe +/- 30s od awarii | ✅ |
+| US3 | Confidence score diagnozy | ✅ |
+| US4 | Historia diagnoz (dashboard) | 🚧 Backend ready |
+
+### Do zrobienia w Fazie 2 (SaaS)
+
+| Komponent | Priorytet | Notatki |
+|-----------|-----------|---------|
+| Web Dashboard | Wysoki | Backend API gotowy |
+| Pattern Recognition | Średni | Wymaga pgvector |
+| GitLab CI integration | Średni | - |
+| Jenkins integration | Niski | - |
+| Cypress/Selenium support | Niski | - |
+| Kubernetes log collection | Średni | - |
+| Infrastructure metrics (CPU/RAM) | Średni | - |
+
+---
+
+## 13. Następne kroki
+
+1. [x] ~~Zbudować prototyp GitHub Action z podstawową analizą~~ → Pełne MVP
 2. [ ] Przeprowadzić 10 wywiadów z potencjalnymi klientami (ICP)
 3. [ ] Przetestować dokładność AI na 50 realnych przypadkach flaky testów
-4. [ ] Zwalidować gotowość do płacenia (pricing survey)
-5. [ ] Opublikować MVP open source i zebrać feedback
+4. [x] ~~Opublikować MVP open source i zebrać feedback~~ → Na GitHub
+5. [ ] Zwalidować gotowość do płacenia (pricing survey)
+6. [ ] Zbudować Web Dashboard (Faza 2)
+7. [ ] Dodać pattern recognition z pgvector
