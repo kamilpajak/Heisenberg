@@ -273,18 +273,14 @@ class GitHubArtifactClient:
             zip_buffer = io.BytesIO(zip_content)
             with zipfile.ZipFile(zip_buffer, "r") as zf:
                 # Find all JSON files
-                json_files = [
-                    name for name in zf.namelist()
-                    if name.endswith(".json")
-                ]
+                json_files = [name for name in zf.namelist() if name.endswith(".json")]
 
                 if not json_files:
                     return None
 
                 # Prioritize files with 'report' or 'results' in name
                 priority_files = [
-                    f for f in json_files
-                    if "report" in f.lower() or "results" in f.lower()
+                    f for f in json_files if "report" in f.lower() or "results" in f.lower()
                 ]
 
                 files_to_check = priority_files if priority_files else json_files
@@ -342,7 +338,8 @@ class GitHubArtifactClient:
 
         # Filter by conclusion and optionally by name
         matching_runs = [
-            r for r in runs
+            r
+            for r in runs
             if r.conclusion == conclusion
             and (workflow_name is None or workflow_name.lower() in r.name.lower())
         ]
@@ -356,8 +353,7 @@ class GitHubArtifactClient:
 
             # Find artifact matching the pattern
             matching_artifacts = [
-                a for a in artifacts
-                if artifact_name_pattern.lower() in a.name.lower()
+                a for a in artifacts if artifact_name_pattern.lower() in a.name.lower()
             ]
 
             for artifact in matching_artifacts:

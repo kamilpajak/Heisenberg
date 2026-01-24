@@ -295,9 +295,7 @@ class TestRetryWithMaxDelay:
 
         # base_delay=10, so delays would be 10, 20, 40, 80...
         # but max_delay=25 caps it
-        @retry_with_backoff(
-            max_retries=4, base_delay=10.0, max_delay=25.0, jitter=False
-        )
+        @retry_with_backoff(max_retries=4, base_delay=10.0, max_delay=25.0, jitter=False)
         async def test_func():
             nonlocal call_count
             call_count += 1

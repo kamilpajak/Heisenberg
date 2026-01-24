@@ -1,8 +1,6 @@
 """Tests for backend database models - TDD for Phase 4."""
 
 
-
-
 class TestOrganizationModel:
     """Test suite for Organization database model."""
 

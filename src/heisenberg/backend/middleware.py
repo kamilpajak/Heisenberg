@@ -72,7 +72,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             Response or 429 Too Many Requests.
         """
         # Use API key for tracking, fallback to client IP
-        key = request.headers.get("X-API-Key") or request.client.host if request.client else "unknown"
+        key = (
+            request.headers.get("X-API-Key") or request.client.host if request.client else "unknown"
+        )
 
         allowed, headers = self.limiter.is_allowed(key)
 

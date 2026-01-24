@@ -168,9 +168,7 @@ class TestSystemPrompt:
 class TestConvenienceFunction:
     """Test suite for build_analysis_prompt helper."""
 
-    def test_build_analysis_prompt_returns_tuple(
-        self, sample_report: PlaywrightReport
-    ):
+    def test_build_analysis_prompt_returns_tuple(self, sample_report: PlaywrightReport):
         """Helper should return (system_prompt, user_prompt) tuple."""
         # When
         result = build_analysis_prompt(sample_report)

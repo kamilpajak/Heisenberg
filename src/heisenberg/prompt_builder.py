@@ -141,16 +141,12 @@ class PromptBuilder:
     def _build_logs_section(self) -> str:
         """Build section for container logs."""
         lines = ["## Backend Container Logs"]
-        lines.append(
-            "Logs collected from containers around the time of test failure:\n"
-        )
+        lines.append("Logs collected from containers around the time of test failure:\n")
 
         # Get focus timestamp from earliest failure
         focus_timestamp = None
         if self.report.failed_tests:
-            failure_times = [
-                t.start_time for t in self.report.failed_tests if t.start_time
-            ]
+            failure_times = [t.start_time for t in self.report.failed_tests if t.start_time]
             if failure_times:
                 focus_timestamp = min(failure_times)
 

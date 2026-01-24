@@ -130,9 +130,7 @@ class TestRateLimitMiddleware:
             return {"status": "ok"}
 
         # When
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/test")
 
         # Then
@@ -156,9 +154,7 @@ class TestRateLimitMiddleware:
             return {"status": "ok"}
 
         # When
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Make 2 allowed requests
             await client.get("/test")
             await client.get("/test")
@@ -185,9 +181,7 @@ class TestRateLimitMiddleware:
             return {"status": "ok"}
 
         # When
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             await client.get("/test")  # First request
             response = await client.get("/test")  # Rate limited
 
@@ -211,9 +205,7 @@ class TestRateLimitMiddleware:
             return {"status": "ok"}
 
         # When - exhaust limit for key1
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             await client.get("/test", headers={"X-API-Key": "key1"})
             await client.get("/test", headers={"X-API-Key": "key1"})
             response_key1 = await client.get("/test", headers={"X-API-Key": "key1"})

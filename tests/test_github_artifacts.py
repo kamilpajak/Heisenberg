@@ -27,8 +27,7 @@ except ImportError:
 
 
 pytestmark = pytest.mark.skipif(
-    GitHubArtifactClient is None,
-    reason="github_artifacts module not implemented yet"
+    GitHubArtifactClient is None, reason="github_artifacts module not implemented yet"
 )
 
 
@@ -89,7 +88,7 @@ class TestWorkflowRunDataclass:
             status="completed",
             conclusion="failure",
             created_at="2024-01-20T10:00:00Z",
-            html_url="https://github.com/owner/repo/actions/runs/12345"
+            html_url="https://github.com/owner/repo/actions/runs/12345",
         )
         assert run.id == 12345
         assert run.name == "E2E Tests"
@@ -113,7 +112,7 @@ class TestArtifactDataclass:
             name="playwright-report",
             size_in_bytes=1024000,
             expired=False,
-            archive_download_url="https://api.github.com/..."
+            archive_download_url="https://api.github.com/...",
         )
         assert artifact.id == 67890
         assert artifact.name == "playwright-report"
@@ -136,7 +135,7 @@ class TestListWorkflowRuns:
                     "status": "completed",
                     "conclusion": "failure",
                     "created_at": "2024-01-20T10:00:00Z",
-                    "html_url": "https://github.com/owner/repo/actions/runs/12345"
+                    "html_url": "https://github.com/owner/repo/actions/runs/12345",
                 },
                 {
                     "id": 12344,
@@ -144,9 +143,9 @@ class TestListWorkflowRuns:
                     "status": "completed",
                     "conclusion": "success",
                     "created_at": "2024-01-19T10:00:00Z",
-                    "html_url": "https://github.com/owner/repo/actions/runs/12344"
-                }
-            ]
+                    "html_url": "https://github.com/owner/repo/actions/runs/12344",
+                },
+            ],
         }
 
     @pytest.mark.asyncio
@@ -175,7 +174,10 @@ class TestListWorkflowRuns:
 
             # Verify the request included status parameter
             call_args = mock_request.call_args
-            assert "status=failure" in str(call_args) or call_args[1].get("params", {}).get("status") == "failure"
+            assert (
+                "status=failure" in str(call_args)
+                or call_args[1].get("params", {}).get("status") == "failure"
+            )
 
 
 class TestGetArtifacts:
@@ -192,16 +194,16 @@ class TestGetArtifacts:
                     "name": "playwright-report",
                     "size_in_bytes": 1024000,
                     "expired": False,
-                    "archive_download_url": "https://api.github.com/repos/owner/repo/actions/artifacts/67890/zip"
+                    "archive_download_url": "https://api.github.com/repos/owner/repo/actions/artifacts/67890/zip",
                 },
                 {
                     "id": 67891,
                     "name": "test-results",
                     "size_in_bytes": 512000,
                     "expired": False,
-                    "archive_download_url": "https://api.github.com/repos/owner/repo/actions/artifacts/67891/zip"
-                }
-            ]
+                    "archive_download_url": "https://api.github.com/repos/owner/repo/actions/artifacts/67891/zip",
+                },
+            ],
         }
 
     @pytest.mark.asyncio
@@ -227,7 +229,9 @@ class TestGetArtifacts:
         with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_artifacts_response
 
-            artifacts = await client.get_artifacts("owner", "repo", run_id=12345, include_expired=False)
+            artifacts = await client.get_artifacts(
+                "owner", "repo", run_id=12345, include_expired=False
+            )
 
             assert len(artifacts) == 1
             assert artifacts[0].name == "test-results"
@@ -387,7 +391,7 @@ class TestFetchAndAnalyzeIntegration:
                 status="completed",
                 conclusion="failure",
                 created_at="2024-01-20T10:00:00Z",
-                html_url="https://github.com/owner/repo/actions/runs/12345"
+                html_url="https://github.com/owner/repo/actions/runs/12345",
             )
         ]
         mock_artifacts = [
@@ -396,13 +400,13 @@ class TestFetchAndAnalyzeIntegration:
                 name="playwright-report",
                 size_in_bytes=1024,
                 expired=False,
-                archive_download_url="https://api.github.com/..."
+                archive_download_url="https://api.github.com/...",
             )
         ]
 
         report_data = {
             "suites": [],
-            "stats": {"expected": 5, "unexpected": 2, "flaky": 0, "skipped": 0}
+            "stats": {"expected": 5, "unexpected": 2, "flaky": 0, "skipped": 0},
         }
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zf:
@@ -411,7 +415,9 @@ class TestFetchAndAnalyzeIntegration:
 
         with patch.object(client, "list_workflow_runs", new_callable=AsyncMock) as mock_list:
             with patch.object(client, "get_artifacts", new_callable=AsyncMock) as mock_get:
-                with patch.object(client, "download_artifact", new_callable=AsyncMock) as mock_download:
+                with patch.object(
+                    client, "download_artifact", new_callable=AsyncMock
+                ) as mock_download:
                     mock_list.return_value = mock_runs
                     mock_get.return_value = mock_artifacts
                     mock_download.return_value = zip_content
@@ -423,7 +429,9 @@ class TestFetchAndAnalyzeIntegration:
                     artifacts = await client.get_artifacts("owner", "repo", run_id=runs[0].id)
                     assert len(artifacts) == 1
 
-                    zip_data = await client.download_artifact("owner", "repo", artifact_id=artifacts[0].id)
+                    zip_data = await client.download_artifact(
+                        "owner", "repo", artifact_id=artifacts[0].id
+                    )
                     report = client.extract_playwright_report(zip_data)
 
                     assert report is not None

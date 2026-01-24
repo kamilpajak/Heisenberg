@@ -42,9 +42,7 @@ class TestAIAnalyzer:
         assert analyzer.api_key == "test-key"
 
     @patch("heisenberg.ai_analyzer.LLMClient")
-    def test_analyzer_calls_llm(
-        self, mock_llm_class: MagicMock, sample_report: PlaywrightReport
-    ):
+    def test_analyzer_calls_llm(self, mock_llm_class: MagicMock, sample_report: PlaywrightReport):
         """Analyzer should call LLM with prompt."""
         # Given
         mock_llm = MagicMock()
@@ -172,9 +170,7 @@ class TestAIAnalyzer:
         )
         mock_llm_class.return_value = mock_llm
 
-        analyzer = AIAnalyzer(
-            report=sample_report, container_logs=sample_logs, api_key="test-key"
-        )
+        analyzer = AIAnalyzer(report=sample_report, container_logs=sample_logs, api_key="test-key")
 
         # When
         analyzer.analyze()

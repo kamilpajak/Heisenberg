@@ -193,15 +193,12 @@ class TestDetailedHealthEndpoint:
             assert response.status_code != 404
 
     @pytest.mark.asyncio
-    async def test_detailed_health_includes_database_status(
-        self, test_client: AsyncClient
-    ):
+    async def test_detailed_health_includes_database_status(self, test_client: AsyncClient):
         """Detailed health should include database status."""
         async with test_client as client:
-            with patch(
-                "heisenberg.backend.app.check_database_health"
-            ) as mock_check, patch(
-                "heisenberg.backend.database._session_maker", MagicMock()
+            with (
+                patch("heisenberg.backend.app.check_database_health") as mock_check,
+                patch("heisenberg.backend.database._session_maker", MagicMock()),
             ):
                 mock_check.return_value = (True, 5.5)
                 response = await client.get("/health/detailed")
@@ -212,15 +209,12 @@ class TestDetailedHealthEndpoint:
                 assert "latency_ms" in data["database"]
 
     @pytest.mark.asyncio
-    async def test_detailed_health_returns_degraded_when_db_slow(
-        self, test_client: AsyncClient
-    ):
+    async def test_detailed_health_returns_degraded_when_db_slow(self, test_client: AsyncClient):
         """Detailed health should return 'degraded' when DB is slow."""
         async with test_client as client:
-            with patch(
-                "heisenberg.backend.app.check_database_health"
-            ) as mock_check, patch(
-                "heisenberg.backend.database._session_maker", MagicMock()
+            with (
+                patch("heisenberg.backend.app.check_database_health") as mock_check,
+                patch("heisenberg.backend.database._session_maker", MagicMock()),
             ):
                 # Simulate slow database (> 1000ms)
                 mock_check.return_value = (True, 1500.0)
@@ -230,15 +224,12 @@ class TestDetailedHealthEndpoint:
                 assert data["status"] == "degraded"
 
     @pytest.mark.asyncio
-    async def test_detailed_health_returns_unhealthy_when_db_down(
-        self, test_client: AsyncClient
-    ):
+    async def test_detailed_health_returns_unhealthy_when_db_down(self, test_client: AsyncClient):
         """Detailed health should return 'unhealthy' when DB is down."""
         async with test_client as client:
-            with patch(
-                "heisenberg.backend.app.check_database_health"
-            ) as mock_check, patch(
-                "heisenberg.backend.database._session_maker", MagicMock()
+            with (
+                patch("heisenberg.backend.app.check_database_health") as mock_check,
+                patch("heisenberg.backend.database._session_maker", MagicMock()),
             ):
                 mock_check.return_value = (False, 0.0)
                 response = await client.get("/health/detailed")

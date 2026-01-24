@@ -50,22 +50,26 @@ class AIAnalysisResult:
                 lines.append(f"- {item}")
             lines.append("")
 
-        lines.extend([
-            "### Suggested Fix",
-            self.diagnosis.suggested_fix,
-            "",
-            "### Confidence",
-            f"**{self.diagnosis.confidence.value}**",
-        ])
+        lines.extend(
+            [
+                "### Suggested Fix",
+                self.diagnosis.suggested_fix,
+                "",
+                "### Confidence",
+                f"**{self.diagnosis.confidence.value}**",
+            ]
+        )
 
         if self.diagnosis.confidence_explanation:
             lines.append(f"\n{self.diagnosis.confidence_explanation}")
 
-        lines.extend([
-            "",
-            "---",
-            f"*Tokens: {self.total_tokens} | Est. cost: ${self.estimated_cost:.4f}*",
-        ])
+        lines.extend(
+            [
+                "",
+                "---",
+                f"*Tokens: {self.total_tokens} | Est. cost: ${self.estimated_cost:.4f}*",
+            ]
+        )
 
         return "\n".join(lines)
 

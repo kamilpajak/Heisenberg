@@ -190,9 +190,7 @@ class TestCliAIAnalysis:
         mock_ai_analyzer.assert_called_once()
         assert "AI Analysis" in captured.out or "Root Cause" in captured.out
 
-    def test_analyze_without_ai_flag(
-        self, sample_report_path: Path, capsys, mock_ai_analyzer
-    ):
+    def test_analyze_without_ai_flag(self, sample_report_path: Path, capsys, mock_ai_analyzer):
         """Given no --ai-analysis flag, should not call AI."""
         # Given
         args = argparse.Namespace(

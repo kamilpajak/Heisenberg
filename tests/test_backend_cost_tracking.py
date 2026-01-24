@@ -155,9 +155,7 @@ class TestUsageEndpoints:
 
             mock_session = AsyncMock()
             # First call returns aggregate, second returns by-model
-            mock_session.execute = AsyncMock(
-                side_effect=[mock_agg_result, mock_model_result]
-            )
+            mock_session.execute = AsyncMock(side_effect=[mock_agg_result, mock_model_result])
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -294,9 +292,7 @@ class TestUsageMigration:
         migration_files = list(migrations_dir.glob("*usage*.py"))
         assert len(migration_files) >= 1
 
-        spec = importlib.util.spec_from_file_location(
-            "usage_migration", migration_files[0]
-        )
+        spec = importlib.util.spec_from_file_location("usage_migration", migration_files[0])
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 

@@ -346,7 +346,8 @@ def run_fetch_github(args: argparse.Namespace) -> int:
             else:
                 # Fetch latest failed run
                 report_data = await client.fetch_latest_report(
-                    owner, repo,
+                    owner,
+                    repo,
                     artifact_name_pattern=args.artifact_name,
                 )
 
@@ -364,7 +365,8 @@ def run_fetch_github(args: argparse.Namespace) -> int:
 
             # Create a temp file for the report
             import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
                 json.dump(report_data, f)
                 temp_path = Path(f.name)
 

@@ -1,7 +1,6 @@
 """Tests for backend database configuration - TDD for Phase 4."""
 
 
-
 class TestDatabaseConfig:
     """Test suite for database configuration."""
 

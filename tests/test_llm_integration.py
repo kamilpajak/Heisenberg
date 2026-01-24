@@ -97,9 +97,9 @@ class TestAnthropicIntegration:
 
         prompt = f"""
         Analyze this test failure:
-        Test: {SAMPLE_FAILED_TEST['name']}
-        Error: {SAMPLE_FAILED_TEST['error_message']}
-        Retries: {SAMPLE_FAILED_TEST['retry_count']}
+        Test: {SAMPLE_FAILED_TEST["name"]}
+        Error: {SAMPLE_FAILED_TEST["error_message"]}
+        Retries: {SAMPLE_FAILED_TEST["retry_count"]}
 
         Provide a brief root cause analysis.
         """
@@ -382,8 +382,7 @@ class TestAnalyzeServiceIntegration:
         # Check if flaky was detected or mentioned in diagnosis
         diagnosis_lower = result.diagnosis.lower()
         is_flaky_mentioned = any(
-            term in diagnosis_lower
-            for term in ["flaky", "race", "timing", "intermittent", "retry"]
+            term in diagnosis_lower for term in ["flaky", "race", "timing", "intermittent", "retry"]
         )
         assert result.is_flaky or is_flaky_mentioned
 

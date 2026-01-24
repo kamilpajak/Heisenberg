@@ -336,9 +336,7 @@ class TestFeedbackMigration:
         assert len(migration_files) >= 1
 
         # Load the migration module
-        spec = importlib.util.spec_from_file_location(
-            "feedback_migration", migration_files[0]
-        )
+        spec = importlib.util.spec_from_file_location("feedback_migration", migration_files[0])
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 
@@ -354,9 +352,7 @@ class TestFeedbackMigration:
         migration_files = list(migrations_dir.glob("*feedback*.py"))
         assert len(migration_files) >= 1
 
-        spec = importlib.util.spec_from_file_location(
-            "feedback_migration", migration_files[0]
-        )
+        spec = importlib.util.spec_from_file_location("feedback_migration", migration_files[0])
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 

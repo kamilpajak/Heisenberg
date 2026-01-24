@@ -178,9 +178,7 @@ class TestRequestIDMiddleware:
             return {"status": "ok"}
 
         # When
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/test")
 
         # Then
@@ -204,12 +202,8 @@ class TestRequestIDMiddleware:
             return {"status": "ok"}
 
         # When
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get(
-                "/test", headers={"X-Request-ID": "custom-id-456"}
-            )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/test", headers={"X-Request-ID": "custom-id-456"})
 
         # Then
         assert response.headers["X-Request-ID"] == "custom-id-456"
@@ -235,9 +229,7 @@ class TestRequestIDMiddleware:
             return {"status": "ok"}
 
         # When
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             await client.get("/test", headers={"X-Request-ID": "context-test-789"})
 
         # Then

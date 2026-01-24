@@ -12,9 +12,7 @@ class TestValidateWorkflowExists:
 
     def test_workflow_file_exists(self):
         """validate-real-world.yml should exist."""
-        assert WORKFLOW_FILE.exists(), (
-            f"Workflow file {WORKFLOW_FILE} does not exist"
-        )
+        assert WORKFLOW_FILE.exists(), f"Workflow file {WORKFLOW_FILE} does not exist"
 
     def test_workflow_is_valid_yaml(self):
         """Workflow should be valid YAML."""
@@ -79,10 +77,7 @@ class TestValidateWorkflowJobs:
         fixture_job = jobs.get("validate-fixtures", jobs.get(list(jobs.keys())[0]))
 
         steps = fixture_job.get("steps", [])
-        pytest_found = any(
-            "pytest" in str(step.get("run", "")).lower()
-            for step in steps
-        )
+        pytest_found = any("pytest" in str(step.get("run", "")).lower() for step in steps)
         assert pytest_found, "Job should run pytest"
 
     def test_has_validate_live_job(self):
@@ -106,10 +101,7 @@ class TestValidateWorkflowJobs:
 
         if live_job:
             steps = live_job.get("steps", [])
-            fetch_found = any(
-                "fetch-github" in str(step.get("run", ""))
-                for step in steps
-            )
+            fetch_found = any("fetch-github" in str(step.get("run", "")) for step in steps)
             assert fetch_found, "Live job should use fetch-github command"
 
 

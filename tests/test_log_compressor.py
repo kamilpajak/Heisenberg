@@ -94,9 +94,7 @@ class TestLogCompressor:
         error_count = sum(1 for e in api_logs.entries if e.stream == "stderr")
         assert error_count > 0
 
-    def test_compress_preserves_logs_around_timestamp(
-        self, verbose_logs: dict[str, ContainerLogs]
-    ):
+    def test_compress_preserves_logs_around_timestamp(self, verbose_logs: dict[str, ContainerLogs]):
         """Compressor should preserve logs around a focus timestamp."""
         # Given
         focus_time = datetime(2024, 1, 15, 10, 30, 50, tzinfo=UTC)
@@ -135,9 +133,7 @@ class TestLogCompressor:
         # Check for dedup marker
         assert any("repeated" in m.lower() or "x" in m for m in messages) or len(messages) < 50
 
-    def test_compress_filters_noisy_patterns(
-        self, noisy_logs: dict[str, ContainerLogs]
-    ):
+    def test_compress_filters_noisy_patterns(self, noisy_logs: dict[str, ContainerLogs]):
         """Compressor should filter out common noisy log patterns."""
         # Given
         compressor = LogCompressor(filter_noise=True)
@@ -222,9 +218,7 @@ class TestCompressedLogs:
 class TestConvenienceFunction:
     """Test suite for compress_logs_for_llm helper."""
 
-    def test_compress_logs_for_llm_returns_compressed(
-        self, sample_logs: dict[str, ContainerLogs]
-    ):
+    def test_compress_logs_for_llm_returns_compressed(self, sample_logs: dict[str, ContainerLogs]):
         """Helper should return CompressedLogs."""
         # When
         result = compress_logs_for_llm(sample_logs)
@@ -232,9 +226,7 @@ class TestConvenienceFunction:
         # Then
         assert isinstance(result, CompressedLogs)
 
-    def test_compress_logs_for_llm_accepts_options(
-        self, verbose_logs: dict[str, ContainerLogs]
-    ):
+    def test_compress_logs_for_llm_accepts_options(self, verbose_logs: dict[str, ContainerLogs]):
         """Helper should accept compression options."""
         # When
         result = compress_logs_for_llm(

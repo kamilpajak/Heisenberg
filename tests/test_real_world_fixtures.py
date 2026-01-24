@@ -67,8 +67,7 @@ class TestRealWorldFixturesExist:
         """Fixtures directory should have README documenting sources."""
         readme = REAL_WORLD_FIXTURES_DIR / "README.md"
         assert readme.exists(), (
-            "README.md should exist in fixtures/real-world/ "
-            "documenting the source of each fixture."
+            "README.md should exist in fixtures/real-world/ documenting the source of each fixture."
         )
 
     def test_at_least_min_projects_represented(self):
@@ -138,9 +137,7 @@ class TestHeisenbergOnRealWorld:
                     f"Report {fixture_path} has_failures=True but no failed_tests"
                 )
 
-        assert fixtures_with_failures > 0, (
-            "Expected at least one fixture with failures"
-        )
+        assert fixtures_with_failures > 0, "Expected at least one fixture with failures"
 
     def test_no_crash_on_any_fixture(self, fixture_paths: list[Path]):
         """Heisenberg should not crash on any real-world fixture."""
@@ -240,7 +237,17 @@ class TestFailureTypeDetection:
 
         # At least one test should have network-related error
         network_found = False
-        network_keywords = ["network", "api", "fetch", "request", "response", "500", "502", "503", "connection"]
+        network_keywords = [
+            "network",
+            "api",
+            "fetch",
+            "request",
+            "response",
+            "500",
+            "502",
+            "503",
+            "connection",
+        ]
         for test in report.failed_tests:
             error_lower = test.error_summary.lower()
             if any(kw in error_lower for kw in network_keywords):
@@ -295,9 +302,7 @@ class TestFixtureQuality:
         for fixture in fixtures:
             report = parse_playwright_report(fixture)
             for test in report.failed_tests:
-                assert len(test.errors) > 0, (
-                    f"Failed test in {fixture} has no errors"
-                )
+                assert len(test.errors) > 0, f"Failed test in {fixture} has no errors"
                 assert len(test.errors[0].message) > 10, (
                     f"Error message in {fixture} is too short to be meaningful"
                 )
@@ -310,6 +315,4 @@ class TestFixtureQuality:
 
         for project in projects:
             fixtures = list(project.glob("*.json"))
-            assert len(fixtures) > 0, (
-                f"Project {project.name} has no JSON fixtures"
-            )
+            assert len(fixtures) > 0, f"Project {project.name} has no JSON fixtures"

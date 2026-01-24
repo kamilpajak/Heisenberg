@@ -61,8 +61,10 @@ class TestAnalyzeEndpoint:
         async with test_client as client:
             response = await client.post("/api/v1/analyze/", json=valid_analyze_request)
             assert response.status_code == 401
-            assert "API key" in response.json().get("detail", "").lower() or \
-                   "missing" in response.json().get("detail", "").lower()
+            assert (
+                "API key" in response.json().get("detail", "").lower()
+                or "missing" in response.json().get("detail", "").lower()
+            )
 
     @pytest.mark.asyncio
     async def test_analyze_validates_request_body(self, test_client: AsyncClient):

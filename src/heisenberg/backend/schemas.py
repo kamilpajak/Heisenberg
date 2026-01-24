@@ -120,7 +120,11 @@ class DetailedHealthResponse(BaseModel):
     )
     version: str
     database: DatabaseHealthStatus
-    timestamp: datetime = Field(default_factory=lambda: __import__("datetime").datetime.now(__import__("datetime").timezone.utc))
+    timestamp: datetime = Field(
+        default_factory=lambda: __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        )
+    )
 
 
 # ============================================================================

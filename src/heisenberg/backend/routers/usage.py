@@ -73,15 +73,9 @@ async def get_usage_summary(
         result = await session.execute(
             select(
                 func.count(UsageRecord.id).label("total_requests"),
-                func.coalesce(func.sum(UsageRecord.input_tokens), 0).label(
-                    "total_input_tokens"
-                ),
-                func.coalesce(func.sum(UsageRecord.output_tokens), 0).label(
-                    "total_output_tokens"
-                ),
-                func.coalesce(func.sum(UsageRecord.cost_usd), Decimal("0")).label(
-                    "total_cost_usd"
-                ),
+                func.coalesce(func.sum(UsageRecord.input_tokens), 0).label("total_input_tokens"),
+                func.coalesce(func.sum(UsageRecord.output_tokens), 0).label("total_output_tokens"),
+                func.coalesce(func.sum(UsageRecord.cost_usd), Decimal("0")).label("total_cost_usd"),
             ).where(
                 UsageRecord.organization_id == organization_id,
                 UsageRecord.created_at >= period_start,

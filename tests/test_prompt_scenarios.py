@@ -94,7 +94,7 @@ class TestDatabaseTimeoutScenario:
                     ),
                     LogEntry(
                         base_time + timedelta(seconds=4),
-                        "FATAL: too many connections for role \"app\"",
+                        'FATAL: too many connections for role "app"',
                         "stderr",
                     ),
                 ],
@@ -397,8 +397,7 @@ class TestElementNotFoundScenario:
                             "Call log:\n"
                             "  - waiting for locator('button.submit-btn')\n"
                             "  - locator resolved to 0 elements",
-                            stack="Error: locator.click\n"
-                            "    at contact.spec.ts:22:30",
+                            stack="Error: locator.click\n    at contact.spec.ts:22:30",
                         )
                     ],
                 )
@@ -544,8 +543,7 @@ class TestResourceExhaustionScenario:
                     errors=[
                         ErrorDetail(
                             message="browserContext.newPage: Target page, context or browser has been closed",
-                            stack="Error: browserContext.newPage\n"
-                            "    at pdf-export.spec.ts:15:40",
+                            stack="Error: browserContext.newPage\n    at pdf-export.spec.ts:15:40",
                         )
                     ],
                 )
@@ -683,8 +681,7 @@ class TestConcurrencyScenario:
                             message="expect(received).toBe(expected)\n"
                             "Expected: 'test_user_abc@example.com'\n"
                             "Received: 'test_user_xyz@example.com'",
-                            stack="Error: expect(received).toBe\n"
-                            "    at profile.spec.ts:28:30",
+                            stack="Error: expect(received).toBe\n    at profile.spec.ts:28:30",
                         )
                     ],
                 )
@@ -752,11 +749,10 @@ class TestFlakySelectorScenario:
                             message="locator.click: Timeout 30000ms exceeded.\n"
                             "Call log:\n"
                             "  - waiting for locator('div.notification:nth-child(1)')\n"
-                            "  - locator resolved to <div class=\"notification\">...</div>\n"
+                            '  - locator resolved to <div class="notification">...</div>\n'
                             "  - element is not stable - waiting...\n"
                             "  - element is outside viewport - scrolling into view",
-                            stack="Error: locator.click\n"
-                            "    at banner.spec.ts:18:35",
+                            stack="Error: locator.click\n    at banner.spec.ts:18:35",
                         )
                     ],
                 )

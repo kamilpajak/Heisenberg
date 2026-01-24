@@ -42,9 +42,7 @@ class TestValidationTestsStructure:
         assert tests_dir.exists(), "tests/ directory is required"
 
         spec_files = list(tests_dir.glob("*.spec.ts"))
-        assert len(spec_files) >= 3, (
-            f"Expected at least 3 spec files, found {len(spec_files)}"
-        )
+        assert len(spec_files) >= 3, f"Expected at least 3 spec files, found {len(spec_files)}"
 
 
 class TestValidationTestTypes:
@@ -68,8 +66,7 @@ class TestValidationTestTypes:
 
         files = [f.name for f in tests_dir.glob("*.spec.ts")]
         has_selector = any(
-            "selector" in f.lower() or "element" in f.lower() or "dom" in f.lower()
-            for f in files
+            "selector" in f.lower() or "element" in f.lower() or "dom" in f.lower() for f in files
         )
         assert has_selector, "Should have a selector/DOM failure test"
 
@@ -91,8 +88,7 @@ class TestValidationTestTypes:
 
         files = [f.name for f in tests_dir.glob("*.spec.ts")]
         has_network = any(
-            "network" in f.lower() or "api" in f.lower() or "race" in f.lower()
-            for f in files
+            "network" in f.lower() or "api" in f.lower() or "race" in f.lower() for f in files
         )
         assert has_network, "Should have a network/race condition test"
 

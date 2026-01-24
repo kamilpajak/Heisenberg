@@ -1,6 +1,5 @@
 """Tests for diagnosis parser - TDD Red-Green-Refactor."""
 
-
 from heisenberg.diagnosis import (
     ConfidenceLevel,
     Diagnosis,

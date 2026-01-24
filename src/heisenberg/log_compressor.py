@@ -161,9 +161,7 @@ class LogCompressor:
 
         return result
 
-    def _filter_noise(
-        self, entries: list[LogEntry]
-    ) -> tuple[list[LogEntry], list[str]]:
+    def _filter_noise(self, entries: list[LogEntry]) -> tuple[list[LogEntry], list[str]]:
         """Filter out noisy log patterns."""
         filtered = []
         patterns_matched = []
@@ -181,9 +179,7 @@ class LogCompressor:
 
         return filtered, patterns_matched
 
-    def _deduplicate(
-        self, entries: list[LogEntry]
-    ) -> tuple[list[LogEntry], int]:
+    def _deduplicate(self, entries: list[LogEntry]) -> tuple[list[LogEntry], int]:
         """Deduplicate repeated log messages."""
         if not entries:
             return entries, 0
@@ -238,9 +234,7 @@ class LogCompressor:
 
         return [entry for _, _, entry in top_entries]
 
-    def _calculate_priority_score(
-        self, entry: LogEntry, index: int, total: int
-    ) -> float:
+    def _calculate_priority_score(self, entry: LogEntry, index: int, total: int) -> float:
         """Calculate priority score for a log entry."""
         score = 0.0
 
@@ -272,9 +266,7 @@ class LogCompressor:
 
         return score
 
-    def _enforce_total_limit(
-        self, logs: dict[str, ContainerLogs]
-    ) -> dict[str, ContainerLogs]:
+    def _enforce_total_limit(self, logs: dict[str, ContainerLogs]) -> dict[str, ContainerLogs]:
         """Enforce total line limit across all containers."""
         total = sum(len(c.entries) for c in logs.values())
 
