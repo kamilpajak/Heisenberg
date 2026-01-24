@@ -1,0 +1,110 @@
+name: "Heisenberg - AI Test Failure Analysis"
+description: "Analyze Playwright test failures with AI-powered root cause analysis"
+author: "Kamil Pajak"
+
+branding:
+  icon: "search"
+  color: "purple"
+
+inputs:
+  report-path:
+    description: "Path to Playwright JSON report file"
+    required: true
+  api-key:
+    description: "API key for LLM provider (Anthropic or OpenAI)"
+    required: true
+  provider:
+    description: "LLM provider to use (claude or openai)"
+    required: false
+    default: "claude"
+  fail-on-flaky:
+    description: "Fail the workflow if flaky tests are detected"
+    required: false
+    default: "false"
+  model:
+    description: "Model to use for analysis"
+    required: false
+    default: ""
+  container-logs:
+    description: "Path to container logs file for additional context"
+    required: false
+    default: ""
+
+outputs:
+  analysis:
+    description: "JSON analysis result with root cause diagnosis"
+    value: ${{ steps.analyze.outputs.analysis }}
+  failed-tests-count:
+    description: "Number of failed tests found"
+    value: ${{ steps.analyze.outputs.failed_count }}
+  flaky-detected:
+    description: "Whether flaky tests were detected (true/false)"
+    value: ${{ steps.analyze.outputs.flaky_detected }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install Heisenberg
+      shell: bash
+      run: |
+        uv pip install --system heisenberg-ai
+
+    - name: Run Analysis
+      id: analyze
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.provider == 'claude' && inputs.api-key || '' }}
+        OPENAI_API_KEY: ${{ inputs.provider == 'openai' && inputs.api-key || '' }}
+      run: |
+        # Run heisenberg analysis
+        ARGS="--report ${{ inputs.report-path }} --provider ${{ inputs.provider }}"
+
+        if [ -n "${{ inputs.model }}" ]; then
+          ARGS="$ARGS --model ${{ inputs.model }}"
+        fi
+
+        if [ -n "${{ inputs.container-logs }}" ]; then
+          ARGS="$ARGS --logs ${{ inputs.container-logs }}"
+        fi
+
+        # Run analysis and capture output
+        OUTPUT=$(heisenberg analyze $ARGS --output json 2>&1) || true
+
+        # Parse results
+        FAILED_COUNT=$(echo "$OUTPUT" | jq -r '.failed_tests_count // 0')
+        FLAKY=$(echo "$OUTPUT" | jq -r '.flaky_detected // false')
+
+        # Set outputs
+        echo "analysis<<EOF" >> $GITHUB_OUTPUT
+        echo "$OUTPUT" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        echo "failed_count=$FAILED_COUNT" >> $GITHUB_OUTPUT
+        echo "flaky_detected=$FLAKY" >> $GITHUB_OUTPUT
+
+    - name: Check Flaky Tests
+      if: ${{ inputs.fail-on-flaky == 'true' && steps.analyze.outputs.flaky_detected == 'true' }}
+      shell: bash
+      run: |
+        echo "::error::Flaky tests detected in the test run"
+        exit 1
+
+    - name: Post Summary
+      shell: bash
+      run: |
+        echo "## Heisenberg Analysis Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Failed Tests:** ${{ steps.analyze.outputs.failed_count }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Flaky Detected:** ${{ steps.analyze.outputs.flaky_detected }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Analysis" >> $GITHUB_STEP_SUMMARY
+        echo '```json' >> $GITHUB_STEP_SUMMARY
+        echo '${{ steps.analyze.outputs.analysis }}' >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
