@@ -103,7 +103,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           source .venv/bin/activate
-          pytest --cov=heisenberg --cov-report=xml --cov-report=term-missing
+          pytest --cov=heisenberg --cov-report=xml --cov-report=term-missing --junitxml=report.xml
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v5
