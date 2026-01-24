@@ -200,6 +200,7 @@ Heisenberg staje się standardowym narzędziem w każdym pipeline CI/CD, automat
 
 | Konkurent | Typ | Mocne strony | Słabe strony | Nasza przewaga |
 |-----------|-----|--------------|--------------|----------------|
+| **GitHub Copilot** | AI coding assistant | Integracja z VS Code, brand | Brak natywnej analizy CI/CD, wymaga manualnej integracji, tendencja do ukrywania błędów | Automatyczna diagnoza w PR, focus na flaky tests |
 | **Datadog** | Observability platform | Kompletne dane, brand | Drogi, skomplikowany, nie dla CI/CD | Prostota, focus na flaky tests |
 | **BuildPulse** | Test management | Automatyczna kwarantanna | Nie diagnozuje przyczyn | Root cause analysis |
 | **Playwright Trace Viewer** | Debug tool | Darmowy, szczegółowy | Manualny, ślepi na backend | Automatyzacja + korelacja |
