@@ -165,6 +165,59 @@ class TestSystemPrompt:
         assert "confidence" in prompt.lower()
 
 
+class TestPromptBuilderHelpers:
+    """Test suite for PromptBuilder helper methods."""
+
+    def test_get_focus_timestamp_returns_earliest_failure(self, sample_report: PlaywrightReport):
+        """Should return earliest failure timestamp."""
+        builder = PromptBuilder(report=sample_report)
+
+        result = builder._get_focus_timestamp()
+
+        assert result is not None
+        assert result == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
+
+    def test_get_focus_timestamp_returns_none_for_no_failures(self):
+        """Should return None when no failed tests."""
+        report = PlaywrightReport(
+            total_passed=5,
+            total_failed=0,
+            total_skipped=0,
+            total_flaky=0,
+            failed_tests=[],
+        )
+        builder = PromptBuilder(report=report)
+
+        result = builder._get_focus_timestamp()
+
+        assert result is None
+
+    def test_get_logs_to_use_returns_original_when_compression_disabled(
+        self, sample_report: PlaywrightReport, sample_logs: dict[str, ContainerLogs]
+    ):
+        """Should return original logs when compression is disabled."""
+        builder = PromptBuilder(
+            report=sample_report,
+            container_logs=sample_logs,
+            compress_logs=False,
+        )
+
+        result = builder._get_logs_to_use([])
+
+        assert result is sample_logs
+
+    def test_format_container_entries_adds_code_block(
+        self, sample_report: PlaywrightReport, sample_logs: dict[str, ContainerLogs]
+    ):
+        """Should wrap entries in code block."""
+        builder = PromptBuilder(report=sample_report, container_logs=sample_logs)
+        lines = []
+
+        builder._format_container_entries(sample_logs["api"], lines)
+
+        assert "```" in lines
+
+
 class TestConvenienceFunction:
     """Test suite for build_analysis_prompt helper."""
 

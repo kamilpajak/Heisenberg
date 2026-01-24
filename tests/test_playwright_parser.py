@@ -8,6 +8,7 @@ import pytest
 
 from heisenberg.playwright_parser import (
     PlaywrightReport,
+    _extract_failed_specs,
     parse_playwright_report,
 )
 
@@ -157,6 +158,53 @@ class TestFailedTestModel:
 
         # Then
         assert "timeout" in timeout_test.error_summary.lower()
+
+
+class TestExtractFailedSpecs:
+    """Test suite for _extract_failed_specs helper function."""
+
+    def test_extracts_failed_specs(self):
+        """Should extract specs where ok is False."""
+        specs = [
+            {"ok": True, "title": "passing test"},
+            {
+                "ok": False,
+                "title": "failing test",
+                "tests": [
+                    {
+                        "results": [
+                            {
+                                "status": "failed",
+                                "errors": [{"message": "error", "stack": "stack"}],
+                                "attachments": [],
+                            }
+                        ]
+                    }
+                ],
+            },
+        ]
+
+        result = _extract_failed_specs(specs, "test.ts", "Suite")
+
+        assert len(result) == 1
+        assert result[0].title == "failing test"
+
+    def test_returns_empty_for_all_passing(self):
+        """Should return empty list when all specs pass."""
+        specs = [
+            {"ok": True, "title": "test1"},
+            {"ok": True, "title": "test2"},
+        ]
+
+        result = _extract_failed_specs(specs, "test.ts", "Suite")
+
+        assert result == []
+
+    def test_returns_empty_for_empty_specs(self):
+        """Should return empty list for empty specs list."""
+        result = _extract_failed_specs([], "test.ts", "Suite")
+
+        assert result == []
 
 
 class TestParsePlaywrightReportEdgeCases:

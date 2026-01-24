@@ -3,10 +3,111 @@
 import argparse
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
-from heisenberg.cli import run_analyze
+from heisenberg.cli import (
+    _format_ai_diagnosis_section,
+    _format_container_logs_section,
+    _format_failed_tests_section,
+    run_analyze,
+)
+
+
+class TestFormatHelpers:
+    """Test suite for CLI format helper functions."""
+
+    def test_format_failed_tests_section_includes_header(self):
+        """Should include 'Failed Tests:' header."""
+        mock_test = MagicMock()
+        mock_test.full_name = "Test Suite > test case"
+        mock_test.file = "tests/example.spec.ts"
+        mock_test.status = "failed"
+        mock_test.errors = []
+
+        result = _format_failed_tests_section([mock_test])
+        result_str = "\n".join(result)
+
+        assert "Failed Tests:" in result_str
+        assert "Test Suite > test case" in result_str
+
+    def test_format_failed_tests_section_truncates_long_errors(self):
+        """Should truncate error messages longer than 100 chars."""
+        mock_error = MagicMock()
+        mock_error.message = "A" * 150
+
+        mock_test = MagicMock()
+        mock_test.full_name = "test"
+        mock_test.file = "test.ts"
+        mock_test.status = "failed"
+        mock_test.errors = [mock_error]
+
+        result = _format_failed_tests_section([mock_test])
+
+        assert "..." in "\n".join(result)
+
+    def test_format_container_logs_section_includes_header(self):
+        """Should include 'Backend Logs:' header."""
+        mock_logs = MagicMock()
+        mock_logs.entries = ["log entry 1", "log entry 2"]
+
+        result = _format_container_logs_section({"api": mock_logs})
+        result_str = "\n".join(result)
+
+        assert "Backend Logs:" in result_str
+        assert "[api]" in result_str
+
+    def test_format_container_logs_section_limits_entries(self):
+        """Should limit to 10 entries per container."""
+        mock_logs = MagicMock()
+        mock_logs.entries = [f"entry {i}" for i in range(20)]
+
+        result = _format_container_logs_section({"api": mock_logs})
+
+        assert "... and 10 more entries" in "\n".join(result)
+
+    def test_format_ai_diagnosis_section_includes_all_fields(self):
+        """Should include root cause, evidence, fix, and confidence."""
+        mock_diagnosis = MagicMock()
+        mock_diagnosis.root_cause = "Database timeout"
+        mock_diagnosis.evidence = ["Error in logs", "Slow query"]
+        mock_diagnosis.suggested_fix = "Increase timeout"
+        mock_diagnosis.confidence.value = "HIGH"
+        mock_diagnosis.confidence_explanation = "Clear pattern"
+
+        mock_ai_result = MagicMock()
+        mock_ai_result.diagnosis = mock_diagnosis
+        mock_ai_result.total_tokens = 1000
+        mock_ai_result.estimated_cost = 0.05
+
+        result = _format_ai_diagnosis_section(mock_ai_result)
+        result_str = "\n".join(result)
+
+        assert "AI Diagnosis:" in result_str
+        assert "Database timeout" in result_str
+        assert "Error in logs" in result_str
+        assert "Increase timeout" in result_str
+        assert "HIGH" in result_str
+
+    def test_format_ai_diagnosis_section_handles_no_evidence(self):
+        """Should handle empty evidence list."""
+        mock_diagnosis = MagicMock()
+        mock_diagnosis.root_cause = "Unknown"
+        mock_diagnosis.evidence = []
+        mock_diagnosis.suggested_fix = "Investigate"
+        mock_diagnosis.confidence.value = "LOW"
+        mock_diagnosis.confidence_explanation = None
+
+        mock_ai_result = MagicMock()
+        mock_ai_result.diagnosis = mock_diagnosis
+        mock_ai_result.total_tokens = 500
+        mock_ai_result.estimated_cost = 0.02
+
+        result = _format_ai_diagnosis_section(mock_ai_result)
+        result_str = "\n".join(result)
+
+        assert "Evidence:" not in result_str
 
 
 class TestCliAnalyze:

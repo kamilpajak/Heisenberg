@@ -6,9 +6,29 @@ import pytest
 
 from heisenberg.llm_client import (
     LLMClient,
+    LLMClientError,
     LLMConfig,
     LLMResponse,
 )
+
+
+class TestLLMClientError:
+    """Test suite for LLMClientError exception."""
+
+    def test_llm_client_error_is_exception(self):
+        """LLMClientError should be an Exception subclass."""
+        assert issubclass(LLMClientError, Exception)
+
+    def test_llm_client_error_stores_message(self):
+        """Should store error message."""
+        error = LLMClientError("API call failed")
+
+        assert str(error) == "API call failed"
+
+    def test_llm_client_error_can_be_raised(self):
+        """Should be raisable and catchable."""
+        with pytest.raises(LLMClientError, match="test error"):
+            raise LLMClientError("test error")
 
 
 class TestLLMConfig:

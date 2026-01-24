@@ -6,9 +6,29 @@ import pytest
 
 from heisenberg.github_client import (
     GitHubClient,
+    GitHubClientError,
     GitHubContext,
     post_pr_comment,
 )
+
+
+class TestGitHubClientError:
+    """Test suite for GitHubClientError exception."""
+
+    def test_github_client_error_is_exception(self):
+        """GitHubClientError should be an Exception subclass."""
+        assert issubclass(GitHubClientError, Exception)
+
+    def test_github_client_error_stores_message(self):
+        """Should store error message."""
+        error = GitHubClientError("Failed to post comment: 401")
+
+        assert str(error) == "Failed to post comment: 401"
+
+    def test_github_client_error_can_be_raised(self):
+        """Should be raisable and catchable."""
+        with pytest.raises(GitHubClientError, match="test error"):
+            raise GitHubClientError("test error")
 
 
 class TestGitHubContext:
