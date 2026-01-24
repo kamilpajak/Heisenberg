@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -167,3 +169,95 @@ class APIKeyCreatedResponse(BaseModel):
     name: str | None
     api_key: str = Field(..., description="The API key - save this, it won't be shown again!")
     created_at: datetime
+
+
+# ============================================================================
+# Feedback Schemas
+# ============================================================================
+
+
+class FeedbackCreate(BaseModel):
+    """Request to create feedback on an analysis."""
+
+    is_helpful: bool = Field(..., description="Whether the analysis was helpful")
+    comment: str | None = Field(None, description="Optional comment about the analysis")
+
+
+class FeedbackResponse(BaseModel):
+    """Response for feedback."""
+
+    id: UUID
+    analysis_id: UUID
+    is_helpful: bool
+    comment: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class FeedbackStats(BaseModel):
+    """Aggregated feedback statistics."""
+
+    total_feedback: int = Field(..., description="Total number of feedback entries")
+    helpful_count: int = Field(..., description="Number of helpful ratings")
+    not_helpful_count: int = Field(..., description="Number of not helpful ratings")
+    helpful_percentage: float = Field(..., description="Percentage of helpful ratings")
+
+
+# ============================================================================
+# Usage Tracking Schemas
+# ============================================================================
+
+
+class UsageCreate(BaseModel):
+    """Request to create a usage record."""
+
+    model_name: str = Field(..., description="Name of the LLM model used")
+    input_tokens: int = Field(..., ge=0, description="Number of input tokens")
+    output_tokens: int = Field(..., ge=0, description="Number of output tokens")
+    analysis_id: UUID | None = Field(None, description="Optional linked analysis ID")
+
+
+class UsageSummary(BaseModel):
+    """Aggregated usage statistics for an organization."""
+
+    organization_id: UUID
+    period_start: datetime
+    period_end: datetime
+    total_requests: int = Field(..., description="Total number of API requests")
+    total_input_tokens: int = Field(..., description="Total input tokens used")
+    total_output_tokens: int = Field(..., description="Total output tokens used")
+    total_cost_usd: Decimal = Field(..., description="Total cost in USD")
+    by_model: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Usage breakdown by model",
+    )
+
+
+# ============================================================================
+# Task Queue Schemas
+# ============================================================================
+
+
+class TaskCreate(BaseModel):
+    """Request to create an async task."""
+
+    organization_id: UUID = Field(..., description="Organization ID")
+    task_type: str = Field(..., description="Type of task (e.g., 'analyze')")
+    payload: dict[str, Any] = Field(default_factory=dict, description="Task payload")
+
+
+class TaskResponse(BaseModel):
+    """Response for an async task."""
+
+    id: UUID
+    task_type: str
+    status: str
+    payload: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+    error_message: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+    model_config = {"from_attributes": True}

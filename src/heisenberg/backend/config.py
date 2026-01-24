@@ -37,8 +37,19 @@ class Settings(BaseSettings):
     # Rate Limiting
     rate_limit_per_minute: int = 60
 
+    # Budget Alerts
+    budget_alert_threshold_usd: float | None = None
+
+    # Webhook
+    webhook_url: str | None = None
+
+    # LLM Configuration
+    llm_primary_provider: str = "claude"
+    llm_fallback_provider: str | None = None
+
     # External Services
     anthropic_api_key: str | None = None
+    openai_api_key: str | None = None
 
     # Server
     host: str = "0.0.0.0"
