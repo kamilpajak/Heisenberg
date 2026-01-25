@@ -775,6 +775,7 @@ backend = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 dev = [
+    { name = "asgi-lifespan" },
     { name = "httpx" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -785,15 +786,11 @@ dev = [
     { name = "schemathesis" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "asgi-lifespan" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "alembic", marker = "extra == 'backend'", specifier = ">=1.13.0" },
     { name = "anthropic", specifier = ">=0.39.0" },
+    { name = "asgi-lifespan", marker = "extra == 'dev'", specifier = ">=2.1.0" },
     { name = "asyncpg", marker = "extra == 'backend'", specifier = ">=0.29.0" },
     { name = "fastapi", marker = "extra == 'backend'", specifier = ">=0.111.0" },
     { name = "google-genai", marker = "extra == 'backend'", specifier = ">=1.0.0" },
@@ -817,9 +814,6 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'backend'", specifier = ">=0.30.0" },
 ]
 provides-extras = ["backend", "dev"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "asgi-lifespan", specifier = ">=2.1.0" }]
 
 [[package]]
 name = "httpcore"
