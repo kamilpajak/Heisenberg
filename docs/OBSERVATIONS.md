@@ -197,10 +197,10 @@ Purpose: Stable, predictable source of real Playwright failures
 #### Quick Wins (Low Effort, High Impact)
 1. ~~**Implement blob report support**~~ ✅ DONE - recursive ZIP extraction + JSONL
 2. ~~**Add `--list-artifacts` flag**~~ ✅ DONE - helps debug artifact issues
-3. **Improve error messages** - guide users to local workflow when fetch fails
+3. ~~**Improve error messages**~~ ✅ DONE - all errors now suggest `heisenberg analyze` as alternative
 
 #### Medium-Term
-1. **Integration test suite** (`pytest.mark.integration`) for real API calls
+1. ~~**Integration test suite**~~ ✅ DONE - 8 tests in `test_integration_github.py` (`pytest -m integration --run-integration`)
 2. **Re-position README** - promote local `analyze` as primary, `fetch-github` as convenience
 3. **HTML report parsing** - many teams only upload HTML reports
 

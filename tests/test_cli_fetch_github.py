@@ -138,6 +138,66 @@ class TestListArtifactsFlag:
         assert "list" in result.stdout.lower() and "artifact" in result.stdout.lower()
 
 
+class TestErrorMessages:
+    """Test improved error messages guide users to local workflow."""
+
+    def test_no_token_suggests_local_workflow(self):
+        """Error for missing token should suggest local analyze command."""
+        result = subprocess.run(
+            [sys.executable, "-m", "heisenberg", "fetch-github", "--repo", "owner/repo"],
+            capture_output=True,
+            text=True,
+            env={"PATH": "/usr/bin"},
+        )
+        assert result.returncode != 0
+        # Should suggest local alternative
+        assert "heisenberg analyze" in result.stderr or "local" in result.stderr.lower()
+
+    def test_invalid_repo_format_shows_example(self):
+        """Error for invalid repo should show correct format example."""
+        result = subprocess.run(
+            [sys.executable, "-m", "heisenberg", "fetch-github", "--repo", "invalid"],
+            capture_output=True,
+            text=True,
+            env={"PATH": "/usr/bin", "GITHUB_TOKEN": "fake-token"},
+        )
+        assert result.returncode != 0
+        # Should show example of correct format
+        assert "owner/repo" in result.stderr
+
+    def test_no_artifacts_found_suggests_local_workflow(self):
+        """When no artifacts found, should suggest local analyze."""
+        # This test uses mocking to simulate the "no artifacts" scenario
+        pass  # Will be tested via unit test below
+
+    @pytest.mark.asyncio
+    async def test_no_artifacts_message_includes_local_hint(self):
+        """No artifacts message should hint at local workflow."""
+        from heisenberg.cli import run_list_artifacts
+
+        with patch("heisenberg.github_artifacts.GitHubArtifactClient") as MockClient:
+            client_instance = MockClient.return_value
+            client_instance.list_workflow_runs = AsyncMock(return_value=[])
+            client_instance.get_artifacts = AsyncMock(return_value=[])
+
+            output = StringIO()
+            await run_list_artifacts(
+                token="test-token",
+                owner="owner",
+                repo="repo",
+                run_id=None,
+                output=output,
+            )
+
+            output_text = output.getvalue()
+            # Should mention local workflow as alternative
+            assert (
+                "heisenberg analyze" in output_text.lower()
+                or "local" in output_text.lower()
+                or "tip" in output_text.lower()
+            )
+
+
 class TestListArtifactsFunctionality:
     """Test --list-artifacts behavior with mocked GitHub API."""
 

@@ -400,6 +400,9 @@ async def run_list_artifacts(
         failed_runs = [r for r in runs if r.conclusion == "failure"]
         if not failed_runs:
             output.write("No failed workflow runs found.\n")
+            output.write(
+                "\nTip: For local reports, use: heisenberg analyze --report <path-to-json>\n"
+            )
             return 0
         run_id = failed_runs[0].id
         output.write(f"Using latest failed run: {run_id}\n")
@@ -440,6 +443,10 @@ def run_fetch_github(args: argparse.Namespace) -> int:
     token = args.token or os.environ.get("GITHUB_TOKEN")
     if not token:
         print("Error: GitHub token required. Use --token or set GITHUB_TOKEN", file=sys.stderr)
+        print(
+            "\nTip: For local reports, use: heisenberg analyze --report <path-to-json>",
+            file=sys.stderr,
+        )
         return 1
 
     repo_parts = args.repo.split("/")
@@ -472,6 +479,10 @@ def run_fetch_github(args: argparse.Namespace) -> int:
         report_data = asyncio.run(fetch_report())
     except GitHubAPIError as e:
         print(f"GitHub API error: {e}", file=sys.stderr)
+        print(
+            "\nTip: For local reports, use: heisenberg analyze --report <path-to-json>",
+            file=sys.stderr,
+        )
         return 1
 
     if not report_data:
@@ -481,6 +492,11 @@ def run_fetch_github(args: argparse.Namespace) -> int:
             else "No Playwright report found"
         )
         print(msg, file=sys.stderr)
+        print(
+            "\nTip: Use --list-artifacts to see available artifacts, or use local workflow:",
+            file=sys.stderr,
+        )
+        print("     heisenberg analyze --report <path-to-json>", file=sys.stderr)
         return 1
 
     if args.output:
