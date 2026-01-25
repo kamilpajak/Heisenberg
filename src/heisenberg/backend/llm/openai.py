@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 
 from heisenberg.backend.llm.base import LLMProvider
 from heisenberg.backend.logging import get_logger
+from heisenberg.llm.models import LLMAnalysis
 
 logger = get_logger(__name__)
 
@@ -44,7 +45,7 @@ class OpenAIProvider(LLMProvider):
         system_prompt: str,
         user_prompt: str,
         **kwargs: Any,
-    ) -> dict[str, Any]:
+    ) -> LLMAnalysis:
         """
         Analyze test failure using OpenAI.
 
@@ -54,7 +55,7 @@ class OpenAIProvider(LLMProvider):
             **kwargs: Additional arguments (model, max_tokens).
 
         Returns:
-            Dictionary with response, input_tokens, output_tokens.
+            LLMAnalysis with response content and token usage.
         """
         model = kwargs.get("model", self._model)
         max_tokens = kwargs.get("max_tokens", self._max_tokens)
@@ -74,17 +75,18 @@ class OpenAIProvider(LLMProvider):
             ],
         )
 
-        result = {
-            "response": response.choices[0].message.content,
-            "input_tokens": response.usage.prompt_tokens,
-            "output_tokens": response.usage.completion_tokens,
-            "model": model,
-        }
+        result = LLMAnalysis(
+            content=response.choices[0].message.content,
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            model=model,
+            provider=self.name,
+        )
 
         logger.debug(
             "openai_analyze_response",
-            input_tokens=result["input_tokens"],
-            output_tokens=result["output_tokens"],
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
         )
 
         return result

@@ -3,8 +3,28 @@
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
+
+from heisenberg.llm.models import LLMAnalysis
+
+
+def _mock_llm_analysis(
+    content: str,
+    input_tokens: int = 500,
+    output_tokens: int = 200,
+    model: str = "claude-3-5-sonnet-20241022",
+    provider: str = "claude",
+) -> LLMAnalysis:
+    """Create a mock LLMAnalysis for testing."""
+    return LLMAnalysis(
+        content=content,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        model=model,
+        provider=provider,
+    )
 
 
 class TestHealthEndpointE2E:
@@ -200,13 +220,11 @@ Clear error pattern indicates database connectivity issue.
         mock_provider = MagicMock()
         mock_provider.name = "claude"
         mock_provider.analyze = AsyncMock(
-            return_value={
-                "response": llm_response,
-                "input_tokens": 500,
-                "output_tokens": 200,
-                "model": "claude-3-5-sonnet-20241022",
-                "provider": "claude",
-            }
+            return_value=_mock_llm_analysis(
+                content=llm_response,
+                input_tokens=500,
+                output_tokens=200,
+            )
         )
 
         router = LLMRouter(providers=[mock_provider])
@@ -257,22 +275,22 @@ MEDIUM
 Partial information available.
 """
 
-        # Primary fails
+        # Primary fails with recoverable error
         mock_primary = MagicMock()
         mock_primary.name = "claude"
-        mock_primary.analyze = AsyncMock(side_effect=Exception("API rate limited"))
+        mock_primary.analyze = AsyncMock(side_effect=httpx.ConnectError("API rate limited"))
 
         # Fallback succeeds
         mock_fallback = MagicMock()
         mock_fallback.name = "openai"
         mock_fallback.analyze = AsyncMock(
-            return_value={
-                "response": llm_response,
-                "input_tokens": 400,
-                "output_tokens": 150,
-                "model": "gpt-4o",
-                "provider": "openai",
-            }
+            return_value=_mock_llm_analysis(
+                content=llm_response,
+                input_tokens=400,
+                output_tokens=150,
+                model="gpt-4o",
+                provider="openai",
+            )
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])

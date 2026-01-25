@@ -4,6 +4,25 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from heisenberg.llm.models import LLMAnalysis
+
+
+def _mock_llm_analysis(
+    content: str = "test",
+    input_tokens: int = 100,
+    output_tokens: int = 50,
+    model: str = "test-model",
+    provider: str = "test-provider",
+) -> LLMAnalysis:
+    """Create a mock LLMAnalysis for testing."""
+    return LLMAnalysis(
+        content=content,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        model=model,
+        provider=provider,
+    )
+
 
 class TestLLMProvider:
     """Test suite for LLM provider abstraction."""
@@ -129,11 +148,7 @@ class TestLLMRouter:
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
         mock_primary.analyze = AsyncMock(
-            return_value={
-                "response": "test",
-                "input_tokens": 100,
-                "output_tokens": 50,
-            }
+            return_value=_mock_llm_analysis(content="test", provider="primary")
         )
 
         mock_fallback = MagicMock(spec=LLMProvider)
@@ -148,27 +163,27 @@ class TestLLMRouter:
         )
 
         assert result is not None
+        assert isinstance(result, LLMAnalysis)
         mock_primary.analyze.assert_called_once()
         mock_fallback.analyze.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_llm_router_falls_back_on_error(self):
-        """LLMRouter should fall back to next provider on error."""
+        """LLMRouter should fall back to next provider on API error."""
+        import httpx
+
         from heisenberg.backend.llm.base import LLMProvider
         from heisenberg.backend.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
-        mock_primary.analyze = AsyncMock(side_effect=Exception("API error"))
+        # Use a specific recoverable error (network error) instead of generic Exception
+        mock_primary.analyze = AsyncMock(side_effect=httpx.ConnectError("API error"))
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
         mock_fallback.analyze = AsyncMock(
-            return_value={
-                "response": "fallback response",
-                "input_tokens": 100,
-                "output_tokens": 50,
-            }
+            return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
@@ -179,7 +194,8 @@ class TestLLMRouter:
         )
 
         assert result is not None
-        assert result["response"] == "fallback response"
+        assert isinstance(result, LLMAnalysis)
+        assert result.content == "fallback response"
         mock_primary.analyze.assert_called_once()
         mock_fallback.analyze.assert_called_once()
 
@@ -192,11 +208,7 @@ class TestLLMRouter:
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "claude"
         mock_primary.analyze = AsyncMock(
-            return_value={
-                "response": "test",
-                "input_tokens": 100,
-                "output_tokens": 50,
-            }
+            return_value=_mock_llm_analysis(content="test", provider="claude")
         )
 
         router = LLMRouter(providers=[mock_primary])
@@ -206,8 +218,8 @@ class TestLLMRouter:
             user_prompt="test",
         )
 
-        assert "provider" in result
-        assert result["provider"] == "claude"
+        assert isinstance(result, LLMAnalysis)
+        assert result.provider == "claude"
 
 
 class TestLLMSettings:

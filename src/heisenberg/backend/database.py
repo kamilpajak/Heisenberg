@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 if TYPE_CHECKING:
+    from fastapi import Request
     from sqlalchemy.ext.asyncio import AsyncEngine
 
 from heisenberg.backend.config import Settings
@@ -60,47 +61,39 @@ def get_session_maker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     )
 
 
-# Global instances (initialized at app startup)
-_engine: AsyncEngine | None = None
-_session_maker: async_sessionmaker[AsyncSession] | None = None
-
-
-def init_db(settings: Settings) -> None:
+def init_db(settings: Settings) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     """
     Initialize database engine and session maker.
 
     Args:
         settings: Application settings.
+
+    Returns:
+        Tuple of (engine, session_maker).
     """
-    global _engine, _session_maker
-    _engine = create_async_engine(settings.database_url, echo=settings.debug)
-    _session_maker = get_session_maker(_engine)
+    engine = create_async_engine(settings.database_url, echo=settings.debug)
+    session_maker = get_session_maker(engine)
+    return engine, session_maker
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
     """
-    Dependency that yields database sessions.
+    Dependency that yields database sessions from app state.
+
+    Args:
+        request: FastAPI request object.
 
     Yields:
         AsyncSession for database operations.
     """
-    if _session_maker is None:
-        raise RuntimeError("Database not initialized. Call init_db() first.")
+    session_maker = getattr(request.app.state, "session_maker", None)
+    if session_maker is None:
+        raise RuntimeError("Database not initialized. Check DATABASE_URL.")
 
-    async with _session_maker() as session:
+    async with session_maker() as session:
         try:
             yield session
             await session.commit()
         except Exception:
             await session.rollback()
             raise
-        finally:
-            await session.close()
-
-
-async def close_db() -> None:
-    """Close database connections."""
-    global _engine
-    if _engine is not None:
-        await _engine.dispose()
-        _engine = None

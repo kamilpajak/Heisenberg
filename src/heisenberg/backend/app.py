@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     from heisenberg.backend.config import get_settings
-    from heisenberg.backend.database import close_db, init_db
+    from heisenberg.backend.database import init_db
 
     settings = get_settings()
 
@@ -51,7 +51,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize database if DATABASE_URL is set
     if os.environ.get("DATABASE_URL"):
-        init_db(settings)
+        engine, session_maker = init_db(settings)
+        app.state.engine = engine
+        app.state.session_maker = session_maker
         logger.info("database_initialized", database_url=settings.database_url[:20] + "...")
 
     logger.info("app_started", version=__version__)
@@ -59,7 +61,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     # Shutdown
-    await close_db()
+    if hasattr(app.state, "engine"):
+        await app.state.engine.dispose()
     logger.info("app_shutdown")
 
 

@@ -76,7 +76,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             request.headers.get("X-API-Key") or request.client.host if request.client else "unknown"
         )
 
-        allowed, headers = self.limiter.is_allowed(key)
+        allowed, headers = await self.limiter.is_allowed(key)
 
         if not allowed:
             # Calculate retry-after (seconds until window resets)
