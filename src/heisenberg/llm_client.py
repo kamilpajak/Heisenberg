@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import anthropic
+
+from heisenberg.llm.models import LLMAnalysis
+
+# Backwards compatibility alias
+LLMResponse = LLMAnalysis
 
 
 class LLMClientError(Exception):
@@ -21,31 +26,6 @@ class LLMConfig:
     model: str = "claude-sonnet-4-20250514"
     max_tokens: int = 4096
     temperature: float = 0.3
-
-
-@dataclass
-class LLMResponse:
-    """Response from LLM analysis."""
-
-    content: str
-    input_tokens: int
-    output_tokens: int
-
-    # Claude 3.5 Sonnet pricing (per million tokens)
-    INPUT_COST_PER_MILLION: float = field(default=3.0, repr=False)
-    OUTPUT_COST_PER_MILLION: float = field(default=15.0, repr=False)
-
-    @property
-    def total_tokens(self) -> int:
-        """Total tokens used."""
-        return self.input_tokens + self.output_tokens
-
-    @property
-    def estimated_cost(self) -> float:
-        """Estimate cost in USD based on token usage."""
-        input_cost = self.input_tokens * self.INPUT_COST_PER_MILLION / 1_000_000
-        output_cost = self.output_tokens * self.OUTPUT_COST_PER_MILLION / 1_000_000
-        return input_cost + output_cost
 
 
 class LLMClient:
@@ -95,7 +75,7 @@ class LLMClient:
         self,
         prompt: str,
         system_prompt: str | None = None,
-    ) -> LLMResponse:
+    ) -> LLMAnalysis:
         """
         Send analysis request to Claude.
 
@@ -104,7 +84,7 @@ class LLMClient:
             system_prompt: Optional system prompt for context.
 
         Returns:
-            LLMResponse with analysis result.
+            LLMAnalysis with analysis result.
 
         Raises:
             Exception: If API request fails.
@@ -124,10 +104,12 @@ class LLMClient:
 
             response = client.messages.create(**kwargs)
 
-            return LLMResponse(
+            return LLMAnalysis(
                 content=response.content[0].text,
                 input_tokens=response.usage.input_tokens,
                 output_tokens=response.usage.output_tokens,
+                model=self.config.model,
+                provider="claude",
             )
 
         except anthropic.APIError as e:

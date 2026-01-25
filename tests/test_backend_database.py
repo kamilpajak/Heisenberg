@@ -130,9 +130,8 @@ class TestGetSessionMaker:
 class TestInitDb:
     """Test suite for init_db function."""
 
-    def test_init_db_sets_global_engine(self):
-        """init_db should set global _engine."""
-        import heisenberg.backend.database as db_module
+    def test_init_db_returns_engine_and_session_maker(self):
+        """init_db should return (engine, session_maker) tuple."""
         from heisenberg.backend.config import Settings
         from heisenberg.backend.database import init_db
 
@@ -140,14 +139,10 @@ class TestInitDb:
             database_url="postgresql://test:test@localhost/test",
             secret_key="test-secret",
         )
-        init_db(settings)
+        engine, session_maker = init_db(settings)
 
-        assert db_module._engine is not None
-        assert db_module._session_maker is not None
-
-        # Cleanup
-        db_module._engine = None
-        db_module._session_maker = None
+        assert engine is not None
+        assert session_maker is not None
 
 
 class TestGetDb:
@@ -155,100 +150,60 @@ class TestGetDb:
 
     @pytest.mark.asyncio
     async def test_get_db_raises_when_not_initialized(self):
-        """get_db should raise RuntimeError when DB not initialized."""
-        import heisenberg.backend.database as db_module
+        """get_db should raise RuntimeError when session_maker not in app.state."""
         from heisenberg.backend.database import get_db
 
-        # Ensure not initialized
-        db_module._session_maker = None
+        # Mock request without session_maker in app.state
+        mock_request = MagicMock()
+        mock_request.app.state = MagicMock(spec=[])  # No session_maker attribute
 
         with pytest.raises(RuntimeError, match="Database not initialized"):
-            async for _ in get_db():
+            async for _ in get_db(mock_request):
                 pass
 
     @pytest.mark.asyncio
     async def test_get_db_yields_session(self):
-        """get_db should yield a session when initialized."""
-        import heisenberg.backend.database as db_module
+        """get_db should yield a session from request.app.state."""
+        from heisenberg.backend.database import get_db
 
         # Mock session
         mock_session = AsyncMock()
         mock_session.commit = AsyncMock()
         mock_session.rollback = AsyncMock()
-        mock_session.close = AsyncMock()
 
         # Mock session maker context manager
         mock_session_maker = MagicMock()
         mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=None)
 
-        db_module._session_maker = mock_session_maker
+        # Mock request with session_maker in app.state
+        mock_request = MagicMock()
+        mock_request.app.state.session_maker = mock_session_maker
 
-        from heisenberg.backend.database import get_db
-
-        async for session in get_db():
+        async for session in get_db(mock_request):
             assert session == mock_session
 
         mock_session.commit.assert_called_once()
-        mock_session.close.assert_called_once()
-
-        # Cleanup
-        db_module._session_maker = None
 
     @pytest.mark.asyncio
     async def test_get_db_rollback_on_exception(self):
         """get_db should rollback on exception."""
-        import heisenberg.backend.database as db_module
+        from heisenberg.backend.database import get_db
 
         # Mock session that raises on commit
         mock_session = AsyncMock()
         mock_session.commit = AsyncMock(side_effect=Exception("DB error"))
         mock_session.rollback = AsyncMock()
-        mock_session.close = AsyncMock()
 
         mock_session_maker = MagicMock()
         mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=None)
 
-        db_module._session_maker = mock_session_maker
-
-        from heisenberg.backend.database import get_db
+        mock_request = MagicMock()
+        mock_request.app.state.session_maker = mock_session_maker
 
         with pytest.raises(Exception, match="DB error"):
-            async for _ in get_db():
+            async for _ in get_db(mock_request):
                 pass
 
         mock_session.rollback.assert_called_once()
-
-        # Cleanup
-        db_module._session_maker = None
-
-
-class TestCloseDb:
-    """Test suite for close_db function."""
-
-    @pytest.mark.asyncio
-    async def test_close_db_disposes_engine(self):
-        """close_db should dispose engine."""
-        import heisenberg.backend.database as db_module
-        from heisenberg.backend.database import close_db
-
-        mock_engine = AsyncMock()
-        mock_engine.dispose = AsyncMock()
-        db_module._engine = mock_engine
-
-        await close_db()
-
-        mock_engine.dispose.assert_called_once()
-        assert db_module._engine is None
-
-    @pytest.mark.asyncio
-    async def test_close_db_handles_none_engine(self):
-        """close_db should handle None engine gracefully."""
-        import heisenberg.backend.database as db_module
-        from heisenberg.backend.database import close_db
-
-        db_module._engine = None
-
-        # Should not raise
-        await close_db()

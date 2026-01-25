@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from heisenberg.llm.models import LLMAnalysis
+
 
 class TestRouterRegistration:
     """Test that all routers are properly registered in the app."""
@@ -118,12 +120,13 @@ class TestAnalyzeServiceWithLLMRouter:
         mock_provider = MagicMock()
         mock_provider.name = "mock"
         mock_provider.analyze = AsyncMock(
-            return_value={
-                "response": '{"root_cause": "test error", "evidence": ["line 1"], "suggested_fix": "fix it", "confidence": "high", "confidence_explanation": "clear"}',
-                "input_tokens": 100,
-                "output_tokens": 50,
-                "provider": "mock",
-            }
+            return_value=LLMAnalysis(
+                content='{"root_cause": "test error", "evidence": ["line 1"], "suggested_fix": "fix it", "confidence": "high", "confidence_explanation": "clear"}',
+                input_tokens=100,
+                output_tokens=50,
+                model="test-model",
+                provider="mock",
+            )
         )
 
         router = LLMRouter(providers=[mock_provider])

@@ -15,7 +15,8 @@ class TestSlidingWindowRateLimiter:
 
         assert SlidingWindowRateLimiter is not None
 
-    def test_rate_limiter_allows_under_limit(self):
+    @pytest.mark.asyncio
+    async def test_rate_limiter_allows_under_limit(self):
         """Rate limiter should allow requests under the limit."""
         from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
 
@@ -23,12 +24,13 @@ class TestSlidingWindowRateLimiter:
         limiter = SlidingWindowRateLimiter(requests_per_minute=10)
 
         # When
-        allowed, headers = limiter.is_allowed("test-key")
+        allowed, headers = await limiter.is_allowed("test-key")
 
         # Then
         assert allowed
 
-    def test_rate_limiter_blocks_over_limit(self):
+    @pytest.mark.asyncio
+    async def test_rate_limiter_blocks_over_limit(self):
         """Rate limiter should block requests over the limit."""
         from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
 
@@ -37,16 +39,17 @@ class TestSlidingWindowRateLimiter:
 
         # When - make 3 allowed requests
         for _ in range(3):
-            allowed, _ = limiter.is_allowed("test-key")
+            allowed, _ = await limiter.is_allowed("test-key")
             assert allowed
 
         # 4th request should be blocked
-        allowed, headers = limiter.is_allowed("test-key")
+        allowed, headers = await limiter.is_allowed("test-key")
 
         # Then
         assert not allowed
 
-    def test_rate_limiter_tracks_by_key(self):
+    @pytest.mark.asyncio
+    async def test_rate_limiter_tracks_by_key(self):
         """Rate limiter should track requests by key."""
         from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
 
@@ -54,18 +57,19 @@ class TestSlidingWindowRateLimiter:
         limiter = SlidingWindowRateLimiter(requests_per_minute=2)
 
         # When - exhaust limit for key1
-        limiter.is_allowed("key1")
-        limiter.is_allowed("key1")
-        allowed_key1, _ = limiter.is_allowed("key1")
+        await limiter.is_allowed("key1")
+        await limiter.is_allowed("key1")
+        allowed_key1, _ = await limiter.is_allowed("key1")
 
         # key2 should still have quota
-        allowed_key2, _ = limiter.is_allowed("key2")
+        allowed_key2, _ = await limiter.is_allowed("key2")
 
         # Then
         assert not allowed_key1
         assert allowed_key2
 
-    def test_rate_limiter_returns_headers(self):
+    @pytest.mark.asyncio
+    async def test_rate_limiter_returns_headers(self):
         """Rate limiter should return rate limit headers."""
         from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
 
@@ -73,7 +77,7 @@ class TestSlidingWindowRateLimiter:
         limiter = SlidingWindowRateLimiter(requests_per_minute=10)
 
         # When
-        allowed, headers = limiter.is_allowed("test-key")
+        allowed, headers = await limiter.is_allowed("test-key")
 
         # Then
         assert "X-RateLimit-Limit" in headers
@@ -82,7 +86,8 @@ class TestSlidingWindowRateLimiter:
         assert headers["X-RateLimit-Limit"] == "10"
         assert headers["X-RateLimit-Remaining"] == "9"
 
-    def test_rate_limiter_resets_after_window(self):
+    @pytest.mark.asyncio
+    async def test_rate_limiter_resets_after_window(self):
         """Rate limiter should reset after time window passes."""
         from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
 
@@ -90,16 +95,16 @@ class TestSlidingWindowRateLimiter:
         limiter = SlidingWindowRateLimiter(requests_per_minute=2)
 
         # Exhaust limit
-        limiter.is_allowed("key")
-        limiter.is_allowed("key")
-        allowed, _ = limiter.is_allowed("key")
+        await limiter.is_allowed("key")
+        await limiter.is_allowed("key")
+        allowed, _ = await limiter.is_allowed("key")
         assert not allowed
 
         # When - simulate time passing (clear old requests)
         with patch("heisenberg.backend.rate_limit.time.time") as mock_time:
             # Set time to 61 seconds in the future
             mock_time.return_value = 9999999999.0
-            allowed, _ = limiter.is_allowed("key")
+            allowed, _ = await limiter.is_allowed("key")
 
         # Then
         assert allowed

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from heisenberg.llm.models import LLMAnalysis
 
 
 class LLMProvider(ABC):
@@ -21,7 +24,7 @@ class LLMProvider(ABC):
         system_prompt: str,
         user_prompt: str,
         **kwargs: Any,
-    ) -> dict[str, Any]:
+    ) -> LLMAnalysis:
         """
         Analyze test failure using the LLM.
 
@@ -31,6 +34,6 @@ class LLMProvider(ABC):
             **kwargs: Additional provider-specific arguments.
 
         Returns:
-            Dictionary with response, input_tokens, output_tokens.
+            LLMAnalysis with response content and token usage.
         """
         ...

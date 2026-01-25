@@ -4,10 +4,32 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
+from anthropic import APIError as AnthropicAPIError
+from openai import APIError as OpenAIAPIError
+
 from heisenberg.backend.llm.base import LLMProvider
 from heisenberg.backend.logging import get_logger
+from heisenberg.llm.models import LLMAnalysis
 
 logger = get_logger(__name__)
+
+# Exceptions that indicate recoverable API/network errors (should trigger fallback)
+# Programming errors like TypeError, KeyError, AttributeError should propagate
+LLM_RECOVERABLE_ERRORS: tuple[type[Exception], ...] = (
+    AnthropicAPIError,
+    OpenAIAPIError,
+    httpx.RequestError,
+    httpx.HTTPStatusError,
+)
+
+# Try to import Google API error if available
+try:
+    from google.api_core.exceptions import GoogleAPIError
+
+    LLM_RECOVERABLE_ERRORS = (*LLM_RECOVERABLE_ERRORS, GoogleAPIError)
+except ImportError:
+    pass
 
 
 class LLMRouter:
@@ -35,7 +57,7 @@ class LLMRouter:
         system_prompt: str,
         user_prompt: str,
         **kwargs: Any,
-    ) -> dict[str, Any]:
+    ) -> LLMAnalysis:
         """
         Analyze using providers with automatic fallback.
 
@@ -45,7 +67,7 @@ class LLMRouter:
             **kwargs: Additional arguments passed to providers.
 
         Returns:
-            Dictionary with response, input_tokens, output_tokens, provider.
+            LLMAnalysis with response content, token usage, and provider info.
 
         Raises:
             Exception: If all providers fail.
@@ -65,19 +87,16 @@ class LLMRouter:
                     **kwargs,
                 )
 
-                # Add provider info to result
-                result["provider"] = provider.name
-
                 logger.info(
                     "llm_router_success",
                     provider=provider.name,
-                    input_tokens=result.get("input_tokens"),
-                    output_tokens=result.get("output_tokens"),
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
                 )
 
                 return result
 
-            except Exception as e:
+            except LLM_RECOVERABLE_ERRORS as e:
                 last_error = e
                 logger.warning(
                     "llm_router_fallback",

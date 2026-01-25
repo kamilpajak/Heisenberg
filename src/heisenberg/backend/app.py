@@ -6,7 +6,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from heisenberg.backend.health import check_database_health
 from heisenberg.backend.logging import configure_logging, get_logger
@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     from heisenberg.backend.config import get_settings
-    from heisenberg.backend.database import close_db, init_db
+    from heisenberg.backend.database import init_db
 
     settings = get_settings()
 
@@ -51,7 +51,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize database if DATABASE_URL is set
     if os.environ.get("DATABASE_URL"):
-        init_db(settings)
+        engine, session_maker = init_db(settings)
+        app.state.engine = engine
+        app.state.session_maker = session_maker
         logger.info("database_initialized", database_url=settings.database_url[:20] + "...")
 
     logger.info("app_started", version=__version__)
@@ -59,7 +61,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     # Shutdown
-    await close_db()
+    if hasattr(app.state, "engine"):
+        await app.state.engine.dispose()
     logger.info("app_shutdown")
 
 
@@ -93,18 +96,19 @@ async def health_check() -> HealthResponse:
 
 
 @app.get("/health/detailed", response_model=DetailedHealthResponse, tags=["Health"])
-async def detailed_health_check() -> DetailedHealthResponse:
+async def detailed_health_check(request: Request) -> DetailedHealthResponse:
     """
     Detailed health check endpoint with component status.
 
     Returns:
         Detailed health status including database connectivity.
     """
-    from heisenberg.backend.database import _session_maker
+    # Get session_maker from app.state
+    session_maker = getattr(request.app.state, "session_maker", None)
 
     # Check database health
-    if _session_maker is not None:
-        db_connected, db_latency = await check_database_health(_session_maker)
+    if session_maker is not None:
+        db_connected, db_latency = await check_database_health(session_maker)
     else:
         db_connected, db_latency = False, 0.0
 
