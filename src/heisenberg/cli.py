@@ -457,7 +457,7 @@ async def _fetch_and_merge_blobs(
     Returns:
         Merged JSON report or None
     """
-    from heisenberg.blob_merger import BlobMergeError, extract_blob_files, merge_blob_reports
+    from heisenberg.blob_merger import BlobMergeError, extract_blob_zips, merge_blob_reports
     from heisenberg.github_artifacts import GitHubArtifactClient
 
     client = GitHubArtifactClient(token=token)
@@ -478,22 +478,22 @@ async def _fetch_and_merge_blobs(
     if not matching:
         return None
 
-    # Download and extract blob files from all matching artifacts
-    all_blob_files = []
+    # Download and extract blob ZIP files from all matching artifacts
+    all_blob_zips = []
     for artifact in matching:
         print(f"Downloading artifact: {artifact.name}...", file=sys.stderr)
         zip_data = await client.download_artifact(owner, repo, artifact.id)
-        blob_files = extract_blob_files(zip_data)
-        all_blob_files.extend(blob_files)
+        blob_zips = extract_blob_zips(zip_data)
+        all_blob_zips.extend(blob_zips)
 
-    if not all_blob_files:
+    if not all_blob_zips:
         raise BlobMergeError(
-            f"No blob files found in artifacts. "
-            f"Found {len(matching)} artifact(s) but no .jsonl files inside."
+            f"No blob ZIP files found in artifacts. "
+            f"Found {len(matching)} artifact(s) but no report-*.zip files inside."
         )
 
-    print(f"Merging {len(all_blob_files)} blob file(s)...", file=sys.stderr)
-    return await merge_blob_reports(all_blob_files)
+    print(f"Merging {len(all_blob_zips)} blob report(s)...", file=sys.stderr)
+    return await merge_blob_reports(blob_zips=all_blob_zips)
 
 
 def run_fetch_github(args: argparse.Namespace) -> int:

@@ -449,14 +449,25 @@ class TestMergeBlobsFunctionality:
     async def test_merge_blobs_calls_playwright_merge(self, sample_blob_jsonl, merged_report_json):
         """--merge-blobs should call npx playwright merge-reports."""
         import json
+        from pathlib import Path
 
         from heisenberg.blob_merger import merge_blob_reports
 
-        with patch("subprocess.run") as mock_run:
-            # Mock successful merge-reports execution
-            mock_run.return_value.returncode = 0
-            mock_run.return_value.stdout = json.dumps(merged_report_json)
+        # Mock subprocess.run to write output file (simulating playwright behavior)
+        def mock_subprocess_run(*args, **kwargs):
+            # Find the output file path from the temp directory
+            cwd = kwargs.get("cwd")
+            if cwd:
+                output_file = Path(cwd) / "merged-report.json"
+                output_file.write_text(json.dumps(merged_report_json))
 
+            class MockResult:
+                returncode = 0
+                stderr = ""
+
+            return MockResult()
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run) as mock_run:
             await merge_blob_reports(
                 blob_files=[b"blob1.jsonl content"],
                 output_format="json",
@@ -472,13 +483,24 @@ class TestMergeBlobsFunctionality:
     async def test_merge_blobs_returns_parsed_json(self, merged_report_json):
         """merge_blob_reports should return parsed JSON report."""
         import json
+        from pathlib import Path
 
         from heisenberg.blob_merger import merge_blob_reports
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value.returncode = 0
-            mock_run.return_value.stdout = json.dumps(merged_report_json)
+        # Mock subprocess.run to write output file
+        def mock_subprocess_run(*args, **kwargs):
+            cwd = kwargs.get("cwd")
+            if cwd:
+                output_file = Path(cwd) / "merged-report.json"
+                output_file.write_text(json.dumps(merged_report_json))
 
+            class MockResult:
+                returncode = 0
+                stderr = ""
+
+            return MockResult()
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
             result = await merge_blob_reports(
                 blob_files=[b"blob content"],
                 output_format="json",

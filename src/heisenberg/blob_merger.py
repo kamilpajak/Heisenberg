@@ -58,16 +58,48 @@ def extract_blob_files(zip_content: bytes, max_depth: int = 3) -> list[bytes]:
     return blob_files
 
 
+def extract_blob_zips(zip_content: bytes) -> list[tuple[str, bytes]]:
+    """Extract report-*.zip files from GitHub artifact for Playwright merge.
+
+    Playwright's merge-reports expects the nested ZIP files (report-*.zip),
+    not extracted .jsonl files.
+
+    Args:
+        zip_content: GitHub artifact ZIP content as bytes
+
+    Returns:
+        List of (filename, zip_content) tuples
+    """
+    blob_zips = []
+
+    try:
+        zip_buffer = io.BytesIO(zip_content)
+        with zipfile.ZipFile(zip_buffer, "r") as zf:
+            for name in zf.namelist():
+                if name.endswith(".zip") and "report" in name.lower():
+                    try:
+                        blob_zips.append((name, zf.read(name)))
+                    except KeyError:
+                        continue
+    except zipfile.BadZipFile:
+        pass
+
+    return blob_zips
+
+
 async def merge_blob_reports(
-    blob_files: list[bytes],
+    blob_files: list[bytes] | None = None,
+    blob_zips: list[tuple[str, bytes]] | None = None,
     output_format: str = "json",
 ) -> dict | None:
     """Merge Playwright blob reports into a single JSON report.
 
     Uses `npx playwright merge-reports` to process blob files.
+    Playwright expects the nested report-*.zip files, not extracted .jsonl.
 
     Args:
-        blob_files: List of blob file contents
+        blob_files: List of blob file contents (legacy, for tests)
+        blob_zips: List of (filename, zip_content) tuples (preferred)
         output_format: Output format (json, html, etc.)
 
     Returns:
@@ -76,7 +108,7 @@ async def merge_blob_reports(
     Raises:
         BlobMergeError: If npx/playwright not available or merge fails
     """
-    if not blob_files:
+    if not blob_files and not blob_zips:
         raise BlobMergeError("No blob files provided")
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -84,27 +116,38 @@ async def merge_blob_reports(
         blob_dir = temp_path / "blobs"
         blob_dir.mkdir()
 
-        # Write blob files to temp directory
-        for i, content in enumerate(blob_files):
-            blob_file = blob_dir / f"report-{i}.jsonl"
-            blob_file.write_bytes(content)
+        # Write blob ZIPs to temp directory (preferred format for Playwright)
+        if blob_zips:
+            for filename, content in blob_zips:
+                blob_file = blob_dir / filename
+                blob_file.write_bytes(content)
+        elif blob_files:
+            # Legacy: write as .jsonl (for backward compatibility with tests)
+            for i, content in enumerate(blob_files):
+                blob_file = blob_dir / f"report-{i}.jsonl"
+                blob_file.write_bytes(content)
 
-        # Run playwright merge-reports
+        # Output file for JSON (avoids stdout buffer limits)
+        output_file = temp_path / "merged-report.json"
+
+        # Run playwright merge-reports with output redirected to file
         try:
-            result = subprocess.run(
-                [
-                    "npx",
-                    "playwright",
-                    "merge-reports",
-                    "--reporter",
-                    output_format,
-                    str(blob_dir),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                cwd=temp_dir,
-            )
+            with open(output_file, "w") as f:
+                result = subprocess.run(
+                    [
+                        "npx",
+                        "playwright",
+                        "merge-reports",
+                        "--reporter",
+                        output_format,
+                        str(blob_dir),
+                    ],
+                    stdout=f,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=120,
+                    cwd=temp_dir,
+                )
         except FileNotFoundError as e:
             raise BlobMergeError(
                 "npx not found. Please install Node.js and Playwright: npm install -D @playwright/test"
@@ -113,10 +156,13 @@ async def merge_blob_reports(
             raise BlobMergeError("Merge operation timed out") from e
 
         if result.returncode != 0:
-            raise BlobMergeError(f"Merge failed: {result.stderr or result.stdout}")
+            raise BlobMergeError(f"Merge failed: {result.stderr}")
 
-        # Parse JSON output
+        # Read JSON from output file
+        if not output_file.exists() or output_file.stat().st_size == 0:
+            raise BlobMergeError("Merge completed but no output was generated")
+
         try:
-            return json.loads(result.stdout)
+            return json.loads(output_file.read_text())
         except json.JSONDecodeError as e:
             raise BlobMergeError(f"Failed to parse merged report: {e}") from e
