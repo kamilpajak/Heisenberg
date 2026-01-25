@@ -188,6 +188,8 @@ class OpenAICompatibleClient:
             content=response.choices[0].message.content or "",
             input_tokens=response.usage.prompt_tokens if response.usage else 0,
             output_tokens=response.usage.completion_tokens if response.usage else 0,
+            model=self.model,
+            provider="openai",
         )
 
 
@@ -226,6 +228,8 @@ class GeminiCompatibleClient:
             content=response.text,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            model=self.model,
+            provider="gemini",
         )
 
 
