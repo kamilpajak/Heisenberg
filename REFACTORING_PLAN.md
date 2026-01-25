@@ -9,7 +9,7 @@
 | **Faza 1** | ✅ Zakończona | 2026-01-25 | TDD, 717 testów passed |
 | **Faza 2** | ✅ Zakończona | 2026-01-25 | TDD, 729 testów passed |
 | **Faza 3** | ✅ Zakończona | 2026-01-25 | TDD, 785 testów passed |
-| **Faza 4** | ⏳ Opcjonalna | - | - |
+| **Faza 4** | ✅ Zakończona | 2026-01-25 | TDD, 795 testów passed |
 
 ---
 
@@ -26,7 +26,7 @@ Heisenberg to dobrze zarchitekturyzowana aplikacja Python/FastAPI. Poniższy pla
 | 🔴 HIGH | Rate limiter nie skaluje się | Średni | Wysoki | ✅ Naprawione |
 | 🟡 MEDIUM | Settings ładowane przy każdym requescie | Niski | Średni | ✅ Naprawione |
 | 🟡 MEDIUM | Duplikacja klientów LLM | Średni | Średni | ✅ Naprawione |
-| 🟢 LOW | Globalny stan bazy danych | Średni | Niski | ⏳ Faza 4 |
+| 🟢 LOW | Globalny stan bazy danych | Średni | Niski | ✅ Naprawione |
 | 🟢 LOW | Zbyt szeroki `except Exception` | Niski | Niski | ✅ Naprawione |
 
 ---
@@ -404,10 +404,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 - [x] Zaktualizować adapter — `adapter.py` uproszczony, używa bezpośrednio `LLMAnalysis`
 - [x] Przetestować — `tests/test_phase3_refactoring.py` (17 testów), istniejące testy zaktualizowane
 
-### Faza 4 (Architektura)
-- [ ] Przenieść stan DB do `app.state`
-- [ ] Zaktualizować dependency `get_db()`
-- [ ] Zaktualizować testy integracyjne
+### Faza 4 (Architektura) ✅
+- [x] Przenieść stan DB do `app.state` — `src/heisenberg/backend/app.py`, `src/heisenberg/backend/database.py`
+- [x] Zaktualizować dependency `get_db()` — przyjmuje `Request`, używa `request.app.state.session_maker`
+- [x] Zaktualizować `detailed_health_check` — używa `request.app.state` zamiast globalnego `_session_maker`
+- [x] Zaktualizować testy — `tests/test_phase4_refactoring.py`, `tests/test_backend_database.py`, `tests/test_backend_health.py`
+- [x] Dodać `asgi-lifespan` do devDependencies — wymagane do testów lifespan z AsyncClient
 
 ---
 

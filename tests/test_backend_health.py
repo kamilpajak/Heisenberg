@@ -195,11 +195,13 @@ class TestDetailedHealthEndpoint:
     @pytest.mark.asyncio
     async def test_detailed_health_includes_database_status(self, test_client: AsyncClient):
         """Detailed health should include database status."""
+        from heisenberg.backend.app import app
+
+        # Set up mock session_maker in app.state
+        app.state.session_maker = MagicMock()
+
         async with test_client as client:
-            with (
-                patch("heisenberg.backend.app.check_database_health") as mock_check,
-                patch("heisenberg.backend.database._session_maker", MagicMock()),
-            ):
+            with patch("heisenberg.backend.app.check_database_health") as mock_check:
                 mock_check.return_value = (True, 5.5)
                 response = await client.get("/health/detailed")
                 data = response.json()
@@ -208,14 +210,20 @@ class TestDetailedHealthEndpoint:
                 assert "connected" in data["database"]
                 assert "latency_ms" in data["database"]
 
+        # Cleanup
+        if hasattr(app.state, "session_maker"):
+            del app.state.session_maker
+
     @pytest.mark.asyncio
     async def test_detailed_health_returns_degraded_when_db_slow(self, test_client: AsyncClient):
         """Detailed health should return 'degraded' when DB is slow."""
+        from heisenberg.backend.app import app
+
+        # Set up mock session_maker in app.state
+        app.state.session_maker = MagicMock()
+
         async with test_client as client:
-            with (
-                patch("heisenberg.backend.app.check_database_health") as mock_check,
-                patch("heisenberg.backend.database._session_maker", MagicMock()),
-            ):
+            with patch("heisenberg.backend.app.check_database_health") as mock_check:
                 # Simulate slow database (> 1000ms)
                 mock_check.return_value = (True, 1500.0)
                 response = await client.get("/health/detailed")
@@ -223,20 +231,30 @@ class TestDetailedHealthEndpoint:
 
                 assert data["status"] == "degraded"
 
+        # Cleanup
+        if hasattr(app.state, "session_maker"):
+            del app.state.session_maker
+
     @pytest.mark.asyncio
     async def test_detailed_health_returns_unhealthy_when_db_down(self, test_client: AsyncClient):
         """Detailed health should return 'unhealthy' when DB is down."""
+        from heisenberg.backend.app import app
+
+        # Set up mock session_maker in app.state
+        app.state.session_maker = MagicMock()
+
         async with test_client as client:
-            with (
-                patch("heisenberg.backend.app.check_database_health") as mock_check,
-                patch("heisenberg.backend.database._session_maker", MagicMock()),
-            ):
+            with patch("heisenberg.backend.app.check_database_health") as mock_check:
                 mock_check.return_value = (False, 0.0)
                 response = await client.get("/health/detailed")
                 data = response.json()
 
                 assert data["status"] == "unhealthy"
                 assert not data["database"]["connected"]
+
+        # Cleanup
+        if hasattr(app.state, "session_maker"):
+            del app.state.session_maker
 
 
 class TestAppLifespan:
@@ -245,12 +263,15 @@ class TestAppLifespan:
     @pytest.mark.asyncio
     async def test_lifespan_initializes_logging(self):
         """Lifespan should configure logging on startup."""
-        from heisenberg.backend.app import app, lifespan
+        from fastapi import FastAPI
+
+        from heisenberg.backend.app import lifespan
+
+        test_app = FastAPI(lifespan=lifespan)
 
         with (
             patch("heisenberg.backend.app.configure_logging") as mock_logging,
             patch.dict("os.environ", {"DATABASE_URL": ""}, clear=False),
-            patch("heisenberg.backend.database.close_db", new_callable=AsyncMock),
         ):
             # Mock get_settings to avoid validation errors
             mock_settings = MagicMock()
@@ -258,7 +279,7 @@ class TestAppLifespan:
             mock_settings.log_json_format = True
             mock_settings.database_url = "postgresql://test"
             with patch("heisenberg.backend.config.get_settings", return_value=mock_settings):
-                async with lifespan(app):
+                async with lifespan(test_app):
                     pass
 
             mock_logging.assert_called_once()
@@ -266,21 +287,31 @@ class TestAppLifespan:
     @pytest.mark.asyncio
     async def test_lifespan_initializes_db_when_url_set(self):
         """Lifespan should init DB when DATABASE_URL is set."""
-        from heisenberg.backend.app import app, lifespan
+        from fastapi import FastAPI
+
+        from heisenberg.backend.app import lifespan
+
+        test_app = FastAPI(lifespan=lifespan)
 
         mock_settings = MagicMock()
         mock_settings.log_level = "INFO"
         mock_settings.log_json_format = True
         mock_settings.database_url = "postgresql://test:test@localhost/test"
 
+        mock_engine = MagicMock()
+        mock_engine.dispose = AsyncMock()
+        mock_session_maker = MagicMock()
+
         with (
             patch("heisenberg.backend.app.configure_logging"),
             patch.dict("os.environ", {"DATABASE_URL": "postgresql://test"}, clear=False),
             patch("heisenberg.backend.config.get_settings", return_value=mock_settings),
-            patch("heisenberg.backend.database.init_db") as mock_init_db,
-            patch("heisenberg.backend.database.close_db", new_callable=AsyncMock),
+            patch(
+                "heisenberg.backend.database.init_db",
+                return_value=(mock_engine, mock_session_maker),
+            ) as mock_init_db,
         ):
-            async with lifespan(app):
+            async with lifespan(test_app):
                 pass
 
             mock_init_db.assert_called_once()
@@ -288,7 +319,13 @@ class TestAppLifespan:
     @pytest.mark.asyncio
     async def test_lifespan_skips_db_when_no_url(self):
         """Lifespan should skip DB init when no DATABASE_URL."""
-        from heisenberg.backend.app import app, lifespan
+        import os
+
+        from fastapi import FastAPI
+
+        from heisenberg.backend.app import lifespan
+
+        test_app = FastAPI(lifespan=lifespan)
 
         mock_settings = MagicMock()
         mock_settings.log_level = "INFO"
@@ -296,8 +333,6 @@ class TestAppLifespan:
         mock_settings.database_url = ""
 
         # Ensure DATABASE_URL is not set
-        import os
-
         env_backup = os.environ.get("DATABASE_URL")
         if "DATABASE_URL" in os.environ:
             del os.environ["DATABASE_URL"]
@@ -307,9 +342,8 @@ class TestAppLifespan:
                 patch("heisenberg.backend.app.configure_logging"),
                 patch("heisenberg.backend.config.get_settings", return_value=mock_settings),
                 patch("heisenberg.backend.database.init_db") as mock_init_db,
-                patch("heisenberg.backend.database.close_db", new_callable=AsyncMock),
             ):
-                async with lifespan(app):
+                async with lifespan(test_app):
                     pass
 
                 mock_init_db.assert_not_called()
@@ -318,31 +352,34 @@ class TestAppLifespan:
                 os.environ["DATABASE_URL"] = env_backup
 
     @pytest.mark.asyncio
-    async def test_lifespan_closes_db_on_shutdown(self):
-        """Lifespan should close DB on shutdown."""
-        from heisenberg.backend.app import app, lifespan
+    async def test_lifespan_disposes_engine_on_shutdown(self):
+        """Lifespan should dispose engine on shutdown."""
+        from fastapi import FastAPI
+
+        from heisenberg.backend.app import lifespan
+
+        test_app = FastAPI(lifespan=lifespan)
 
         mock_settings = MagicMock()
         mock_settings.log_level = "INFO"
         mock_settings.log_json_format = True
-        mock_settings.database_url = ""
+        mock_settings.database_url = "postgresql://test:test@localhost/test"
 
-        import os
+        mock_engine = MagicMock()
+        mock_engine.dispose = AsyncMock()
+        mock_session_maker = MagicMock()
 
-        env_backup = os.environ.get("DATABASE_URL")
-        if "DATABASE_URL" in os.environ:
-            del os.environ["DATABASE_URL"]
+        with (
+            patch("heisenberg.backend.app.configure_logging"),
+            patch.dict("os.environ", {"DATABASE_URL": "postgresql://test"}, clear=False),
+            patch("heisenberg.backend.config.get_settings", return_value=mock_settings),
+            patch(
+                "heisenberg.backend.database.init_db",
+                return_value=(mock_engine, mock_session_maker),
+            ),
+        ):
+            async with lifespan(test_app):
+                pass
 
-        try:
-            with (
-                patch("heisenberg.backend.app.configure_logging"),
-                patch("heisenberg.backend.config.get_settings", return_value=mock_settings),
-                patch("heisenberg.backend.database.close_db", new_callable=AsyncMock) as mock_close,
-            ):
-                async with lifespan(app):
-                    pass
-
-                mock_close.assert_called_once()
-        finally:
-            if env_backup:
-                os.environ["DATABASE_URL"] = env_backup
+            # Engine should have been disposed on shutdown
+            mock_engine.dispose.assert_called_once()
