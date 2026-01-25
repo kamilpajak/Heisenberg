@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
 # Application version
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # API prefix
 API_PREFIX = "/api/v1"

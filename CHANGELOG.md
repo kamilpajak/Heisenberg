@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-01-25
+
+### Added
+
+#### Google Gemini Support
+- Added Google Gemini as third LLM provider option
+- Updated default Gemini model to `gemini-3-pro-preview`
+
+#### GitHub Action
+- Reusable GitHub Action for test analysis in CI/CD pipelines
+- GitHub artifacts support for fetching Playwright reports directly from workflow runs
+
+#### Quality & Security
+- SonarCloud integration for continuous code quality analysis
+- API fuzz testing with Schemathesis for robustness validation
+- Git hooks setup script for linting and conventional commits enforcement
+
+#### Validation
+- Real-world validation test suite with weekly CI workflow
+- Self-generating validation tests (Phase 1)
+
+### Changed
+
+#### Backend Improvements
+- Major backend refactoring (phases 1-4): LLM client consolidation, shared models, improved architecture
+- Reduced cognitive complexity in CLI and service modules
+- Rate limiter cleanup method to prevent memory leaks
+- Immutable pricing configuration using MappingProxyType
+
+#### Dependencies
+- Upgraded Python runtime from 3.11 to 3.14
+- Updated GitHub Actions: checkout v6, setup-python v6, setup-uv v7, codecov-action v5
+
+### Fixed
+- Critical production readiness issues
+- Missing `test_file` column in database schema
+- GitHub Action alignment with CLI interface
+- SonarCloud code smells, bugs, and security hotspots
+- Regex pattern using negative lookahead instead of reluctant quantifier
+- Backend dependencies installation in CI
+
+### Documentation
+- Comprehensive API documentation
+- Public roadmap
+- Updated README with improved examples
+
 ## [0.1.0] - 2025-01-24
 
 ### Added
@@ -53,4 +99,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Type hints throughout codebase
 - Ruff for linting and formatting
 
+[0.2.0]: https://github.com/kamilpajak/Heisenberg/releases/tag/v0.2.0
 [0.1.0]: https://github.com/kamilpajak/Heisenberg/releases/tag/v0.1.0

@@ -1,6 +1,6 @@
 [project]
 name = "heisenberg"
-version = "0.1.0"
+version = "0.2.0"
 description = "AI Root Cause Analysis for Flaky Tests"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -47,6 +47,7 @@ dev = [
     "pre-commit>=3.7.0",
     "schemathesis>=3.38.0",
     "asgi-lifespan>=2.1.0",
+    "python-semantic-release>=9.0.0",
 ]
 
 [project.scripts]
@@ -99,3 +100,40 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
 ]
+
+# Semantic Release Configuration
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+version_variables = [
+    "src/heisenberg/__init__.py:__version__",
+    "src/heisenberg/backend/app.py:__version__",
+]
+commit_message = "chore(release): v{version}"
+tag_format = "v{version}"
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
+exclude_commit_patterns = [
+    "^chore\\(deps\\):",
+    "^build\\(deps\\):",
+    "^ci:",
+    "^test:",
+    "^docs:",
+    "^chore(?!\\(release\\)):",
+]
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "perf", "refactor"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf", "refactor"]
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = true
