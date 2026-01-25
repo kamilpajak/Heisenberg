@@ -155,11 +155,13 @@ class TestHealthEndpoint:
     @pytest.mark.asyncio
     async def test_health_includes_version(self, test_client: AsyncClient):
         """Health response should include version."""
+        from heisenberg import __version__
+
         async with test_client as client:
             response = await client.get("/health")
             data = response.json()
             assert "version" in data
-            assert data["version"] == "0.1.0"
+            assert data["version"] == __version__
 
     @pytest.mark.asyncio
     async def test_health_includes_status(self, test_client: AsyncClient):
