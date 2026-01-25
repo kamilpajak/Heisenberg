@@ -111,9 +111,11 @@ class TestLLMPricing:
 
     def test_pricing_dict_exists(self):
         """PRICING dictionary should exist in models module."""
+        from collections.abc import Mapping
+
         from heisenberg.llm.models import PRICING
 
-        assert isinstance(PRICING, dict)
+        assert isinstance(PRICING, Mapping)
 
     def test_pricing_has_claude_models(self):
         """PRICING should include Claude models."""

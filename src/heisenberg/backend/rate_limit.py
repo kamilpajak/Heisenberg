@@ -15,6 +15,17 @@ class SlidingWindowRateLimiter:
     """Sliding window rate limiter for API requests.
 
     Thread-safe implementation using asyncio locks per key.
+
+    Note:
+        This implementation uses in-memory storage and is suitable for
+        single-instance deployments only. It does not support horizontal
+        scaling across multiple server instances.
+
+        For distributed/multi-instance deployments, consider using a
+        Redis-based rate limiter that provides shared state across instances.
+
+        To prevent memory leaks from abandoned keys, call cleanup_stale_entries()
+        periodically (e.g., via a background task or scheduled job).
     """
 
     def __init__(self, requests_per_minute: int = 60):
@@ -71,3 +82,40 @@ class SlidingWindowRateLimiter:
             )
 
         return allowed, headers
+
+    def cleanup_stale_entries(self) -> int:
+        """
+        Remove stale request entries and their associated locks.
+
+        This method should be called periodically to prevent memory leaks
+        from keys that are no longer making requests.
+
+        Returns:
+            Number of entries cleaned up.
+        """
+        now = time.time()
+        window_start = now - 60  # 1-minute sliding window
+
+        stale_keys: list[str] = []
+
+        for key, timestamps in list(self.requests.items()):
+            # Filter out old timestamps
+            fresh = [t for t in timestamps if t > window_start]
+            if fresh:
+                self.requests[key] = fresh
+            else:
+                stale_keys.append(key)
+
+        # Remove stale entries
+        for key in stale_keys:
+            del self.requests[key]
+            if key in self._locks:
+                del self._locks[key]
+
+        if stale_keys:
+            logger.debug(
+                "rate_limiter_cleanup",
+                cleaned_count=len(stale_keys),
+            )
+
+        return len(stale_keys)

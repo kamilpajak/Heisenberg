@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 
 # Pricing per million tokens (as of 2025)
-PRICING: dict[str, dict[str, float]] = {
-    "claude-3-5-sonnet-20241022": {"input": 3.0, "output": 15.0},
-    "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
-    "gpt-4o": {"input": 2.5, "output": 10.0},
-    "gpt-4o-mini": {"input": 0.15, "output": 0.6},
-    "gemini-1.5-pro": {"input": 1.25, "output": 5.0},
-}
+# Using MappingProxyType for immutability - prevents accidental modification
+PRICING: MappingProxyType[str, MappingProxyType[str, float]] = MappingProxyType(
+    {
+        "claude-3-5-sonnet-20241022": MappingProxyType({"input": 3.0, "output": 15.0}),
+        "claude-sonnet-4-20250514": MappingProxyType({"input": 3.0, "output": 15.0}),
+        "gpt-4o": MappingProxyType({"input": 2.5, "output": 10.0}),
+        "gpt-4o-mini": MappingProxyType({"input": 0.15, "output": 0.6}),
+        "gemini-1.5-pro": MappingProxyType({"input": 1.25, "output": 5.0}),
+    }
+)
 
 DEFAULT_INPUT_COST = 3.0
 DEFAULT_OUTPUT_COST = 15.0
