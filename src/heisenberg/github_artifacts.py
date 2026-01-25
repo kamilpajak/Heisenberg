@@ -275,35 +275,91 @@ class GitHubArtifactClient:
         return None
 
     @staticmethod
+    def _try_parse_jsonl_file(zf: zipfile.ZipFile, filename: str) -> dict | None:
+        """Try to parse a JSONL file and find Playwright report data.
+
+        JSONL (JSON Lines) is used by Playwright blob reports. Each line is
+        a separate JSON object. We search for a line containing report data
+        (suites or stats keys).
+        """
+        try:
+            content = zf.read(filename).decode("utf-8")
+            for line in content.strip().split("\n"):
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                    if GitHubArtifactClient._is_playwright_report(data):
+                        return data
+                except json.JSONDecodeError:
+                    continue
+        except (KeyError, UnicodeDecodeError):
+            pass
+        return None
+
+    @staticmethod
     def _get_prioritized_json_files(json_files: list[str]) -> list[str]:
         """Get JSON files ordered by priority (report/results files first)."""
         priority_files = [f for f in json_files if "report" in f.lower() or "results" in f.lower()]
         other_files = [f for f in json_files if f not in priority_files]
         return priority_files + other_files
 
-    def extract_playwright_report(self, zip_content: bytes) -> dict | None:
-        """Extract Playwright JSON report from a zip file.
+    @staticmethod
+    def _get_prioritized_jsonl_files(jsonl_files: list[str]) -> list[str]:
+        """Get JSONL files ordered by priority (report/results files first)."""
+        priority_files = [f for f in jsonl_files if "report" in f.lower() or "results" in f.lower()]
+        other_files = [f for f in jsonl_files if f not in priority_files]
+        return priority_files + other_files
 
-        Searches for JSON files that look like Playwright reports
-        (contain 'suites' and 'stats' keys).
+    def extract_playwright_report(self, zip_content: bytes, max_depth: int = 3) -> dict | None:
+        """Extract Playwright JSON/JSONL report from a zip file.
+
+        Searches for JSON and JSONL files that look like Playwright reports
+        (contain 'suites' and 'stats' keys). Supports nested ZIP files
+        (blob reports) used by Playwright's sharded test execution.
 
         Args:
             zip_content: Zip file content as bytes
+            max_depth: Maximum nesting depth to search (default: 3)
 
         Returns:
             Parsed JSON report or None if not found
         """
+        if max_depth <= 0:
+            return None
+
         try:
             zip_buffer = io.BytesIO(zip_content)
             with zipfile.ZipFile(zip_buffer, "r") as zf:
-                json_files = [name for name in zf.namelist() if name.endswith(".json")]
-                if not json_files:
-                    return None
+                all_files = zf.namelist()
 
+                # First, try to find JSON files directly (preferred)
+                json_files = [name for name in all_files if name.endswith(".json")]
                 for json_file in self._get_prioritized_json_files(json_files):
                     report = self._try_parse_json_file(zf, json_file)
                     if report:
                         return report
+
+                # Second, try JSONL files (Playwright blob report format)
+                jsonl_files = [name for name in all_files if name.endswith(".jsonl")]
+                for jsonl_file in self._get_prioritized_jsonl_files(jsonl_files):
+                    report = self._try_parse_jsonl_file(zf, jsonl_file)
+                    if report:
+                        return report
+
+                # If no valid JSON/JSONL found, look for nested ZIP files
+                nested_zips = [name for name in all_files if name.endswith(".zip")]
+                for nested_zip_name in nested_zips:
+                    try:
+                        nested_zip_content = zf.read(nested_zip_name)
+                        report = self.extract_playwright_report(
+                            nested_zip_content, max_depth=max_depth - 1
+                        )
+                        if report:
+                            return report
+                    except (zipfile.BadZipFile, KeyError):
+                        # Skip corrupted or unreadable nested ZIPs
+                        continue
 
                 return None
         except zipfile.BadZipFile:

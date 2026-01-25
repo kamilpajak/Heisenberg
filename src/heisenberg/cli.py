@@ -136,6 +136,11 @@ def main() -> int:
         default="claude",
         help="LLM provider to use (default: claude)",
     )
+    fetch_parser.add_argument(
+        "--list-artifacts",
+        action="store_true",
+        help="List available artifacts for debugging (does not analyze)",
+    )
 
     args = parser.parse_args()
 
@@ -354,6 +359,77 @@ def _analyze_report_data(report_data: dict, args) -> int:
         temp_path.unlink()
 
 
+def _format_size(size_bytes: int) -> str:
+    """Format size in bytes to human-readable format."""
+    if size_bytes >= 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    elif size_bytes >= 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    return f"{size_bytes} B"
+
+
+async def run_list_artifacts(
+    token: str,
+    owner: str,
+    repo: str,
+    run_id: int | None,
+    output=None,
+) -> int:
+    """List artifacts for debugging purposes.
+
+    Args:
+        token: GitHub token
+        owner: Repository owner
+        repo: Repository name
+        run_id: Optional specific workflow run ID
+        output: Output stream (defaults to stdout)
+
+    Returns:
+        0 on success, 1 on error
+    """
+    from heisenberg.github_artifacts import GitHubArtifactClient
+
+    if output is None:
+        output = sys.stdout
+
+    client = GitHubArtifactClient(token=token)
+
+    # Get run ID if not specified
+    if run_id is None:
+        runs = await client.list_workflow_runs(owner, repo)
+        failed_runs = [r for r in runs if r.conclusion == "failure"]
+        if not failed_runs:
+            output.write("No failed workflow runs found.\n")
+            return 0
+        run_id = failed_runs[0].id
+        output.write(f"Using latest failed run: {run_id}\n")
+        output.write(f"  URL: {failed_runs[0].html_url}\n\n")
+
+    # Get artifacts
+    artifacts = await client.get_artifacts(owner, repo, run_id=run_id)
+
+    if not artifacts:
+        output.write(f"No artifacts found for run {run_id}.\n")
+        return 0
+
+    output.write(f"Artifacts for run {run_id}:\n")
+    output.write("-" * 60 + "\n")
+
+    for artifact in artifacts:
+        expired_marker = " [EXPIRED]" if artifact.expired else ""
+        size = _format_size(artifact.size_in_bytes)
+        output.write(f"  {artifact.name:<40} {size:>10}{expired_marker}\n")
+
+    output.write("-" * 60 + "\n")
+    output.write(f"Total: {len(artifacts)} artifact(s)\n")
+
+    # Show hint about matching pattern
+    output.write("\nTip: Use --artifact-name <pattern> to filter artifacts.\n")
+    output.write("     Example: --artifact-name playwright\n")
+
+    return 0
+
+
 def run_fetch_github(args: argparse.Namespace) -> int:
     """Run the fetch-github command."""
     import asyncio
@@ -372,6 +448,14 @@ def run_fetch_github(args: argparse.Namespace) -> int:
         return 1
 
     owner, repo = repo_parts
+
+    # Handle --list-artifacts flag
+    if args.list_artifacts:
+        try:
+            return asyncio.run(run_list_artifacts(token, owner, repo, args.run_id))
+        except GitHubAPIError as e:
+            print(f"GitHub API error: {e}", file=sys.stderr)
+            return 1
 
     async def fetch_report():
         client = GitHubArtifactClient(token=token)
