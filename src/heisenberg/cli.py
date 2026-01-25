@@ -7,9 +7,10 @@ import json
 import sys
 from pathlib import Path
 
-from heisenberg.ai_analyzer import analyze_with_ai
+from heisenberg.ai_analyzer import analyze_unified_run, analyze_with_ai
 from heisenberg.analyzer import run_analysis
 from heisenberg.github_client import post_pr_comment
+from heisenberg.unified_model import PlaywrightTransformer, UnifiedTestRun
 
 
 def main() -> int:
@@ -35,7 +36,7 @@ def main() -> int:
     analyze_parser.add_argument(
         "--output-format",
         "-f",
-        choices=["github-comment", "json", "text"],
+        choices=["github-comment", "json", "text", "unified-json"],
         default="text",
         help="Output format (default: text)",
     )
@@ -84,6 +85,11 @@ def main() -> int:
         type=Path,
         default=None,
         help="Path to container logs file for additional context",
+    )
+    analyze_parser.add_argument(
+        "--use-unified",
+        action="store_true",
+        help="Use unified failure model for analysis (framework-agnostic)",
     )
 
     # fetch-github command
@@ -245,6 +251,31 @@ def _post_github_comment(args, result):
         print(f"Warning: Failed to post comment: {e}", file=sys.stderr)
 
 
+def convert_to_unified(
+    report,
+    run_id: str | None = None,
+    repository: str | None = None,
+    branch: str | None = None,
+) -> UnifiedTestRun:
+    """Convert a PlaywrightReport to UnifiedTestRun.
+
+    Args:
+        report: PlaywrightReport instance.
+        run_id: Optional run identifier.
+        repository: Optional repository name.
+        branch: Optional branch name.
+
+    Returns:
+        UnifiedTestRun instance.
+    """
+    return PlaywrightTransformer.transform_report(
+        report,
+        run_id=run_id,
+        repository=repository,
+        branch=branch,
+    )
+
+
 def run_analyze(args: argparse.Namespace) -> int:
     """Run the analyze command."""
     if not args.report.exists():
@@ -262,9 +293,29 @@ def run_analyze(args: argparse.Namespace) -> int:
         return 1
 
     container_logs = _load_container_logs(args, result)
-    ai_result = _run_ai_analysis(args, result, container_logs)
 
-    print(_format_output(args, result, ai_result))
+    # Use unified model if requested
+    use_unified = getattr(args, "use_unified", False)
+    if use_unified and args.ai_analysis:
+        unified_run = convert_to_unified(result.report)
+        ai_result = analyze_unified_run(
+            unified_run,
+            container_logs=container_logs,
+            provider=args.provider,
+            model=getattr(args, "model", None),
+        )
+    else:
+        ai_result = _run_ai_analysis(args, result, container_logs)
+
+    # Handle unified-json output format
+    if args.output_format == "unified-json":
+        from heisenberg.formatters import format_unified_as_json
+
+        unified_run = convert_to_unified(result.report)
+        print(format_unified_as_json(unified_run))
+    else:
+        print(_format_output(args, result, ai_result))
+
     _post_github_comment(args, result)
 
     return 1 if result.has_failures else 0
