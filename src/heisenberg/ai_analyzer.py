@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from heisenberg.diagnosis import Diagnosis, parse_diagnosis
 from heisenberg.docker_logs import ContainerLogs
 from heisenberg.llm_client import LLMClient, LLMResponse
 from heisenberg.playwright_parser import PlaywrightReport
 from heisenberg.prompt_builder import build_analysis_prompt
+
+if TYPE_CHECKING:
+    from heisenberg.unified_model import UnifiedTestRun
 
 # Marker for AI-generated content
 HEISENBERG_AI_MARKER = "## Heisenberg AI Analysis"
@@ -268,3 +272,79 @@ def analyze_with_ai(
         model=model,
     )
     return analyzer.analyze()
+
+
+def analyze_unified_run(
+    run: UnifiedTestRun,
+    container_logs: dict[str, ContainerLogs] | None = None,
+    api_key: str | None = None,
+    provider: str = "claude",
+    model: str | None = None,
+) -> AIAnalysisResult:
+    """
+    Analyze test failures using the unified model.
+
+    This is the framework-agnostic version of analyze_with_ai.
+    It works with UnifiedTestRun instead of PlaywrightReport.
+
+    Args:
+        run: UnifiedTestRun containing test failures.
+        container_logs: Optional container logs for context.
+        api_key: Optional API key. If None, reads from environment.
+        provider: LLM provider to use (claude, openai, gemini).
+        model: Specific model to use (provider-dependent).
+
+    Returns:
+        AIAnalysisResult with diagnosis.
+    """
+    from heisenberg.prompt_builder import build_unified_prompt
+
+    # Build prompts from unified model
+    system_prompt, user_prompt = build_unified_prompt(run, container_logs)
+
+    # Get LLM client
+    llm = _get_llm_client_for_provider(provider, api_key, model)
+
+    # Call LLM
+    response = llm.analyze(user_prompt, system_prompt=system_prompt)
+
+    # Parse diagnosis
+    diagnosis = parse_diagnosis(response.content)
+
+    return AIAnalysisResult(
+        diagnosis=diagnosis,
+        input_tokens=response.input_tokens,
+        output_tokens=response.output_tokens,
+    )
+
+
+def _get_llm_client_for_provider(
+    provider: str,
+    api_key: str | None = None,
+    model: str | None = None,
+):
+    """Get LLM client for the specified provider."""
+    import os
+
+    from heisenberg.llm_client import LLMClient, LLMConfig
+
+    if provider == "claude":
+        config = LLMConfig()
+        if model:
+            config.model = model
+        if api_key:
+            return LLMClient(api_key=api_key, config=config)
+        else:
+            return LLMClient.from_environment(config=config)
+    elif provider == "openai":
+        api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set.")
+        return OpenAICompatibleClient(api_key=api_key, model=model)
+    elif provider == "gemini":
+        api_key = api_key or os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY environment variable is not set.")
+        return GeminiCompatibleClient(api_key=api_key, model=model)
+    else:
+        raise ValueError(f"Unknown provider: {provider}")

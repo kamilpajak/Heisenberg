@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from heisenberg.docker_logs import ContainerLogs
 from heisenberg.log_compressor import compress_logs_for_llm
 from heisenberg.playwright_parser import PlaywrightReport
+
+if TYPE_CHECKING:
+    from heisenberg.unified_model import UnifiedTestRun
 
 
 def get_system_prompt() -> str:
@@ -227,3 +232,126 @@ def build_analysis_prompt(
         max_log_lines=max_log_lines,
     )
     return get_system_prompt(), builder.build()
+
+
+def build_unified_prompt(
+    run: UnifiedTestRun,
+    container_logs: dict[str, ContainerLogs] | None = None,
+) -> tuple[str, str]:
+    """
+    Build analysis prompts from UnifiedTestRun.
+
+    This is the framework-agnostic version of build_analysis_prompt.
+    It works with the unified failure model instead of Playwright-specific reports.
+
+    Args:
+        run: UnifiedTestRun containing test failures.
+        container_logs: Optional container logs for context.
+
+    Returns:
+        Tuple of (system_prompt, user_prompt).
+    """
+
+    system_prompt = get_system_prompt()
+    user_prompt = _build_unified_user_prompt(run, container_logs)
+    return system_prompt, user_prompt
+
+
+def _build_unified_user_prompt(
+    run: UnifiedTestRun,
+    container_logs: dict[str, ContainerLogs] | None = None,
+) -> str:
+    """Build user prompt from UnifiedTestRun."""
+
+    sections = []
+
+    # Header with summary
+    summary = run.summary()
+    header = f"""# Test Failure Analysis Request
+
+## Summary
+- Total tests: {summary["total"]}
+- Passed: {summary["passed"]}
+- Failed: {summary["failed"]}
+- Skipped: {summary["skipped"]}
+- Pass rate: {summary["pass_rate"]:.1%}"""
+
+    if run.repository:
+        header += f"\n- Repository: {run.repository}"
+    if run.branch:
+        header += f"\n- Branch: {run.branch}"
+    if run.run_id:
+        header += f"\n- Run ID: {run.run_id}"
+
+    sections.append(header)
+
+    # Failed tests section
+    failed_tests_lines = ["## Failed Tests"]
+
+    for i, failure in enumerate(run.failures, 1):
+        failed_tests_lines.append(f"\n### Test {i}: {failure.test_title}")
+        failed_tests_lines.append(f"- **File:** {failure.file_path}")
+
+        if failure.suite_path:
+            failed_tests_lines.append(f"- **Suite:** {' > '.join(failure.suite_path)}")
+
+        # Metadata
+        meta = failure.metadata
+        failed_tests_lines.append(f"- **Framework:** {meta.framework.value}")
+        if meta.browser:
+            failed_tests_lines.append(f"- **Browser:** {meta.browser}")
+        if meta.duration_ms:
+            failed_tests_lines.append(f"- **Duration:** {meta.duration_ms}ms")
+        if meta.retry_count > 0:
+            failed_tests_lines.append(f"- **Retries:** {meta.retry_count}")
+
+        # Error details
+        error = failure.error
+        failed_tests_lines.append("\n#### Error")
+        failed_tests_lines.append(f"**Message:**\n```\n{error.message}\n```")
+
+        if error.stack_trace:
+            stack = error.stack_trace
+            stack_lines = stack.split("\n")
+            if len(stack_lines) > 20:
+                stack = "\n".join(stack_lines[:20]) + "\n... (truncated)"
+            failed_tests_lines.append(f"\n**Stack Trace:**\n```\n{stack}\n```")
+
+        if error.location:
+            failed_tests_lines.append(
+                f"- **Location:** Line {error.location.get('line')}, "
+                f"Column {error.location.get('column', 0)}"
+            )
+
+    sections.append("\n".join(failed_tests_lines))
+
+    # Container logs section (if provided)
+    if container_logs:
+        logs_lines = ["## Backend Container Logs"]
+        logs_lines.append("Logs collected from containers around the time of test failure:\n")
+
+        for name, logs in container_logs.items():
+            logs_lines.append(f"### Container: {name}")
+            if not logs.entries:
+                logs_lines.append("*No logs available*")
+                continue
+            logs_lines.append("```")
+            # Limit to 50 lines per container
+            entries = logs.entries[:50] if len(logs.entries) > 50 else logs.entries
+            logs_lines.extend(str(entry) for entry in entries)
+            logs_lines.append("```")
+
+        sections.append("\n".join(logs_lines))
+
+    # Analysis instructions
+    instructions = """## Analysis Request
+
+Please analyze the test failure(s) above and provide:
+1. Root cause analysis
+2. Supporting evidence from errors and logs
+3. Suggested fix or investigation steps
+4. Your confidence level in the diagnosis"""
+
+    sections.append(instructions)
+
+    return "\n\n".join(sections)
