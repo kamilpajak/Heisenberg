@@ -56,10 +56,15 @@ The current implementation works for:
 - ✅ Standard JSON reports (`reporter: [['json', {...}]]`)
 - ✅ Pre-merged blob reports (output of `merge-reports`)
 - ✅ JSONL files with standard report structure
-- ❌ Raw blob reports (protocol events) - need merge step first
+- ✅ Raw blob reports via `--merge-blobs` flag (requires npx/playwright)
 
 ### Recommendation for Users
-Projects using sharded tests should add a merge step to their CI:
+**Option 1:** Use `--merge-blobs` flag (requires Node.js/Playwright locally):
+```bash
+heisenberg fetch-github --repo microsoft/playwright --merge-blobs
+```
+
+**Option 2:** Projects using sharded tests can add a merge step to their CI:
 ```yaml
 - name: Merge blob reports
   run: npx playwright merge-reports --reporter=json ./blob-reports
@@ -94,8 +99,8 @@ reporter: [['json', { outputFile: 'test-results.json' }]]
 
 ### Additional Improvements
 - [ ] Support for Playwright HTML report parsing
-- [ ] Support for blob report merging
-- [ ] Better error messages when artifact format is unsupported
+- [x] Support for blob report merging (`--merge-blobs` flag)
+- [x] Better error messages when artifact format is unsupported
 
 ---
 

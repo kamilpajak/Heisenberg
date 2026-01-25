@@ -141,6 +141,11 @@ def main() -> int:
         action="store_true",
         help="List available artifacts for debugging (does not analyze)",
     )
+    fetch_parser.add_argument(
+        "--merge-blobs",
+        action="store_true",
+        help="Merge Playwright blob reports before analysis (requires npx/playwright)",
+    )
 
     args = parser.parse_args()
 
@@ -433,6 +438,64 @@ async def run_list_artifacts(
     return 0
 
 
+async def _fetch_and_merge_blobs(
+    token: str,
+    owner: str,
+    repo: str,
+    run_id: int | None,
+    artifact_name: str,
+) -> dict | None:
+    """Fetch blob artifacts and merge them into a JSON report.
+
+    Args:
+        token: GitHub token
+        owner: Repository owner
+        repo: Repository name
+        run_id: Optional specific workflow run ID
+        artifact_name: Pattern to match artifact name
+
+    Returns:
+        Merged JSON report or None
+    """
+    from heisenberg.blob_merger import BlobMergeError, extract_blob_files, merge_blob_reports
+    from heisenberg.github_artifacts import GitHubArtifactClient
+
+    client = GitHubArtifactClient(token=token)
+
+    # Get run ID if not specified
+    if run_id is None:
+        runs = await client.list_workflow_runs(owner, repo)
+        failed_runs = [r for r in runs if r.conclusion == "failure"]
+        if not failed_runs:
+            return None
+        run_id = failed_runs[0].id
+        print(f"Using latest failed run: {run_id}", file=sys.stderr)
+
+    # Get artifacts matching the pattern
+    artifacts = await client.get_artifacts(owner, repo, run_id=run_id)
+    matching = [a for a in artifacts if artifact_name.lower() in a.name.lower()]
+
+    if not matching:
+        return None
+
+    # Download and extract blob files from all matching artifacts
+    all_blob_files = []
+    for artifact in matching:
+        print(f"Downloading artifact: {artifact.name}...", file=sys.stderr)
+        zip_data = await client.download_artifact(owner, repo, artifact.id)
+        blob_files = extract_blob_files(zip_data)
+        all_blob_files.extend(blob_files)
+
+    if not all_blob_files:
+        raise BlobMergeError(
+            f"No blob files found in artifacts. "
+            f"Found {len(matching)} artifact(s) but no .jsonl files inside."
+        )
+
+    print(f"Merging {len(all_blob_files)} blob file(s)...", file=sys.stderr)
+    return await merge_blob_reports(all_blob_files)
+
+
 def run_fetch_github(args: argparse.Namespace) -> int:
     """Run the fetch-github command."""
     import asyncio
@@ -464,26 +527,48 @@ def run_fetch_github(args: argparse.Namespace) -> int:
             print(f"GitHub API error: {e}", file=sys.stderr)
             return 1
 
-    async def fetch_report():
-        client = GitHubArtifactClient(token=token)
-
-        if args.run_id:
-            return await _fetch_report_from_run(
-                client, owner, repo, args.run_id, args.artifact_name
+    # Handle --merge-blobs flag
+    if args.merge_blobs:
+        try:
+            report_data = asyncio.run(
+                _fetch_and_merge_blobs(token, owner, repo, args.run_id, args.artifact_name)
             )
-        return await client.fetch_latest_report(
-            owner, repo, artifact_name_pattern=args.artifact_name
-        )
+        except GitHubAPIError as e:
+            print(f"GitHub API error: {e}", file=sys.stderr)
+            print(
+                "\nTip: For local reports, use: heisenberg analyze --report <path-to-json>",
+                file=sys.stderr,
+            )
+            return 1
+        except Exception as e:
+            print(f"Blob merge error: {e}", file=sys.stderr)
+            print(
+                "\nTip: Ensure Node.js and Playwright are installed: npm install -D @playwright/test",
+                file=sys.stderr,
+            )
+            return 1
+    else:
 
-    try:
-        report_data = asyncio.run(fetch_report())
-    except GitHubAPIError as e:
-        print(f"GitHub API error: {e}", file=sys.stderr)
-        print(
-            "\nTip: For local reports, use: heisenberg analyze --report <path-to-json>",
-            file=sys.stderr,
-        )
-        return 1
+        async def fetch_report():
+            client = GitHubArtifactClient(token=token)
+
+            if args.run_id:
+                return await _fetch_report_from_run(
+                    client, owner, repo, args.run_id, args.artifact_name
+                )
+            return await client.fetch_latest_report(
+                owner, repo, artifact_name_pattern=args.artifact_name
+            )
+
+        try:
+            report_data = asyncio.run(fetch_report())
+        except GitHubAPIError as e:
+            print(f"GitHub API error: {e}", file=sys.stderr)
+            print(
+                "\nTip: For local reports, use: heisenberg analyze --report <path-to-json>",
+                file=sys.stderr,
+            )
+            return 1
 
     if not report_data:
         msg = (

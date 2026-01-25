@@ -389,3 +389,184 @@ class TestListArtifactsFunctionality:
                 or "empty" in output_text.lower()
                 or "0 artifact" in output_text.lower()
             )
+
+
+class TestMergeBlobsFlag:
+    """Test --merge-blobs flag for processing Playwright blob reports."""
+
+    def test_has_merge_blobs_argument(self):
+        """fetch-github should have --merge-blobs flag."""
+        result = subprocess.run(
+            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        assert "--merge-blobs" in result.stdout
+
+    def test_merge_blobs_help_text(self):
+        """--merge-blobs should have descriptive help text."""
+        result = subprocess.run(
+            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        # Help should mention merging or blob reports
+        assert "merge" in result.stdout.lower() or "blob" in result.stdout.lower()
+
+
+class TestMergeBlobsFunctionality:
+    """Test --merge-blobs behavior with mocked dependencies."""
+
+    @pytest.fixture
+    def sample_blob_jsonl(self):
+        """Sample blob report JSONL content (protocol events)."""
+        return b"""\
+{"method":"onBegin","params":{"config":{}}}
+{"method":"onTestBegin","params":{"test":{"title":"example test"}}}
+{"method":"onTestEnd","params":{"test":{"title":"example test"},"result":{"status":"passed"}}}
+{"method":"onEnd","params":{"result":{}}}
+"""
+
+    @pytest.fixture
+    def merged_report_json(self):
+        """Sample merged report JSON (output of merge-reports)."""
+        return {
+            "suites": [
+                {
+                    "title": "example.spec.ts",
+                    "specs": [
+                        {
+                            "title": "example test",
+                            "tests": [{"status": "passed"}],
+                        }
+                    ],
+                }
+            ],
+            "stats": {"total": 1, "passed": 1, "failed": 0},
+        }
+
+    @pytest.mark.asyncio
+    async def test_merge_blobs_calls_playwright_merge(self, sample_blob_jsonl, merged_report_json):
+        """--merge-blobs should call npx playwright merge-reports."""
+        import json
+
+        from heisenberg.blob_merger import merge_blob_reports
+
+        with patch("subprocess.run") as mock_run:
+            # Mock successful merge-reports execution
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = json.dumps(merged_report_json)
+
+            await merge_blob_reports(
+                blob_files=[b"blob1.jsonl content"],
+                output_format="json",
+            )
+
+            # Should have called npx playwright merge-reports
+            mock_run.assert_called_once()
+            call_args = mock_run.call_args
+            assert "playwright" in str(call_args)
+            assert "merge-reports" in str(call_args)
+
+    @pytest.mark.asyncio
+    async def test_merge_blobs_returns_parsed_json(self, merged_report_json):
+        """merge_blob_reports should return parsed JSON report."""
+        import json
+
+        from heisenberg.blob_merger import merge_blob_reports
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = json.dumps(merged_report_json)
+
+            result = await merge_blob_reports(
+                blob_files=[b"blob content"],
+                output_format="json",
+            )
+
+            assert result is not None
+            assert "suites" in result
+            assert "stats" in result
+
+    @pytest.mark.asyncio
+    async def test_merge_blobs_handles_npx_not_found(self):
+        """Should raise clear error when npx/playwright not available."""
+        from heisenberg.blob_merger import BlobMergeError, merge_blob_reports
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = FileNotFoundError("npx not found")
+
+            with pytest.raises(BlobMergeError) as exc_info:
+                await merge_blob_reports(blob_files=[b"blob"])
+
+            assert (
+                "npx" in str(exc_info.value).lower() or "playwright" in str(exc_info.value).lower()
+            )
+
+    @pytest.mark.asyncio
+    async def test_merge_blobs_handles_merge_failure(self):
+        """Should raise error when merge-reports fails."""
+        from heisenberg.blob_merger import BlobMergeError, merge_blob_reports
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stderr = "Error: No blob reports found"
+
+            with pytest.raises(BlobMergeError) as exc_info:
+                await merge_blob_reports(blob_files=[b"blob"])
+
+            assert "merge" in str(exc_info.value).lower() or "failed" in str(exc_info.value).lower()
+
+
+class TestExtractBlobFiles:
+    """Test extraction of blob files from artifacts."""
+
+    @pytest.mark.asyncio
+    async def test_extract_blob_files_from_nested_zip(self):
+        """Should extract .jsonl files from nested ZIP structure."""
+        import io
+        import zipfile
+
+        from heisenberg.blob_merger import extract_blob_files
+
+        # Create nested ZIP: outer.zip -> report.zip -> report.jsonl
+        inner_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner_zip_buffer, "w") as inner_zf:
+            inner_zf.writestr("report.jsonl", b'{"method":"onBegin"}\n')
+        inner_zip_data = inner_zip_buffer.getvalue()
+
+        outer_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(outer_zip_buffer, "w") as outer_zf:
+            outer_zf.writestr("report-shard1.zip", inner_zip_data)
+        outer_zip_data = outer_zip_buffer.getvalue()
+
+        blob_files = extract_blob_files(outer_zip_data)
+
+        assert len(blob_files) >= 1
+        assert any(b"onBegin" in content for content in blob_files)
+
+    @pytest.mark.asyncio
+    async def test_extract_multiple_shard_blobs(self):
+        """Should extract blobs from multiple shards."""
+        import io
+        import zipfile
+
+        from heisenberg.blob_merger import extract_blob_files
+
+        outer_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(outer_zip_buffer, "w") as outer_zf:
+            # Shard 1
+            inner1 = io.BytesIO()
+            with zipfile.ZipFile(inner1, "w") as zf:
+                zf.writestr("report.jsonl", b'{"method":"onBegin","shard":1}\n')
+            outer_zf.writestr("report-shard1.zip", inner1.getvalue())
+
+            # Shard 2
+            inner2 = io.BytesIO()
+            with zipfile.ZipFile(inner2, "w") as zf:
+                zf.writestr("report.jsonl", b'{"method":"onBegin","shard":2}\n')
+            outer_zf.writestr("report-shard2.zip", inner2.getvalue())
+
+        blob_files = extract_blob_files(outer_zip_buffer.getvalue())
+
+        assert len(blob_files) == 2
