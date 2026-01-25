@@ -104,6 +104,10 @@ exclude_lines = [
 # Semantic Release Configuration
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
+version_variables = [
+    "src/heisenberg/__init__.py:__version__",
+    "src/heisenberg/backend/app.py:__version__",
+]
 commit_message = "chore(release): v{version}"
 tag_format = "v{version}"
 
