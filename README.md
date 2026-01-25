@@ -165,7 +165,16 @@ heisenberg fetch-github --repo owner/repo --output report.json
 
 # Use a different LLM provider
 heisenberg fetch-github --repo owner/repo --ai-analysis --provider openai
+
+# List available artifacts (for debugging)
+heisenberg fetch-github --repo owner/repo --list-artifacts
+
+# Merge blob reports from sharded test runs (e.g., microsoft/playwright)
+heisenberg fetch-github --repo microsoft/playwright --merge-blobs --artifact-name blob-report
 ```
+
+> **Note:** The `--merge-blobs` flag requires Node.js and Playwright installed locally.
+> It uses `npx playwright merge-reports` to combine sharded test results.
 
 **Options:**
 
@@ -178,6 +187,8 @@ heisenberg fetch-github --repo owner/repo --ai-analysis --provider openai
 | `--artifact-name` | Artifact name pattern (default: `playwright`) |
 | `--ai-analysis, -a` | Enable AI analysis |
 | `--provider, -p` | LLM provider: `claude`, `openai`, `gemini` |
+| `--list-artifacts` | List available artifacts for debugging |
+| `--merge-blobs` | Merge Playwright blob reports (requires Node.js) |
 
 ## Inputs
 
@@ -290,6 +301,7 @@ MIT - see [LICENSE](LICENSE) for details.
 - [x] Google Gemini support
 - [x] GitHub Actions artifact fetching (`fetch-github` command)
 - [x] REST API backend with usage tracking
+- [x] Playwright blob reports support (`--merge-blobs` for sharded tests)
 - [ ] Support for more test frameworks (Jest, Cypress, Selenium)
 - [ ] Historical analysis dashboard
 - [ ] Pattern detection across multiple failures
