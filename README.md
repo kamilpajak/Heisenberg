@@ -20,10 +20,11 @@ Heisenberg is a GitHub Action that automatically diagnoses why your E2E tests fa
 
 ## Features
 
+- **Framework-Agnostic Analysis** - Unified model supports Playwright and JUnit (more frameworks planned)
 - **Playwright Report Parsing** - Extracts failed tests, error messages, and stack traces from JSON reports
 - **Docker Log Collection** - Gathers logs from backend services around the time of failure
 - **Timeline Correlation** - Aligns frontend errors with backend events
-- **AI-Powered Diagnosis** - Uses Claude to analyze all evidence and identify root causes
+- **AI-Powered Diagnosis** - Uses Claude, OpenAI, or Gemini to analyze all evidence and identify root causes
 - **GitHub PR Integration** - Posts formatted analysis as PR comments
 - **Confidence Scoring** - AI rates its confidence in each diagnosis
 - **Log Compression** - Smart filtering to optimize token usage and costs
