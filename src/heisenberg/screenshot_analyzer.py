@@ -13,6 +13,11 @@ import os
 import zipfile
 from dataclasses import dataclass
 
+from heisenberg.artifact_utils import extract_spec_file_from_path, extract_test_name_from_path
+
+# Default model for screenshot analysis
+DEFAULT_VISION_MODEL = "gemini-2.0-flash"
+
 
 @dataclass
 class ScreenshotContext:
@@ -65,8 +70,8 @@ def extract_screenshots_from_artifact(zip_data: bytes) -> list[ScreenshotContext
                 # Typical path: test-results/test-name/screenshot.png
                 # or: playwright-report/data/test-results/browser/tests/file.spec.ts/test-name/screenshot.png
                 path_parts = file_info.filename.split("/")
-                test_name = _extract_test_name(path_parts)
-                file_path = _extract_file_path(path_parts)
+                test_name = extract_test_name_from_path(path_parts)
+                file_path = extract_spec_file_from_path(path_parts)
 
                 # Read image data
                 image_data = zf.read(file_info.filename)
@@ -84,25 +89,6 @@ def extract_screenshots_from_artifact(zip_data: bytes) -> list[ScreenshotContext
         pass
 
     return screenshots
-
-
-def _extract_test_name(path_parts: list[str]) -> str:
-    """Extract test name from path parts."""
-    # Find the directory containing the screenshot
-    # Usually it's the parent directory of the screenshot file
-    for i, part in enumerate(path_parts):
-        if part.endswith((".png", ".jpg", ".jpeg")):
-            if i > 0:
-                return path_parts[i - 1]
-    return "unknown-test"
-
-
-def _extract_file_path(path_parts: list[str]) -> str:
-    """Extract spec file path from path parts."""
-    for part in path_parts:
-        if ".spec." in part or ".test." in part:
-            return part
-    return "unknown-file"
 
 
 class ScreenshotAnalyzer:
@@ -163,7 +149,7 @@ Keep your description concise (2-4 sentences) and focus on details relevant to d
             from google.genai import types
 
             client = genai.Client(api_key=api_key)
-            model = self.model or "gemini-2.0-flash"
+            model = self.model or DEFAULT_VISION_MODEL
 
             # Create image part
             image_part = types.Part.from_bytes(

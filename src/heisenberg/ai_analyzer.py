@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from heisenberg.diagnosis import Diagnosis, parse_diagnosis
@@ -260,7 +261,7 @@ def analyze_with_ai(
     # Convert string logs to dict format if needed
     logs_dict = None
     if isinstance(container_logs, str):
-        logs_dict = {"logs": type("Logs", (), {"entries": container_logs.split("\n")})()}
+        logs_dict = {"logs": SimpleNamespace(entries=container_logs.split("\n"))}
     elif container_logs:
         logs_dict = container_logs
 

@@ -13,8 +13,17 @@ from __future__ import annotations
 
 import io
 import json
+import sys
 import zipfile
 from dataclasses import dataclass, field
+from typing import TextIO
+
+from heisenberg.artifact_utils import extract_spec_file_from_path, extract_test_name_from_path
+
+# Default limits for trace entries
+DEFAULT_MAX_CONSOLE_ENTRIES = 20
+DEFAULT_MAX_NETWORK_ENTRIES = 20
+DEFAULT_MAX_ACTION_ENTRIES = 20
 
 
 @dataclass
@@ -159,8 +168,8 @@ def extract_trace_from_artifact(artifact_data: bytes) -> list[TraceContext]:
 
                 # Extract test name from path
                 path_parts = file_info.filename.split("/")
-                test_name = _extract_test_name(path_parts)
-                file_path = _extract_file_path(path_parts)
+                test_name = extract_test_name_from_path(path_parts, file_suffix="trace.zip")
+                file_path = extract_spec_file_from_path(path_parts)
 
                 # Create a placeholder context (actual parsing happens in TraceAnalyzer)
                 traces.append(
@@ -179,31 +188,14 @@ def extract_trace_from_artifact(artifact_data: bytes) -> list[TraceContext]:
     return traces
 
 
-def _extract_test_name(path_parts: list[str]) -> str:
-    """Extract test name from path parts."""
-    for i, part in enumerate(path_parts):
-        if part.lower().endswith("trace.zip"):
-            if i > 0:
-                return path_parts[i - 1]
-    return "unknown-test"
-
-
-def _extract_file_path(path_parts: list[str]) -> str:
-    """Extract spec file path from path parts."""
-    for part in path_parts:
-        if ".spec." in part or ".test." in part:
-            return part
-    return "unknown-file"
-
-
 class TraceAnalyzer:
     """Analyzes Playwright trace files."""
 
     def __init__(
         self,
-        max_console_entries: int = 20,
-        max_network_entries: int = 20,
-        max_action_entries: int = 20,
+        max_console_entries: int = DEFAULT_MAX_CONSOLE_ENTRIES,
+        max_network_entries: int = DEFAULT_MAX_NETWORK_ENTRIES,
+        max_action_entries: int = DEFAULT_MAX_ACTION_ENTRIES,
     ):
         """Initialize analyzer.
 
@@ -238,20 +230,27 @@ class TraceAnalyzer:
 
         try:
             with zipfile.ZipFile(io.BytesIO(trace_data), "r") as zf:
-                # Find and parse trace.trace file
+                # Find and parse trace.trace file using streaming
                 for name in zf.namelist():
                     if name.endswith("trace.trace") or name.endswith(".trace"):
-                        trace_content = zf.read(name).decode("utf-8", errors="ignore")
-                        self._parse_trace_events(
-                            trace_content,
-                            console_logs,
-                            network_requests,
-                            actions,
-                        )
+                        with zf.open(name) as trace_file:
+                            text_stream = io.TextIOWrapper(
+                                trace_file, encoding="utf-8", errors="ignore"
+                            )
+                            self._parse_trace_events_stream(
+                                text_stream,
+                                console_logs,
+                                network_requests,
+                                actions,
+                            )
                         break
 
-        except (zipfile.BadZipFile, Exception):
-            pass
+        except zipfile.BadZipFile as e:
+            print(f"Warning: Invalid trace ZIP file: {e}", file=sys.stderr)
+        except json.JSONDecodeError as e:
+            print(f"Warning: Failed to parse trace JSON: {e}", file=sys.stderr)
+        except OSError as e:
+            print(f"Warning: IO error reading trace: {e}", file=sys.stderr)
 
         # Apply limits
         console_logs = console_logs[: self.max_console_entries]
@@ -266,15 +265,18 @@ class TraceAnalyzer:
             actions=actions,
         )
 
-    def _parse_trace_events(
+    def _parse_trace_events_stream(
         self,
-        trace_content: str,
+        trace_stream: TextIO,
         console_logs: list[ConsoleEntry],
         network_requests: list[NetworkEntry],
         actions: list[ActionEntry],
     ) -> None:
-        """Parse NDJSON trace events."""
-        for line in trace_content.split("\n"):
+        """Parse NDJSON trace events from a stream.
+
+        Uses streaming to avoid loading entire trace file into memory.
+        """
+        for line in trace_stream:
             line = line.strip()
             if not line:
                 continue
