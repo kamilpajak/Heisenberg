@@ -1,11 +1,35 @@
 """Tests for CLI fetch-github command - TDD Red-Green-Refactor."""
 
+import asyncio
 import subprocess
 import sys
 from io import StringIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from heisenberg.cli.commands import (
+    _analyze_report_data,
+    convert_to_unified,
+)
+from heisenberg.cli.commands import (
+    run_fetch_github as run_fetch_github_async,
+)
+from heisenberg.cli.formatters import format_size
+from heisenberg.cli.github_fetch import (
+    fetch_and_analyze_screenshots,
+    fetch_and_analyze_traces,
+    fetch_and_merge_blobs,
+    fetch_and_process_job_logs,
+    fetch_report_from_run,
+    list_artifacts,
+)
+
+
+# Sync wrapper for tests
+def run_fetch_github(args):
+    """Sync wrapper for run_fetch_github."""
+    return asyncio.run(run_fetch_github_async(args))
 
 
 class TestFetchGitHubCLIExists:
@@ -165,23 +189,16 @@ class TestErrorMessages:
         # Should show example of correct format
         assert "owner/repo" in result.stderr
 
-    def test_no_artifacts_found_suggests_local_workflow(self):
-        """When no artifacts found, should suggest local analyze."""
-        # This test uses mocking to simulate the "no artifacts" scenario
-        pass  # Will be tested via unit test below
-
     @pytest.mark.asyncio
     async def test_no_artifacts_message_includes_local_hint(self):
         """No artifacts message should hint at local workflow."""
-        from heisenberg.cli import run_list_artifacts
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as MockClient:
             client_instance = MockClient.return_value
             client_instance.list_workflow_runs = AsyncMock(return_value=[])
             client_instance.get_artifacts = AsyncMock(return_value=[])
 
             output = StringIO()
-            await run_list_artifacts(
+            await list_artifacts(
                 token="test-token",
                 owner="owner",
                 repo="repo",
@@ -249,15 +266,13 @@ class TestListArtifactsFunctionality:
     @pytest.mark.asyncio
     async def test_list_artifacts_shows_artifact_names(self, mock_artifacts, mock_runs):
         """--list-artifacts should display artifact names."""
-        from heisenberg.cli import run_list_artifacts
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as MockClient:
             client_instance = MockClient.return_value
             client_instance.list_workflow_runs = AsyncMock(return_value=mock_runs)
             client_instance.get_artifacts = AsyncMock(return_value=mock_artifacts)
 
             output = StringIO()
-            await run_list_artifacts(
+            await list_artifacts(
                 token="test-token",
                 owner="owner",
                 repo="repo",
@@ -273,15 +288,13 @@ class TestListArtifactsFunctionality:
     @pytest.mark.asyncio
     async def test_list_artifacts_shows_sizes(self, mock_artifacts, mock_runs):
         """--list-artifacts should display artifact sizes."""
-        from heisenberg.cli import run_list_artifacts
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as MockClient:
             client_instance = MockClient.return_value
             client_instance.list_workflow_runs = AsyncMock(return_value=mock_runs)
             client_instance.get_artifacts = AsyncMock(return_value=mock_artifacts)
 
             output = StringIO()
-            await run_list_artifacts(
+            await list_artifacts(
                 token="test-token",
                 owner="owner",
                 repo="repo",
@@ -290,21 +303,21 @@ class TestListArtifactsFunctionality:
             )
 
             output_text = output.getvalue()
-            # Should show sizes in human-readable format
-            assert "KB" in output_text or "MB" in output_text or "1024" in output_text
+            # Assert exact formatted sizes for the mock artifacts
+            assert "1000.0 KB" in output_text  # 1024000 bytes
+            assert "5.0 MB" in output_text  # 5242880 bytes
+            assert "500.0 KB" in output_text  # 512000 bytes
 
     @pytest.mark.asyncio
     async def test_list_artifacts_shows_expired_status(self, mock_artifacts, mock_runs):
         """--list-artifacts should indicate expired artifacts."""
-        from heisenberg.cli import run_list_artifacts
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as MockClient:
             client_instance = MockClient.return_value
             client_instance.list_workflow_runs = AsyncMock(return_value=mock_runs)
             client_instance.get_artifacts = AsyncMock(return_value=mock_artifacts)
 
             output = StringIO()
-            await run_list_artifacts(
+            await list_artifacts(
                 token="test-token",
                 owner="owner",
                 repo="repo",
@@ -313,24 +326,18 @@ class TestListArtifactsFunctionality:
             )
 
             output_text = output.getvalue()
-            # Should indicate expired status somehow
-            assert (
-                "expired" in output_text.lower()
-                or "✗" in output_text
-                or "[x]" in output_text.lower()
-            )
+            # Should indicate expired status with specific marker
+            assert "[EXPIRED]" in output_text
 
     @pytest.mark.asyncio
     async def test_list_artifacts_with_specific_run_id(self, mock_artifacts):
         """--list-artifacts should work with specific --run-id."""
-        from heisenberg.cli import run_list_artifacts
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as MockClient:
             client_instance = MockClient.return_value
             client_instance.get_artifacts = AsyncMock(return_value=mock_artifacts)
 
             output = StringIO()
-            await run_list_artifacts(
+            await list_artifacts(
                 token="test-token",
                 owner="owner",
                 repo="repo",
@@ -346,15 +353,13 @@ class TestListArtifactsFunctionality:
     @pytest.mark.asyncio
     async def test_list_artifacts_returns_zero_on_success(self, mock_artifacts, mock_runs):
         """--list-artifacts should return 0 on success."""
-        from heisenberg.cli import run_list_artifacts
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as MockClient:
             client_instance = MockClient.return_value
             client_instance.list_workflow_runs = AsyncMock(return_value=mock_runs)
             client_instance.get_artifacts = AsyncMock(return_value=mock_artifacts)
 
             output = StringIO()
-            result = await run_list_artifacts(
+            result = await list_artifacts(
                 token="test-token",
                 owner="owner",
                 repo="repo",
@@ -367,15 +372,13 @@ class TestListArtifactsFunctionality:
     @pytest.mark.asyncio
     async def test_list_artifacts_empty_shows_message(self, mock_runs):
         """--list-artifacts should show message when no artifacts found."""
-        from heisenberg.cli import run_list_artifacts
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as MockClient:
             client_instance = MockClient.return_value
             client_instance.list_workflow_runs = AsyncMock(return_value=mock_runs)
             client_instance.get_artifacts = AsyncMock(return_value=[])
 
             output = StringIO()
-            await run_list_artifacts(
+            await list_artifacts(
                 token="test-token",
                 owner="owner",
                 repo="repo",
@@ -557,8 +560,7 @@ class TestMergeBlobsFunctionality:
 class TestExtractBlobFiles:
     """Test extraction of blob files from artifacts."""
 
-    @pytest.mark.asyncio
-    async def test_extract_blob_files_from_nested_zip(self):
+    def test_extract_blob_files_from_nested_zip(self):
         """Should extract .jsonl files from nested ZIP structure."""
         import io
         import zipfile
@@ -581,8 +583,7 @@ class TestExtractBlobFiles:
         assert len(blob_files) >= 1
         assert any(b"onBegin" in content for content in blob_files)
 
-    @pytest.mark.asyncio
-    async def test_extract_multiple_shard_blobs(self):
+    def test_extract_multiple_shard_blobs(self):
         """Should extract blobs from multiple shards."""
         import io
         import zipfile
@@ -609,54 +610,40 @@ class TestExtractBlobFiles:
 
 
 class TestFormatSizeFunction:
-    """Tests for _format_size function."""
+    """Tests for format_size function."""
 
-    def test_format_bytes(self):
-        """Should format small sizes in bytes."""
-        from heisenberg.cli import _format_size
-
-        assert _format_size(512) == "512 B"
-        assert _format_size(0) == "0 B"
-
-    def test_format_kilobytes(self):
-        """Should format sizes in KB."""
-        from heisenberg.cli import _format_size
-
-        assert _format_size(1024) == "1.0 KB"
-        assert _format_size(2560) == "2.5 KB"
-
-    def test_format_megabytes(self):
-        """Should format sizes in MB."""
-        from heisenberg.cli import _format_size
-
-        assert _format_size(1024 * 1024) == "1.0 MB"
-        assert _format_size(5 * 1024 * 1024) == "5.0 MB"
+    @pytest.mark.parametrize(
+        "size_bytes, expected",
+        [
+            (0, "0 B"),
+            (512, "512 B"),
+            (1024, "1.0 KB"),
+            (2560, "2.5 KB"),
+            (1024 * 1024, "1.0 MB"),
+            (5 * 1024 * 1024, "5.0 MB"),
+        ],
+    )
+    def testformat_size(self, size_bytes, expected):
+        """Should format size in bytes to human-readable format."""
+        assert format_size(size_bytes) == expected
 
 
 class TestFetchReportFromRun:
-    """Tests for _fetch_report_from_run function."""
+    """Tests for fetch_report_from_run function."""
 
     @pytest.mark.asyncio
     async def test_returns_none_when_no_matching_artifacts(self):
         """Should return None when no artifacts match."""
-        from unittest.mock import MagicMock
-
-        from heisenberg.cli import _fetch_report_from_run
-
         mock_client = MagicMock()
         mock_client.get_artifacts = AsyncMock(return_value=[])
 
-        result = await _fetch_report_from_run(mock_client, "owner", "repo", 123, "playwright")
+        result = await fetch_report_from_run(mock_client, "owner", "repo", 123, "playwright")
 
         assert result is None
 
     @pytest.mark.asyncio
     async def test_fetches_matching_artifact(self):
         """Should fetch and extract matching artifact."""
-        from unittest.mock import MagicMock
-
-        from heisenberg.cli import _fetch_report_from_run
-
         mock_artifact = MagicMock()
         mock_artifact.name = "playwright-report"
         mock_artifact.id = 456
@@ -666,45 +653,42 @@ class TestFetchReportFromRun:
         mock_client.download_artifact = AsyncMock(return_value=b"zip_data")
         mock_client.extract_playwright_report = MagicMock(return_value={"tests": []})
 
-        result = await _fetch_report_from_run(mock_client, "owner", "repo", 123, "playwright")
+        result = await fetch_report_from_run(mock_client, "owner", "repo", 123, "playwright")
 
         assert result == {"tests": []}
         mock_client.download_artifact.assert_called_once_with("owner", "repo", 456)
 
 
 class TestFetchAndProcessJobLogs:
-    """Tests for _fetch_and_process_job_logs function."""
+    """Tests for fetch_and_process_job_logs function."""
 
-    def test_returns_none_when_no_run_id_found(self):
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_run_id_found(self):
         """Should return None when no failed run found."""
-        from heisenberg.cli import _fetch_and_process_job_logs
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as mock_client_cls:
             mock_client = MagicMock()
             mock_client.list_workflow_runs = AsyncMock(return_value=[])
             mock_client_cls.return_value = mock_client
 
-            result = _fetch_and_process_job_logs("token", "owner", "repo", None)
+            result = await fetch_and_process_job_logs("token", "owner", "repo", None)
 
             assert result is None
 
-    def test_returns_none_when_fetcher_returns_empty(self):
+    @pytest.mark.asyncio
+    async def test_returns_none_when_fetcher_returns_empty(self):
         """Should return None when no logs found."""
-        from heisenberg.cli import _fetch_and_process_job_logs
-
         with patch("heisenberg.github_logs_fetcher.GitHubLogsFetcher") as mock_fetcher_cls:
             mock_fetcher = MagicMock()
             mock_fetcher.fetch_logs_for_run.return_value = {}
             mock_fetcher_cls.return_value = mock_fetcher
 
-            result = _fetch_and_process_job_logs("token", "owner", "repo", 123)
+            result = await fetch_and_process_job_logs("token", "owner", "repo", 123)
 
             assert result is None
 
-    def test_returns_formatted_snippets(self, capsys):
+    @pytest.mark.asyncio
+    async def test_returns_formatted_snippets(self, capsys):
         """Should return formatted log snippets."""
-        from heisenberg.cli import _fetch_and_process_job_logs
-
         with (
             patch("heisenberg.github_logs_fetcher.GitHubLogsFetcher") as mock_fetcher_cls,
             patch("heisenberg.job_logs_processor.JobLogsProcessor") as mock_processor_cls,
@@ -718,16 +702,15 @@ class TestFetchAndProcessJobLogs:
             mock_processor.format_for_prompt.return_value = "formatted logs"
             mock_processor_cls.return_value = mock_processor
 
-            result = _fetch_and_process_job_logs("token", "owner", "repo", 123)
+            result = await fetch_and_process_job_logs("token", "owner", "repo", 123)
 
             assert result == "formatted logs"
             captured = capsys.readouterr()
             assert "2 relevant log snippet" in captured.err
 
-    def test_returns_none_when_no_snippets_extracted(self, capsys):
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_snippets_extracted(self, capsys):
         """Should return None when no error snippets found."""
-        from heisenberg.cli import _fetch_and_process_job_logs
-
         with (
             patch("heisenberg.github_logs_fetcher.GitHubLogsFetcher") as mock_fetcher_cls,
             patch("heisenberg.job_logs_processor.JobLogsProcessor") as mock_processor_cls,
@@ -740,7 +723,7 @@ class TestFetchAndProcessJobLogs:
             mock_processor.extract_snippets.return_value = []
             mock_processor_cls.return_value = mock_processor
 
-            result = _fetch_and_process_job_logs("token", "owner", "repo", 123)
+            result = await fetch_and_process_job_logs("token", "owner", "repo", 123)
 
             assert result is None
             captured = capsys.readouterr()
@@ -748,12 +731,11 @@ class TestFetchAndProcessJobLogs:
 
 
 class TestFetchAndAnalyzeScreenshots:
-    """Tests for _fetch_and_analyze_screenshots function."""
+    """Tests for fetch_and_analyze_screenshots function."""
 
-    def test_returns_none_when_no_screenshots(self, capsys):
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_screenshots(self, capsys):
         """Should return None when no screenshots found."""
-        from heisenberg.cli import _fetch_and_analyze_screenshots
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as mock_client_cls:
             mock_artifact = MagicMock()
             mock_artifact.name = "playwright-report"
@@ -769,16 +751,17 @@ class TestFetchAndAnalyzeScreenshots:
                 "heisenberg.screenshot_analyzer.extract_screenshots_from_artifact",
                 return_value=[],
             ):
-                result = _fetch_and_analyze_screenshots("token", "owner", "repo", 123, "playwright")
+                result = await fetch_and_analyze_screenshots(
+                    "token", "owner", "repo", 123, "playwright"
+                )
 
             assert result is None
             captured = capsys.readouterr()
             assert "No screenshots found" in captured.err
 
-    def test_returns_formatted_analysis(self, capsys):
+    @pytest.mark.asyncio
+    async def test_returns_formatted_analysis(self, capsys):
         """Should return formatted screenshot analysis."""
-        from heisenberg.cli import _fetch_and_analyze_screenshots
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as mock_client_cls:
             mock_artifact = MagicMock()
             mock_artifact.name = "playwright-report"
@@ -806,22 +789,25 @@ class TestFetchAndAnalyzeScreenshots:
                 mock_analyzer.analyze_batch.return_value = [mock_screenshot]
                 mock_analyzer_cls.return_value = mock_analyzer
 
-                result = _fetch_and_analyze_screenshots("token", "owner", "repo", 123, "playwright")
+                result = await fetch_and_analyze_screenshots(
+                    "token", "owner", "repo", 123, "playwright"
+                )
 
             assert result == "screenshot analysis"
             captured = capsys.readouterr()
             assert "1 screenshot" in captured.err
 
-    def test_handles_fetch_error(self, capsys):
+    @pytest.mark.asyncio
+    async def test_handles_fetch_error(self, capsys):
         """Should handle fetch errors gracefully."""
-        from heisenberg.cli import _fetch_and_analyze_screenshots
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as mock_client_cls:
             mock_client = MagicMock()
             mock_client.get_artifacts = AsyncMock(side_effect=Exception("API error"))
             mock_client_cls.return_value = mock_client
 
-            result = _fetch_and_analyze_screenshots("token", "owner", "repo", 123, "playwright")
+            result = await fetch_and_analyze_screenshots(
+                "token", "owner", "repo", 123, "playwright"
+            )
 
             assert result is None
             captured = capsys.readouterr()
@@ -829,12 +815,11 @@ class TestFetchAndAnalyzeScreenshots:
 
 
 class TestFetchAndAnalyzeTraces:
-    """Tests for _fetch_and_analyze_traces function."""
+    """Tests for fetch_and_analyze_traces function."""
 
-    def test_returns_none_when_no_traces(self, capsys):
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_traces(self, capsys):
         """Should return None when no traces found."""
-        from heisenberg.cli import _fetch_and_analyze_traces
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as mock_client_cls:
             mock_artifact = MagicMock()
             mock_artifact.name = "playwright-report"
@@ -846,67 +831,57 @@ class TestFetchAndAnalyzeTraces:
             mock_client_cls.return_value = mock_client
 
             with patch("heisenberg.trace_analyzer.extract_trace_from_artifact", return_value=[]):
-                result = _fetch_and_analyze_traces("token", "owner", "repo", 123, "playwright")
+                result = await fetch_and_analyze_traces("token", "owner", "repo", 123, "playwright")
 
             assert result is None
             captured = capsys.readouterr()
             assert "No trace" in captured.err
 
-    def test_handles_fetch_error(self, capsys):
+    @pytest.mark.asyncio
+    async def test_handles_fetch_error(self, capsys):
         """Should handle fetch errors gracefully."""
-        from heisenberg.cli import _fetch_and_analyze_traces
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as mock_client_cls:
             mock_client = MagicMock()
             mock_client.get_artifacts = AsyncMock(side_effect=Exception("API error"))
             mock_client_cls.return_value = mock_client
 
-            result = _fetch_and_analyze_traces("token", "owner", "repo", 123, "playwright")
+            result = await fetch_and_analyze_traces("token", "owner", "repo", 123, "playwright")
 
             assert result is None
             captured = capsys.readouterr()
             assert "Failed to fetch traces" in captured.err
 
-    def test_returns_none_when_no_matching_artifacts(self, capsys):
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_matching_artifacts(self, capsys):
         """Should return None when no matching artifacts."""
-        from heisenberg.cli import _fetch_and_analyze_traces
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as mock_client_cls:
             mock_client = MagicMock()
             mock_client.get_artifacts = AsyncMock(return_value=[])
             mock_client_cls.return_value = mock_client
 
-            result = _fetch_and_analyze_traces("token", "owner", "repo", 123, "playwright")
+            result = await fetch_and_analyze_traces("token", "owner", "repo", 123, "playwright")
 
             assert result is None
 
 
 class TestFetchAndMergeBlobs:
-    """Tests for _fetch_and_merge_blobs function."""
+    """Tests for fetch_and_merge_blobs function."""
 
     @pytest.mark.asyncio
     async def test_returns_none_when_no_failed_runs(self):
         """Should return None when no failed runs found."""
-        from unittest.mock import MagicMock
-
-        from heisenberg.cli import _fetch_and_merge_blobs
-
         with patch("heisenberg.github_artifacts.GitHubArtifactClient") as mock_client_cls:
             mock_client = MagicMock()
             mock_client.list_workflow_runs = AsyncMock(return_value=[])
             mock_client_cls.return_value = mock_client
 
-            result = await _fetch_and_merge_blobs("token", "owner", "repo", None, "playwright")
+            result = await fetch_and_merge_blobs("token", "owner", "repo", None, "playwright")
 
         assert result is None
 
     @pytest.mark.asyncio
     async def test_returns_none_when_no_matching_artifacts(self):
         """Should return None when no matching artifacts."""
-        from unittest.mock import MagicMock
-
-        from heisenberg.cli import _fetch_and_merge_blobs
-
         mock_run = MagicMock()
         mock_run.id = 123
         mock_run.conclusion = "failure"
@@ -917,17 +892,14 @@ class TestFetchAndMergeBlobs:
             mock_client.get_artifacts = AsyncMock(return_value=[])
             mock_client_cls.return_value = mock_client
 
-            result = await _fetch_and_merge_blobs("token", "owner", "repo", None, "playwright")
+            result = await fetch_and_merge_blobs("token", "owner", "repo", None, "playwright")
 
         assert result is None
 
     @pytest.mark.asyncio
     async def test_raises_when_no_blob_zips_found(self, capsys):
         """Should raise BlobMergeError when no blob zips found."""
-        from unittest.mock import MagicMock
-
         from heisenberg.blob_merger import BlobMergeError
-        from heisenberg.cli import _fetch_and_merge_blobs
 
         mock_artifact = MagicMock()
         mock_artifact.name = "playwright-report"
@@ -941,17 +913,13 @@ class TestFetchAndMergeBlobs:
 
             with patch("heisenberg.blob_merger.extract_blob_zips", return_value=[]):
                 with pytest.raises(BlobMergeError) as exc_info:
-                    await _fetch_and_merge_blobs("token", "owner", "repo", 123, "playwright")
+                    await fetch_and_merge_blobs("token", "owner", "repo", 123, "playwright")
 
                 assert "No blob ZIP files" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_merges_blob_reports(self, capsys):
         """Should merge blob reports successfully."""
-        from unittest.mock import MagicMock
-
-        from heisenberg.cli import _fetch_and_merge_blobs
-
         mock_artifact = MagicMock()
         mock_artifact.name = "playwright-report"
         mock_artifact.id = 1
@@ -973,7 +941,7 @@ class TestFetchAndMergeBlobs:
                     return_value={"tests": []},
                 ),
             ):
-                result = await _fetch_and_merge_blobs("token", "owner", "repo", 123, "playwright")
+                result = await fetch_and_merge_blobs("token", "owner", "repo", 123, "playwright")
 
         assert result == {"tests": []}
         captured = capsys.readouterr()
@@ -986,8 +954,6 @@ class TestRunFetchGithubCommand:
     def test_returns_error_when_no_token(self, capsys):
         """Should return 1 when no token provided."""
         import argparse
-
-        from heisenberg.cli import run_fetch_github
 
         args = argparse.Namespace(
             repo="owner/repo",
@@ -1015,8 +981,6 @@ class TestRunFetchGithubCommand:
         """Should return 1 for invalid repo format."""
         import argparse
 
-        from heisenberg.cli import run_fetch_github
-
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
         args = argparse.Namespace(
@@ -1041,10 +1005,8 @@ class TestRunFetchGithubCommand:
         assert "Invalid repo format" in captured.err
 
     def test_list_artifacts_flag(self, monkeypatch):
-        """Should call run_list_artifacts when flag set."""
+        """Should call list_artifacts when flag set."""
         import argparse
-
-        from heisenberg.cli import run_fetch_github
 
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
@@ -1063,7 +1025,7 @@ class TestRunFetchGithubCommand:
             include_traces=False,
         )
 
-        with patch("heisenberg.cli.run_list_artifacts", new_callable=AsyncMock) as mock:
+        with patch("heisenberg.cli.github_fetch.list_artifacts", new_callable=AsyncMock) as mock:
             mock.return_value = 0
             result = run_fetch_github(args)
 
@@ -1074,7 +1036,6 @@ class TestRunFetchGithubCommand:
         """Should return 1 on GitHub API error."""
         import argparse
 
-        from heisenberg.cli import run_fetch_github
         from heisenberg.github_artifacts import GitHubAPIError
 
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
@@ -1094,7 +1055,7 @@ class TestRunFetchGithubCommand:
             include_traces=False,
         )
 
-        with patch("heisenberg.cli.run_list_artifacts", new_callable=AsyncMock) as mock:
+        with patch("heisenberg.cli.github_fetch.list_artifacts", new_callable=AsyncMock) as mock:
             mock.side_effect = GitHubAPIError("API error")
             result = run_fetch_github(args)
 
@@ -1106,8 +1067,6 @@ class TestRunFetchGithubCommand:
         """Should save report to file when output specified."""
         import argparse
         import json
-
-        from heisenberg.cli import run_fetch_github
 
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
@@ -1129,7 +1088,7 @@ class TestRunFetchGithubCommand:
         )
 
         with patch(
-            "heisenberg.cli._fetch_report_from_run",
+            "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
             new_callable=AsyncMock,
             return_value={"tests": []},
         ):
@@ -1143,8 +1102,6 @@ class TestRunFetchGithubCommand:
     def test_returns_error_when_no_report_found(self, capsys, monkeypatch):
         """Should return 1 when no report found."""
         import argparse
-
-        from heisenberg.cli import run_fetch_github
 
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
@@ -1164,7 +1121,7 @@ class TestRunFetchGithubCommand:
         )
 
         with patch(
-            "heisenberg.cli._fetch_report_from_run",
+            "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
             new_callable=AsyncMock,
             return_value=None,
         ):
@@ -1173,12 +1130,11 @@ class TestRunFetchGithubCommand:
         assert result == 1
         captured = capsys.readouterr()
         assert "No artifacts matching" in captured.err
+        assert "Tip: Use --list-artifacts" in captured.err
 
     def test_includes_job_logs_when_flag_set(self, monkeypatch, capsys):
         """Should include job logs when include_logs flag set."""
         import argparse
-
-        from heisenberg.cli import run_fetch_github
 
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
@@ -1199,15 +1155,16 @@ class TestRunFetchGithubCommand:
 
         with (
             patch(
-                "heisenberg.cli._fetch_report_from_run",
+                "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
                 new_callable=AsyncMock,
                 return_value={"tests": []},
             ),
             patch(
-                "heisenberg.cli._fetch_and_process_job_logs",
+                "heisenberg.cli.github_fetch.fetch_and_process_job_logs",
+                new_callable=AsyncMock,
                 return_value="job logs context",
             ) as mock_logs,
-            patch("heisenberg.cli._analyze_report_data", return_value=0) as mock_analyze,
+            patch("heisenberg.cli.commands._analyze_report_data", return_value=0) as mock_analyze,
         ):
             run_fetch_github(args)
 
@@ -1221,7 +1178,6 @@ class TestRunFetchGithubCommand:
         import argparse
 
         from heisenberg.blob_merger import BlobMergeError
-        from heisenberg.cli import run_fetch_github
 
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
@@ -1240,7 +1196,9 @@ class TestRunFetchGithubCommand:
             include_traces=False,
         )
 
-        with patch("heisenberg.cli._fetch_and_merge_blobs", new_callable=AsyncMock) as mock:
+        with patch(
+            "heisenberg.cli.github_fetch.fetch_and_merge_blobs", new_callable=AsyncMock
+        ) as mock:
             mock.side_effect = BlobMergeError("No blobs found")
             result = run_fetch_github(args)
 
@@ -1251,8 +1209,6 @@ class TestRunFetchGithubCommand:
     def test_includes_screenshots_when_flag_set(self, monkeypatch, capsys):
         """Should include screenshots when include_screenshots flag set."""
         import argparse
-
-        from heisenberg.cli import run_fetch_github
 
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
@@ -1273,15 +1229,16 @@ class TestRunFetchGithubCommand:
 
         with (
             patch(
-                "heisenberg.cli._fetch_report_from_run",
+                "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
                 new_callable=AsyncMock,
                 return_value={"tests": []},
             ),
             patch(
-                "heisenberg.cli._fetch_and_analyze_screenshots",
+                "heisenberg.cli.github_fetch.fetch_and_analyze_screenshots",
+                new_callable=AsyncMock,
                 return_value="screenshot context",
             ) as mock_screenshots,
-            patch("heisenberg.cli._analyze_report_data", return_value=0) as mock_analyze,
+            patch("heisenberg.cli.commands._analyze_report_data", return_value=0) as mock_analyze,
         ):
             run_fetch_github(args)
 
@@ -1293,8 +1250,6 @@ class TestRunFetchGithubCommand:
     def test_includes_traces_when_flag_set(self, monkeypatch, capsys):
         """Should include traces when include_traces flag set."""
         import argparse
-
-        from heisenberg.cli import run_fetch_github
 
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
@@ -1315,15 +1270,16 @@ class TestRunFetchGithubCommand:
 
         with (
             patch(
-                "heisenberg.cli._fetch_report_from_run",
+                "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
                 new_callable=AsyncMock,
                 return_value={"tests": []},
             ),
             patch(
-                "heisenberg.cli._fetch_and_analyze_traces",
+                "heisenberg.cli.github_fetch.fetch_and_analyze_traces",
+                new_callable=AsyncMock,
                 return_value="trace context",
             ) as mock_traces,
-            patch("heisenberg.cli._analyze_report_data", return_value=0) as mock_analyze,
+            patch("heisenberg.cli.commands._analyze_report_data", return_value=0) as mock_analyze,
         ):
             run_fetch_github(args)
 
@@ -1339,8 +1295,6 @@ class TestAnalyzeReportData:
     def test_analyzes_report_and_prints_result(self, tmp_path, capsys):
         """Should analyze report and print formatted result."""
         import argparse
-
-        from heisenberg.cli import _analyze_report_data
 
         # Create a valid Playwright report
         report_data = {
@@ -1369,7 +1323,7 @@ class TestAnalyzeReportData:
             model=None,
         )
 
-        with patch("heisenberg.cli.run_analysis") as mock_analysis:
+        with patch("heisenberg.cli.commands.run_analysis") as mock_analysis:
             mock_result = MagicMock()
             mock_result.has_failures = False
             mock_result.summary = "1 passed"
@@ -1388,8 +1342,6 @@ class TestAnalyzeReportData:
         """Should return 1 when tests have failures."""
         import argparse
 
-        from heisenberg.cli import _analyze_report_data
-
         report_data = {"suites": [], "stats": {"failed": 1}}
 
         args = argparse.Namespace(
@@ -1398,7 +1350,7 @@ class TestAnalyzeReportData:
             model=None,
         )
 
-        with patch("heisenberg.cli.run_analysis") as mock_analysis:
+        with patch("heisenberg.cli.commands.run_analysis") as mock_analysis:
             mock_result = MagicMock()
             mock_result.has_failures = True
             mock_result.summary = "1 failed"
@@ -1415,8 +1367,6 @@ class TestAnalyzeReportData:
         """Should run AI analysis with provided context."""
         import argparse
 
-        from heisenberg.cli import _analyze_report_data
-
         report_data = {"suites": [], "stats": {}}
 
         args = argparse.Namespace(
@@ -1426,9 +1376,9 @@ class TestAnalyzeReportData:
         )
 
         with (
-            patch("heisenberg.cli.run_analysis") as mock_analysis,
-            patch("heisenberg.cli.convert_to_unified") as mock_convert,
-            patch("heisenberg.cli.analyze_unified_run") as mock_ai,
+            patch("heisenberg.cli.commands.run_analysis") as mock_analysis,
+            patch("heisenberg.cli.commands.convert_to_unified") as mock_convert,
+            patch("heisenberg.cli.commands.analyze_unified_run") as mock_ai,
         ):
             mock_result = MagicMock()
             mock_result.has_failures = True
@@ -1470,8 +1420,6 @@ class TestAnalyzeReportData:
         """Should handle AI analysis failure gracefully."""
         import argparse
 
-        from heisenberg.cli import _analyze_report_data
-
         report_data = {"suites": [], "stats": {}}
 
         args = argparse.Namespace(
@@ -1481,8 +1429,8 @@ class TestAnalyzeReportData:
         )
 
         with (
-            patch("heisenberg.cli.run_analysis") as mock_analysis,
-            patch("heisenberg.cli.analyze_with_ai") as mock_ai,
+            patch("heisenberg.cli.commands.run_analysis") as mock_analysis,
+            patch("heisenberg.cli.commands.analyze_with_ai") as mock_ai,
         ):
             mock_result = MagicMock()
             mock_result.has_failures = True
@@ -1506,8 +1454,6 @@ class TestConvertToUnified:
 
     def test_converts_playwright_report(self):
         """Should convert Playwright report to UnifiedTestRun."""
-        from heisenberg.cli import convert_to_unified
-
         mock_report = MagicMock()
         mock_report.total_passed = 5
         mock_report.total_failed = 1

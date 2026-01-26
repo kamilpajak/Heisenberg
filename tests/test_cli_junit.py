@@ -7,12 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from heisenberg.cli import (
-    _format_junit_json,
-    _format_junit_text,
-    _run_junit_analyze,
-    run_analyze,
-)
+from heisenberg.cli.commands import _run_junit_analyze, run_analyze
+from heisenberg.cli.formatters import format_junit_json, format_junit_text
 
 
 @pytest.fixture
@@ -217,7 +213,7 @@ class TestRunJunitAnalyze:
 
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
-        with patch("heisenberg.cli.analyze_unified_run", return_value=mock_result):
+        with patch("heisenberg.cli.commands.analyze_unified_run", return_value=mock_result):
             args = argparse.Namespace(
                 report=sample_junit_xml,
                 report_format="junit",
@@ -239,7 +235,7 @@ class TestRunJunitAnalyze:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
         with patch(
-            "heisenberg.cli.analyze_unified_run",
+            "heisenberg.cli.commands.analyze_unified_run",
             side_effect=Exception("API error"),
         ):
             args = argparse.Namespace(
@@ -283,11 +279,11 @@ class TestRunAnalyzeJunitDispatch:
 
 
 class TestFormatJunitJson:
-    """Tests for _format_junit_json function."""
+    """Tests for format_junit_json function."""
 
-    def test_format_junit_json_basic(self, mock_junit_report):
+    def testformat_junit_json_basic(self, mock_junit_report):
         """Should format report as JSON."""
-        result = _format_junit_json(mock_junit_report, None)
+        result = format_junit_json(mock_junit_report, None)
         data = json.loads(result)
 
         assert data["has_failures"] is True
@@ -296,7 +292,7 @@ class TestFormatJunitJson:
         assert data["summary"]["failed"] == 2
         assert len(data["failed_tests"]) == 2
 
-    def test_format_junit_json_with_ai_result(self, mock_junit_report):
+    def testformat_junit_json_with_ai_result(self, mock_junit_report):
         """Should include AI diagnosis when present."""
         from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
 
@@ -310,16 +306,16 @@ class TestFormatJunitJson:
             raw_response="AI response",
         )
 
-        result = _format_junit_json(mock_junit_report, mock_ai_result)
+        result = format_junit_json(mock_junit_report, mock_ai_result)
         data = json.loads(result)
 
         assert "ai_diagnosis" in data
         assert data["ai_diagnosis"]["root_cause"] == "Database connection issue"
         assert data["ai_diagnosis"]["confidence"] == "MEDIUM"
 
-    def test_format_junit_json_failed_test_details(self, mock_junit_report):
+    def testformat_junit_json_failed_test_details(self, mock_junit_report):
         """Should include failed test details."""
-        result = _format_junit_json(mock_junit_report, None)
+        result = format_junit_json(mock_junit_report, None)
         data = json.loads(result)
 
         assert data["failed_tests"][0]["name"] == "test_failing"
@@ -329,33 +325,33 @@ class TestFormatJunitJson:
 
 
 class TestFormatJunitText:
-    """Tests for _format_junit_text function."""
+    """Tests for format_junit_text function."""
 
-    def test_format_junit_text_header(self, mock_junit_report):
+    def testformat_junit_text_header(self, mock_junit_report):
         """Should include header."""
-        result = _format_junit_text(mock_junit_report)
+        result = format_junit_text(mock_junit_report)
 
         assert "Heisenberg Test Analysis (JUnit)" in result
         assert "=" in result
 
-    def test_format_junit_text_summary(self, mock_junit_report):
+    def testformat_junit_text_summary(self, mock_junit_report):
         """Should include summary line."""
-        result = _format_junit_text(mock_junit_report)
+        result = format_junit_text(mock_junit_report)
 
         assert "2 passed" in result
         assert "2 failed" in result
         assert "1 skipped" in result
 
-    def test_format_junit_text_failed_tests(self, mock_junit_report):
+    def testformat_junit_text_failed_tests(self, mock_junit_report):
         """Should list failed tests."""
-        result = _format_junit_text(mock_junit_report)
+        result = format_junit_text(mock_junit_report)
 
         assert "Failed Tests:" in result
         assert "TestSuite1" in result
         assert "test_failing" in result
         assert "AssertionError" in result
 
-    def test_format_junit_text_truncates_long_messages(self):
+    def testformat_junit_text_truncates_long_messages(self):
         """Should truncate error messages longer than 100 chars."""
         mock_tc = MagicMock()
         mock_tc.name = "test_long_error"
@@ -371,11 +367,11 @@ class TestFormatJunitText:
         mock_report.total_skipped = 0
         mock_report.failed_tests = [mock_tc]
 
-        result = _format_junit_text(mock_report)
+        result = format_junit_text(mock_report)
 
         assert "..." in result
 
-    def test_format_junit_text_with_ai_result(self, mock_junit_report):
+    def testformat_junit_text_with_ai_result(self, mock_junit_report):
         """Should include AI diagnosis when present."""
         from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
 
@@ -391,11 +387,11 @@ class TestFormatJunitText:
         mock_ai_result.total_tokens = 500
         mock_ai_result.estimated_cost = 0.01
 
-        result = _format_junit_text(mock_junit_report, mock_ai_result)
+        result = format_junit_text(mock_junit_report, mock_ai_result)
 
         assert "AI" in result or "Root" in result
 
-    def test_format_junit_text_no_failures(self):
+    def testformat_junit_text_no_failures(self):
         """Should handle report with no failures."""
         mock_report = MagicMock()
         mock_report.total_tests = 5
@@ -405,7 +401,7 @@ class TestFormatJunitText:
         mock_report.total_skipped = 0
         mock_report.failed_tests = []
 
-        result = _format_junit_text(mock_report)
+        result = format_junit_text(mock_report)
 
         assert "5 passed" in result
         assert "0 failed" in result

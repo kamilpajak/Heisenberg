@@ -1,29 +1,40 @@
 """Tests for CLI module - TDD."""
 
 import argparse
+import asyncio
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from heisenberg.cli import (
+from heisenberg.cli.commands import (
     _analyze_report_data,
-    _fetch_report_from_run,
-    _format_ai_diagnosis_section,
-    _format_container_logs_section,
-    _format_failed_tests_section,
     _load_container_logs,
     _run_ai_analysis,
     run_analyze,
-    run_fetch_github,
 )
+from heisenberg.cli.commands import (
+    run_fetch_github as run_fetch_github_async,
+)
+from heisenberg.cli.formatters import (
+    format_ai_diagnosis_section,
+    format_container_logs_section,
+    format_failed_tests_section,
+)
+from heisenberg.cli.github_fetch import fetch_report_from_run
+
+
+# Sync wrapper for tests
+def run_fetch_github(args):
+    """Sync wrapper for run_fetch_github."""
+    return asyncio.run(run_fetch_github_async(args))
 
 
 class TestFormatHelpers:
     """Test suite for CLI format helper functions."""
 
-    def test_format_failed_tests_section_includes_header(self):
+    def testformat_failed_tests_section_includes_header(self):
         """Should include 'Failed Tests:' header."""
         mock_test = MagicMock()
         mock_test.full_name = "Test Suite > test case"
@@ -31,13 +42,13 @@ class TestFormatHelpers:
         mock_test.status = "failed"
         mock_test.errors = []
 
-        result = _format_failed_tests_section([mock_test])
+        result = format_failed_tests_section([mock_test])
         result_str = "\n".join(result)
 
         assert "Failed Tests:" in result_str
         assert "Test Suite > test case" in result_str
 
-    def test_format_failed_tests_section_truncates_long_errors(self):
+    def testformat_failed_tests_section_truncates_long_errors(self):
         """Should truncate error messages longer than 100 chars."""
         mock_error = MagicMock()
         mock_error.message = "A" * 150
@@ -48,31 +59,31 @@ class TestFormatHelpers:
         mock_test.status = "failed"
         mock_test.errors = [mock_error]
 
-        result = _format_failed_tests_section([mock_test])
+        result = format_failed_tests_section([mock_test])
 
         assert "..." in "\n".join(result)
 
-    def test_format_container_logs_section_includes_header(self):
+    def testformat_container_logs_section_includes_header(self):
         """Should include 'Backend Logs:' header."""
         mock_logs = MagicMock()
         mock_logs.entries = ["log entry 1", "log entry 2"]
 
-        result = _format_container_logs_section({"api": mock_logs})
+        result = format_container_logs_section({"api": mock_logs})
         result_str = "\n".join(result)
 
         assert "Backend Logs:" in result_str
         assert "[api]" in result_str
 
-    def test_format_container_logs_section_limits_entries(self):
+    def testformat_container_logs_section_limits_entries(self):
         """Should limit to 10 entries per container."""
         mock_logs = MagicMock()
         mock_logs.entries = [f"entry {i}" for i in range(20)]
 
-        result = _format_container_logs_section({"api": mock_logs})
+        result = format_container_logs_section({"api": mock_logs})
 
         assert "... and 10 more entries" in "\n".join(result)
 
-    def test_format_ai_diagnosis_section_includes_all_fields(self):
+    def testformat_ai_diagnosis_section_includes_all_fields(self):
         """Should include root cause, evidence, fix, and confidence."""
         mock_diagnosis = MagicMock()
         mock_diagnosis.root_cause = "Database timeout"
@@ -86,7 +97,7 @@ class TestFormatHelpers:
         mock_ai_result.total_tokens = 1000
         mock_ai_result.estimated_cost = 0.05
 
-        result = _format_ai_diagnosis_section(mock_ai_result)
+        result = format_ai_diagnosis_section(mock_ai_result)
         result_str = "\n".join(result)
 
         assert "AI Diagnosis:" in result_str
@@ -95,7 +106,7 @@ class TestFormatHelpers:
         assert "Increase timeout" in result_str
         assert "HIGH" in result_str
 
-    def test_format_ai_diagnosis_section_handles_no_evidence(self):
+    def testformat_ai_diagnosis_section_handles_no_evidence(self):
         """Should handle empty evidence list."""
         mock_diagnosis = MagicMock()
         mock_diagnosis.root_cause = "Unknown"
@@ -109,7 +120,7 @@ class TestFormatHelpers:
         mock_ai_result.total_tokens = 500
         mock_ai_result.estimated_cost = 0.02
 
-        result = _format_ai_diagnosis_section(mock_ai_result)
+        result = format_ai_diagnosis_section(mock_ai_result)
         result_str = "\n".join(result)
 
         assert "Evidence:" not in result_str
@@ -270,7 +281,7 @@ class TestCliAIAnalysis:
         )
 
         mock_analyze = MagicMock(return_value=mock_result)
-        monkeypatch.setattr("heisenberg.cli.analyze_with_ai", mock_analyze)
+        monkeypatch.setattr("heisenberg.cli.commands.analyze_with_ai", mock_analyze)
         return mock_analyze
 
     def test_analyze_with_ai_flag(
@@ -365,7 +376,7 @@ class TestFetchGitHubHelpers:
     """Test suite for fetch-github helper functions."""
 
     @pytest.mark.asyncio
-    async def test_fetch_report_from_run_returns_none_for_no_matching_artifacts(self):
+    async def testfetch_report_from_run_returns_none_for_no_matching_artifacts(self):
         """Should return None when no matching artifacts found."""
         mock_client = MagicMock()
         mock_client.get_artifacts = MagicMock(return_value=[])
@@ -377,12 +388,12 @@ class TestFetchGitHubHelpers:
 
         mock_client.get_artifacts = mock_get_artifacts
 
-        result = await _fetch_report_from_run(mock_client, "owner", "repo", 123, "playwright")
+        result = await fetch_report_from_run(mock_client, "owner", "repo", 123, "playwright")
 
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_fetch_report_from_run_downloads_matching_artifact(self):
+    async def testfetch_report_from_run_downloads_matching_artifact(self):
         """Should download artifact when matching name found."""
         mock_artifact = MagicMock()
         mock_artifact.name = "playwright-report"
@@ -400,7 +411,7 @@ class TestFetchGitHubHelpers:
         mock_client.download_artifact = mock_download
         mock_client.extract_playwright_report = MagicMock(return_value={"suites": []})
 
-        result = await _fetch_report_from_run(mock_client, "owner", "repo", 123, "playwright")
+        result = await fetch_report_from_run(mock_client, "owner", "repo", 123, "playwright")
 
         assert result == {"suites": []}
 

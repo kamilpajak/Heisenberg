@@ -13,6 +13,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from heisenberg.cli import main
+from heisenberg.cli.commands import convert_to_unified, run_analyze
+
 
 class TestAnalyzeWithUnifiedFlag:
     """Tests for 'heisenberg analyze --use-unified'."""
@@ -20,8 +23,6 @@ class TestAnalyzeWithUnifiedFlag:
     def test_analyze_parser_has_use_unified_flag(self):
         """Analyze subparser includes --use-unified flag."""
         import sys
-
-        from heisenberg.cli import main
 
         # Check that --use-unified is recognized
         with patch.object(sys, "argv", ["heisenberg", "analyze", "--help"]):
@@ -33,8 +34,6 @@ class TestAnalyzeWithUnifiedFlag:
     def test_analyze_parser_has_output_format_unified(self):
         """Analyze subparser supports unified-json output format."""
         import sys
-
-        from heisenberg.cli import main
 
         # This should not raise - unified-json is a valid format
         with patch.object(
@@ -172,7 +171,6 @@ class TestPlaywrightToUnifiedConversion:
 
     def test_convert_playwright_report_to_unified(self):
         """CLI helper converts PlaywrightReport to UnifiedTestRun."""
-        from heisenberg.cli import convert_to_unified
         from heisenberg.playwright_parser import (
             ErrorDetail,
             FailedTest,
@@ -228,8 +226,6 @@ class TestUnifiedAnalysisInCLI:
 
     def test_cli_uses_unified_for_ai_analysis(self, tmp_path: Path):
         """When --use-unified is set, CLI uses analyze_unified_run."""
-        from heisenberg.cli import run_analyze
-
         # Create test report
         report_file = tmp_path / "report.json"
         report_file.write_text(
@@ -277,7 +273,7 @@ class TestUnifiedAnalysisInCLI:
             container_logs=None,
         )
 
-        with patch("heisenberg.cli.analyze_unified_run") as mock_unified:
+        with patch("heisenberg.cli.commands.analyze_unified_run") as mock_unified:
             mock_unified.return_value = MagicMock(
                 diagnosis=MagicMock(
                     root_cause="Root cause",

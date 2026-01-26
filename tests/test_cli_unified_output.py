@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from heisenberg.cli.commands import _load_container_logs, run_analyze
+
 
 class TestCliUnifiedJsonOutput:
     """Tests for unified-json output format in CLI."""
@@ -18,8 +20,6 @@ class TestCliUnifiedJsonOutput:
 
     def test_unified_json_output_format(self, sample_report_path: Path, capsys):
         """Should output unified JSON format."""
-        from heisenberg.cli import run_analyze
-
         args = argparse.Namespace(
             report=sample_report_path,
             report_format="playwright",
@@ -43,8 +43,6 @@ class TestCliUnifiedJsonOutput:
 
     def test_unified_json_includes_failures(self, sample_report_path: Path, capsys):
         """Should include failure details in unified JSON."""
-        from heisenberg.cli import run_analyze
-
         args = argparse.Namespace(
             report=sample_report_path,
             report_format="playwright",
@@ -96,9 +94,9 @@ class TestCliUseUnifiedFlag:
 
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
-        with patch("heisenberg.cli.analyze_unified_run", return_value=mock_result) as mock_analyze:
-            from heisenberg.cli import run_analyze
-
+        with patch(
+            "heisenberg.cli.commands.analyze_unified_run", return_value=mock_result
+        ) as mock_analyze:
             args = argparse.Namespace(
                 report=sample_report_path,
                 report_format="playwright",
@@ -137,9 +135,9 @@ class TestCliUseUnifiedFlag:
 
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
-        with patch("heisenberg.cli.analyze_with_ai", return_value=mock_result) as mock_analyze:
-            from heisenberg.cli import run_analyze
-
+        with patch(
+            "heisenberg.cli.commands.analyze_with_ai", return_value=mock_result
+        ) as mock_analyze:
             args = argparse.Namespace(
                 report=sample_report_path,
                 report_format="playwright",
@@ -170,8 +168,6 @@ class TestCliContainerLogs:
 
     def test_container_logs_from_file(self, sample_report_path: Path, tmp_path, capsys):
         """Should load container logs from file."""
-        from heisenberg.cli import _load_container_logs
-
         log_file = tmp_path / "container.log"
         log_file.write_text("2024-01-01 12:00:00 INFO Starting service\n")
 
@@ -188,8 +184,6 @@ class TestCliContainerLogs:
 
     def test_container_logs_from_result(self, sample_report_path: Path):
         """Should use logs from result when no file provided."""
-        from heisenberg.cli import _load_container_logs
-
         args = MagicMock()
         args.container_logs = None
 

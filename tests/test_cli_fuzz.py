@@ -18,13 +18,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from heisenberg.cli import (
-    _format_json_output,
-    _format_output,
-    _format_text_output,
-    convert_to_unified,
-    run_analyze,
-)
+from heisenberg.cli.commands import convert_to_unified, run_analyze, run_fetch_github
+from heisenberg.cli.formatters import format_json_output, format_output, format_text_output
 
 # Skip all tests in this module unless --run-fuzz is provided
 pytestmark = pytest.mark.fuzz
@@ -328,7 +323,7 @@ class TestOutputFormattingFuzz:
         tokens=st.integers(min_value=0, max_value=1000000),
         cost=st.floats(min_value=0, max_value=1000, allow_nan=False, allow_infinity=False),
     )
-    def test_format_json_output_no_crash(
+    def testformat_json_output_no_crash(
         self,
         root_cause: str,
         evidence: list[str],
@@ -356,7 +351,7 @@ class TestOutputFormattingFuzz:
         mock_ai.estimated_cost = cost
 
         # Should not crash
-        output = _format_json_output(mock_result, mock_ai)
+        output = format_json_output(mock_result, mock_ai)
         assert isinstance(output, str)
 
         # Should be valid JSON
@@ -369,7 +364,7 @@ class TestOutputFormattingFuzz:
         has_failures=st.booleans(),
         num_failures=st.integers(min_value=0, max_value=20),
     )
-    def test_format_text_output_no_crash(
+    def testformat_text_output_no_crash(
         self,
         summary: str,
         has_failures: bool,
@@ -395,7 +390,7 @@ class TestOutputFormattingFuzz:
         mock_result.report.failed_tests = failed_tests
 
         # Should not crash
-        output = _format_text_output(mock_result, None)
+        output = format_text_output(mock_result, None)
         assert isinstance(output, str)
 
 
@@ -524,11 +519,11 @@ class TestArgNamespaceFuzz:
 
 
 class TestFormatOutputDispatcherFuzz:
-    """Fuzz tests for the _format_output dispatcher."""
+    """Fuzz tests for the format_output dispatcher."""
 
     @settings(max_examples=30, deadline=3000)
     @given(output_format=output_formats())
-    def test_format_output_dispatcher_no_crash(self, output_format: str):
+    def testformat_output_dispatcher_no_crash(self, output_format: str):
         """Output format dispatcher should handle all formats without crashing."""
         mock_result = MagicMock()
         mock_result.has_failures = False
@@ -545,7 +540,7 @@ class TestFormatOutputDispatcherFuzz:
             return
 
         # Should not crash
-        output = _format_output(args, mock_result, None)
+        output = format_output(args, mock_result, None)
         assert isinstance(output, str)
 
 
@@ -572,8 +567,6 @@ class TestFetchGitHubFuzz:
         provider: str,
     ):
         """fetch-github should validate repo format without crashing."""
-        from heisenberg.cli import run_fetch_github
-
         args = argparse.Namespace(
             repo=repo,
             token=None,  # Will fail due to missing token
@@ -612,8 +605,6 @@ class TestFetchGitHubFuzz:
         repo: str,
     ):
         """fetch-github should handle various ASCII token values."""
-        from heisenberg.cli import run_fetch_github
-
         args = argparse.Namespace(
             repo=repo,
             token=token if token else None,

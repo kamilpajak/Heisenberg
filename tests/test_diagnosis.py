@@ -1,5 +1,7 @@
 """Tests for diagnosis parser - TDD Red-Green-Refactor."""
 
+import pytest
+
 from heisenberg.diagnosis import (
     ConfidenceLevel,
     Diagnosis,
@@ -10,21 +12,18 @@ from heisenberg.diagnosis import (
 class TestConfidenceLevel:
     """Test suite for confidence level enum."""
 
-    def test_high_confidence(self):
-        """HIGH should represent >80% confidence."""
-        assert ConfidenceLevel.HIGH.value == "HIGH"
-
-    def test_medium_confidence(self):
-        """MEDIUM should represent 50-80% confidence."""
-        assert ConfidenceLevel.MEDIUM.value == "MEDIUM"
-
-    def test_low_confidence(self):
-        """LOW should represent <50% confidence."""
-        assert ConfidenceLevel.LOW.value == "LOW"
-
-    def test_unknown_confidence(self):
-        """UNKNOWN should be used when confidence can't be determined."""
-        assert ConfidenceLevel.UNKNOWN.value == "UNKNOWN"
+    @pytest.mark.parametrize(
+        "level,expected_value",
+        [
+            (ConfidenceLevel.HIGH, "HIGH"),
+            (ConfidenceLevel.MEDIUM, "MEDIUM"),
+            (ConfidenceLevel.LOW, "LOW"),
+            (ConfidenceLevel.UNKNOWN, "UNKNOWN"),
+        ],
+    )
+    def test_confidence_level_values(self, level, expected_value):
+        """Confidence level enum should have correct string values."""
+        assert level.value == expected_value
 
 
 class TestDiagnosis:
@@ -174,71 +173,34 @@ HIGH"""
         # Then
         assert "data-testid" in diagnosis.suggested_fix.lower()
 
-    def test_parses_high_confidence(self):
-        """Should parse HIGH confidence level."""
+    @pytest.mark.parametrize(
+        "confidence_text,expected_level",
+        [
+            ("HIGH (>80%)\nVery clear evidence.", ConfidenceLevel.HIGH),
+            ("MEDIUM (50-80%)\nSome evidence but not conclusive.", ConfidenceLevel.MEDIUM),
+            ("LOW (<50%)\nNot enough information to determine root cause.", ConfidenceLevel.LOW),
+        ],
+    )
+    def test_parses_confidence_level(self, confidence_text, expected_level):
+        """Should parse confidence level from response."""
         # Given
-        response = """## Root Cause Analysis
-Clear bug.
+        response = f"""## Root Cause Analysis
+Test issue.
 
 ## Evidence
-- Stack trace
+- Some evidence
 
 ## Suggested Fix
-Fix bug.
+Fix it.
 
 ## Confidence Score
-HIGH (>80%)
-Very clear evidence."""
+{confidence_text}"""
 
         # When
         diagnosis = parse_diagnosis(response)
 
         # Then
-        assert diagnosis.confidence == ConfidenceLevel.HIGH
-
-    def test_parses_medium_confidence(self):
-        """Should parse MEDIUM confidence level."""
-        # Given
-        response = """## Root Cause Analysis
-Possible issue.
-
-## Evidence
-- Some logs
-
-## Suggested Fix
-Investigate further.
-
-## Confidence Score
-MEDIUM (50-80%)
-Some evidence but not conclusive."""
-
-        # When
-        diagnosis = parse_diagnosis(response)
-
-        # Then
-        assert diagnosis.confidence == ConfidenceLevel.MEDIUM
-
-    def test_parses_low_confidence(self):
-        """Should parse LOW confidence level."""
-        # Given
-        response = """## Root Cause Analysis
-Uncertain.
-
-## Evidence
-- Limited data
-
-## Suggested Fix
-Need more logs.
-
-## Confidence Score
-LOW (<50%)
-Not enough information to determine root cause."""
-
-        # When
-        diagnosis = parse_diagnosis(response)
-
-        # Then
-        assert diagnosis.confidence == ConfidenceLevel.LOW
+        assert diagnosis.confidence == expected_level
 
     def test_handles_missing_sections_gracefully(self):
         """Should handle responses without all sections."""
