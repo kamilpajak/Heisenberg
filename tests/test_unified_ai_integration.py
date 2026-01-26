@@ -240,7 +240,7 @@ class TestUnifiedAIAnalyzer:
             )
             mock_get_client.return_value = mock_client
 
-            result = analyze_unified_run(run, provider="claude")
+            analyze_unified_run(run, provider="claude")
 
             mock_get_client.assert_called_with("claude", None, None)
 

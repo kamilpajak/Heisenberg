@@ -293,7 +293,7 @@ class TestUnifiedAnalysisInCLI:
                 to_markdown=MagicMock(return_value="# Analysis\nRoot cause"),
             )
 
-            result = run_analyze(args)
+            run_analyze(args)
 
             # Should have called unified analysis
             mock_unified.assert_called_once()
