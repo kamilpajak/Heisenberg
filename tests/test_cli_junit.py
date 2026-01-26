@@ -227,7 +227,7 @@ class TestRunJunitAnalyze:
                 model=None,
             )
 
-            result = _run_junit_analyze(args)
+            _run_junit_analyze(args)
             captured = capsys.readouterr()
 
             assert "AI" in captured.out or "Root" in captured.out
@@ -251,10 +251,10 @@ class TestRunJunitAnalyze:
                 model=None,
             )
 
-            result = _run_junit_analyze(args)
+            exit_code = _run_junit_analyze(args)
             captured = capsys.readouterr()
 
-            assert result == 1  # Still returns 1 for failed tests
+            assert exit_code == 1  # Still returns 1 for failed tests
             assert "Warning" in captured.err
 
 

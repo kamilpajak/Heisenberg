@@ -255,8 +255,8 @@ class PlaywrightTransformer:
         browser = failure_data.get("projectName")
         duration = failure_data.get("duration")
 
-        # Generate test ID
-        test_id = hashlib.md5(
+        # Generate test ID (MD5 used for fingerprinting, not security)
+        test_id = hashlib.md5(  # NOSONAR - MD5 used only for non-cryptographic fingerprinting
             f"{failure_data.get('file', '')}-{failure_data.get('title', '')}".encode()
         ).hexdigest()[:12]
 

@@ -149,7 +149,7 @@ class TestGetLLMClientForProvider:
         # Patch where it's imported inside the function
         mock_llm_client = mocker.patch("heisenberg.llm_client.LLMClient")
 
-        result = _get_llm_client_for_provider("claude", api_key="test-key")
+        _get_llm_client_for_provider("claude", api_key="test-key")
 
         mock_llm_client.assert_called_once()
 
@@ -158,7 +158,7 @@ class TestGetLLMClientForProvider:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "env-key")
         mock_llm_client = mocker.patch("heisenberg.llm_client.LLMClient")
 
-        result = _get_llm_client_for_provider("claude")
+        _get_llm_client_for_provider("claude")
 
         mock_llm_client.from_environment.assert_called_once()
 
@@ -329,7 +329,7 @@ CONFIDENCE: MEDIUM
             return_value=("system", "user"),
         )
 
-        result = analyze_unified_run(
+        analyze_unified_run(
             mock_unified_run,
             job_logs_context="Job logs here",
             screenshot_context="Screenshot analysis",
