@@ -158,6 +158,21 @@ def main() -> int:
         action="store_true",
         help="Merge Playwright blob reports before analysis (requires npx/playwright)",
     )
+    fetch_parser.add_argument(
+        "--include-logs",
+        action="store_true",
+        help="Include GitHub Actions job logs in analysis for enhanced diagnostics",
+    )
+    fetch_parser.add_argument(
+        "--include-screenshots",
+        action="store_true",
+        help="Analyze failure screenshots with vision model (requires Gemini)",
+    )
+    fetch_parser.add_argument(
+        "--include-traces",
+        action="store_true",
+        help="Extract and analyze Playwright traces (console logs, network, actions)",
+    )
 
     args = parser.parse_args()
 
@@ -512,7 +527,13 @@ async def _fetch_report_from_run(client, owner: str, repo: str, run_id: int, art
     return client.extract_playwright_report(zip_data)
 
 
-def _analyze_report_data(report_data: dict, args) -> int:
+def _analyze_report_data(
+    report_data: dict,
+    args,
+    job_logs_context: str | None = None,
+    screenshot_context: str | None = None,
+    trace_context: str | None = None,
+) -> int:
     """Analyze fetched report data and print results."""
     import tempfile
 
@@ -522,11 +543,293 @@ def _analyze_report_data(report_data: dict, args) -> int:
 
     try:
         result = run_analysis(report_path=temp_path)
-        ai_result = _run_ai_analysis(args, result, None)
+
+        # Run AI analysis with additional context if available
+        ai_result = None
+        if getattr(args, "ai_analysis", False) and result.has_failures:
+            try:
+                # Use unified model when we have additional context
+                if job_logs_context or screenshot_context or trace_context:
+                    unified_run = convert_to_unified(result.report)
+                    ai_result = analyze_unified_run(
+                        unified_run,
+                        provider=getattr(args, "provider", "claude"),
+                        model=getattr(args, "model", None),
+                        job_logs_context=job_logs_context,
+                        screenshot_context=screenshot_context,
+                        trace_context=trace_context,
+                    )
+                else:
+                    ai_result = analyze_with_ai(
+                        report=result.report,
+                        provider=getattr(args, "provider", "claude"),
+                        model=getattr(args, "model", None),
+                    )
+            except Exception as e:
+                print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
+
         print(_format_text_output(result, ai_result))
         return 1 if result.has_failures else 0
     finally:
         temp_path.unlink()
+
+
+def _fetch_and_process_job_logs(
+    token: str,
+    owner: str,
+    repo: str,
+    run_id: int | None,
+) -> str | None:
+    """Fetch and process job logs from GitHub Actions.
+
+    Args:
+        token: GitHub token.
+        owner: Repository owner.
+        repo: Repository name.
+        run_id: Optional specific workflow run ID.
+
+    Returns:
+        Formatted job logs context string, or None if no logs available.
+    """
+    import asyncio
+
+    from heisenberg.github_artifacts import GitHubArtifactClient
+    from heisenberg.github_logs_fetcher import GitHubLogsFetcher
+    from heisenberg.job_logs_processor import JobLogsProcessor
+
+    # Get run ID if not specified
+    if run_id is None:
+
+        async def get_latest_failed_run_id():
+            client = GitHubArtifactClient(token=token)
+            runs = await client.list_workflow_runs(owner, repo)
+            failed_runs = [r for r in runs if r.conclusion == "failure"]
+            return failed_runs[0].id if failed_runs else None
+
+        try:
+            run_id = asyncio.run(get_latest_failed_run_id())
+        except Exception:
+            return None
+
+    if run_id is None:
+        return None
+
+    print(f"Fetching job logs for run {run_id}...", file=sys.stderr)
+
+    fetcher = GitHubLogsFetcher()
+    logs_by_job = fetcher.fetch_logs_for_run(f"{owner}/{repo}", str(run_id))
+
+    if not logs_by_job:
+        print("No job logs found.", file=sys.stderr)
+        return None
+
+    # Process logs and extract relevant snippets
+    processor = JobLogsProcessor()
+    all_snippets = []
+
+    for _job_name, log_content in logs_by_job.items():
+        snippets = processor.extract_snippets(log_content)
+        all_snippets.extend(snippets)
+
+    if not all_snippets:
+        print("No error snippets found in job logs.", file=sys.stderr)
+        return None
+
+    print(f"Found {len(all_snippets)} relevant log snippet(s).", file=sys.stderr)
+    return processor.format_for_prompt(all_snippets)
+
+
+def _fetch_and_analyze_screenshots(
+    token: str,
+    owner: str,
+    repo: str,
+    run_id: int | None,
+    artifact_name: str,
+) -> str | None:
+    """Fetch and analyze screenshots from Playwright artifacts.
+
+    Args:
+        token: GitHub token.
+        owner: Repository owner.
+        repo: Repository name.
+        run_id: Optional specific workflow run ID.
+        artifact_name: Pattern to match artifact name.
+
+    Returns:
+        Formatted screenshot analysis string, or None if no screenshots.
+    """
+    import asyncio
+
+    from heisenberg.github_artifacts import GitHubArtifactClient
+    from heisenberg.screenshot_analyzer import (
+        ScreenshotAnalyzer,
+        extract_screenshots_from_artifact,
+        format_screenshots_for_prompt,
+    )
+
+    async def fetch_artifacts():
+        client = GitHubArtifactClient(token=token)
+
+        # Get run ID if not specified
+        actual_run_id = run_id
+        if actual_run_id is None:
+            runs = await client.list_workflow_runs(owner, repo)
+            failed_runs = [r for r in runs if r.conclusion == "failure"]
+            if not failed_runs:
+                return None
+            actual_run_id = failed_runs[0].id
+
+        # Get artifacts matching the pattern
+        artifacts = await client.get_artifacts(owner, repo, run_id=actual_run_id)
+        matching = [a for a in artifacts if artifact_name.lower() in a.name.lower()]
+
+        if not matching:
+            return None
+
+        # Download artifact and extract screenshots
+        all_screenshots = []
+        for artifact in matching[:1]:  # Only first matching artifact
+            print(f"Extracting screenshots from: {artifact.name}...", file=sys.stderr)
+            zip_data = await client.download_artifact(owner, repo, artifact.id)
+            screenshots = extract_screenshots_from_artifact(zip_data)
+            all_screenshots.extend(screenshots)
+
+        return all_screenshots
+
+    try:
+        screenshots = asyncio.run(fetch_artifacts())
+    except Exception as e:
+        print(f"Warning: Failed to fetch screenshots: {e}", file=sys.stderr)
+        return None
+
+    if not screenshots:
+        print("No screenshots found in artifacts.", file=sys.stderr)
+        return None
+
+    print(f"Found {len(screenshots)} screenshot(s). Analyzing...", file=sys.stderr)
+
+    # Analyze screenshots with vision model
+    analyzer = ScreenshotAnalyzer(provider="gemini")
+    analyzed = analyzer.analyze_batch(screenshots, max_screenshots=5)
+
+    # Format for prompt
+    return format_screenshots_for_prompt(analyzed)
+
+
+def _fetch_and_analyze_traces(
+    token: str,
+    owner: str,
+    repo: str,
+    run_id: int | None,
+    artifact_name: str,
+) -> str | None:
+    """Fetch and analyze Playwright traces from artifacts.
+
+    Args:
+        token: GitHub token.
+        owner: Repository owner.
+        repo: Repository name.
+        run_id: Optional specific workflow run ID.
+        artifact_name: Pattern to match artifact name.
+
+    Returns:
+        Formatted trace analysis string, or None if no traces.
+    """
+    import asyncio
+
+    from heisenberg.github_artifacts import GitHubArtifactClient
+    from heisenberg.trace_analyzer import (
+        TraceAnalyzer,
+        extract_trace_from_artifact,
+        format_trace_for_prompt,
+    )
+
+    async def fetch_artifacts():
+        client = GitHubArtifactClient(token=token)
+
+        # Get run ID if not specified
+        actual_run_id = run_id
+        if actual_run_id is None:
+            runs = await client.list_workflow_runs(owner, repo)
+            failed_runs = [r for r in runs if r.conclusion == "failure"]
+            if not failed_runs:
+                return None
+            actual_run_id = failed_runs[0].id
+
+        # Get artifacts matching the pattern
+        artifacts = await client.get_artifacts(owner, repo, run_id=actual_run_id)
+        matching = [a for a in artifacts if artifact_name.lower() in a.name.lower()]
+
+        if not matching:
+            return None
+
+        # Download artifact and extract traces
+        all_traces = []
+        for artifact in matching[:1]:  # Only first matching artifact
+            print(f"Extracting traces from: {artifact.name}...", file=sys.stderr)
+            zip_data = await client.download_artifact(owner, repo, artifact.id)
+            traces = extract_trace_from_artifact(zip_data)
+            all_traces.extend(traces)
+
+        return all_traces, zip_data
+
+    try:
+        result = asyncio.run(fetch_artifacts())
+    except Exception as e:
+        print(f"Warning: Failed to fetch traces: {e}", file=sys.stderr)
+        return None
+
+    if not result:
+        print("No traces found in artifacts.", file=sys.stderr)
+        return None
+
+    traces, zip_data = result
+
+    if not traces:
+        print("No trace files found in artifacts.", file=sys.stderr)
+        return None
+
+    print(f"Found {len(traces)} trace file(s). Analyzing...", file=sys.stderr)
+
+    # Analyze each trace
+    analyzer = TraceAnalyzer()
+
+    # We need to re-extract and analyze each trace with actual data
+    import io
+    import zipfile
+
+    analyzed_traces = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(zip_data), "r") as outer_zip:
+            for file_info in outer_zip.filelist:
+                name = file_info.filename.lower()
+                if not name.endswith("trace.zip"):
+                    continue
+
+                # Extract test name from path
+                path_parts = file_info.filename.split("/")
+                test_name = path_parts[-2] if len(path_parts) > 1 else "unknown"
+                file_path = next(
+                    (p for p in path_parts if ".spec." in p or ".test." in p),
+                    "unknown-file",
+                )
+
+                # Read and analyze the trace
+                trace_zip_data = outer_zip.read(file_info.filename)
+                trace_ctx = analyzer.analyze(trace_zip_data, test_name, file_path)
+                analyzed_traces.append(trace_ctx)
+
+                # Limit to 5 traces
+                if len(analyzed_traces) >= 5:
+                    break
+    except Exception as e:
+        print(f"Warning: Error analyzing traces: {e}", file=sys.stderr)
+
+    if not analyzed_traces:
+        return None
+
+    # Format for prompt
+    return format_trace_for_prompt(analyzed_traces)
 
 
 def _format_size(size_bytes: int) -> str:
@@ -754,7 +1057,28 @@ def run_fetch_github(args: argparse.Namespace) -> int:
         print(f"Report saved to {args.output}")
         return 0
 
-    return _analyze_report_data(report_data, args)
+    # Fetch job logs if requested
+    job_logs_context = None
+    if getattr(args, "include_logs", False):
+        job_logs_context = _fetch_and_process_job_logs(token, owner, repo, args.run_id)
+
+    # Analyze screenshots if requested
+    screenshot_context = None
+    if getattr(args, "include_screenshots", False):
+        screenshot_context = _fetch_and_analyze_screenshots(
+            token, owner, repo, args.run_id, args.artifact_name
+        )
+
+    # Analyze traces if requested
+    trace_context = None
+    if getattr(args, "include_traces", False):
+        trace_context = _fetch_and_analyze_traces(
+            token, owner, repo, args.run_id, args.artifact_name
+        )
+
+    return _analyze_report_data(
+        report_data, args, job_logs_context, screenshot_context, trace_context
+    )
 
 
 if __name__ == "__main__":

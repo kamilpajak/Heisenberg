@@ -237,6 +237,9 @@ def build_analysis_prompt(
 def build_unified_prompt(
     run: UnifiedTestRun,
     container_logs: dict[str, ContainerLogs] | None = None,
+    job_logs_context: str | None = None,
+    screenshot_context: str | None = None,
+    trace_context: str | None = None,
 ) -> tuple[str, str]:
     """
     Build analysis prompts from UnifiedTestRun.
@@ -247,19 +250,27 @@ def build_unified_prompt(
     Args:
         run: UnifiedTestRun containing test failures.
         container_logs: Optional container logs for context.
+        job_logs_context: Optional pre-formatted job logs snippets.
+        screenshot_context: Optional pre-formatted screenshot descriptions.
+        trace_context: Optional pre-formatted Playwright trace analysis.
 
     Returns:
         Tuple of (system_prompt, user_prompt).
     """
 
     system_prompt = get_system_prompt()
-    user_prompt = _build_unified_user_prompt(run, container_logs)
+    user_prompt = _build_unified_user_prompt(
+        run, container_logs, job_logs_context, screenshot_context, trace_context
+    )
     return system_prompt, user_prompt
 
 
 def _build_unified_user_prompt(
     run: UnifiedTestRun,
     container_logs: dict[str, ContainerLogs] | None = None,
+    job_logs_context: str | None = None,
+    screenshot_context: str | None = None,
+    trace_context: str | None = None,
 ) -> str:
     """Build user prompt from UnifiedTestRun."""
 
@@ -342,6 +353,18 @@ def _build_unified_user_prompt(
             logs_lines.append("```")
 
         sections.append("\n".join(logs_lines))
+
+    # Job logs context (GitHub Actions logs)
+    if job_logs_context:
+        sections.append(job_logs_context)
+
+    # Screenshot context (visual analysis)
+    if screenshot_context:
+        sections.append(screenshot_context)
+
+    # Trace context (Playwright traces - console, network, actions)
+    if trace_context:
+        sections.append(trace_context)
 
     # Analysis instructions
     instructions = """## Analysis Request

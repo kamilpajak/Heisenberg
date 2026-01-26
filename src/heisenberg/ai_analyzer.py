@@ -280,6 +280,9 @@ def analyze_unified_run(
     api_key: str | None = None,
     provider: str = "claude",
     model: str | None = None,
+    job_logs_context: str | None = None,
+    screenshot_context: str | None = None,
+    trace_context: str | None = None,
 ) -> AIAnalysisResult:
     """
     Analyze test failures using the unified model.
@@ -293,6 +296,9 @@ def analyze_unified_run(
         api_key: Optional API key. If None, reads from environment.
         provider: LLM provider to use (claude, openai, gemini).
         model: Specific model to use (provider-dependent).
+        job_logs_context: Optional pre-formatted job logs snippets.
+        screenshot_context: Optional pre-formatted screenshot descriptions.
+        trace_context: Optional pre-formatted Playwright trace analysis.
 
     Returns:
         AIAnalysisResult with diagnosis.
@@ -300,7 +306,9 @@ def analyze_unified_run(
     from heisenberg.prompt_builder import build_unified_prompt
 
     # Build prompts from unified model
-    system_prompt, user_prompt = build_unified_prompt(run, container_logs)
+    system_prompt, user_prompt = build_unified_prompt(
+        run, container_logs, job_logs_context, screenshot_context, trace_context
+    )
 
     # Get LLM client
     llm = _get_llm_client_for_provider(provider, api_key, model)
