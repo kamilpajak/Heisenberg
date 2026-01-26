@@ -23,6 +23,7 @@ class Framework(Enum):
     JEST = "jest"
     CYPRESS = "cypress"
     VITEST = "vitest"
+    JUNIT = "junit"
 
 
 @dataclass

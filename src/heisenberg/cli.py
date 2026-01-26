@@ -91,6 +91,12 @@ def main() -> int:
         action="store_true",
         help="Use unified failure model for analysis (framework-agnostic)",
     )
+    analyze_parser.add_argument(
+        "--report-format",
+        choices=["playwright", "junit"],
+        default="playwright",
+        help="Format of the test report (default: playwright)",
+    )
 
     # fetch-github command
     fetch_parser = subparsers.add_parser(
@@ -282,6 +288,13 @@ def run_analyze(args: argparse.Namespace) -> int:
         print(f"Error: Report file not found: {args.report}", file=sys.stderr)
         return 1
 
+    report_format = getattr(args, "report_format", "playwright")
+
+    # Handle JUnit format
+    if report_format == "junit":
+        return _run_junit_analyze(args)
+
+    # Handle Playwright format (default)
     try:
         result = run_analysis(
             report_path=args.report,
@@ -319,6 +332,107 @@ def run_analyze(args: argparse.Namespace) -> int:
     _post_github_comment(args, result)
 
     return 1 if result.has_failures else 0
+
+
+def _run_junit_analyze(args: argparse.Namespace) -> int:
+    """Run analysis for JUnit XML reports."""
+    from heisenberg.formatters import format_unified_as_json, format_unified_as_markdown
+    from heisenberg.junit_parser import JUnitParser
+
+    try:
+        report = JUnitParser.parse_file(args.report)
+    except Exception as e:
+        print(f"Error parsing JUnit report: {e}", file=sys.stderr)
+        return 1
+
+    unified_run = JUnitParser.to_unified(report)
+
+    # AI analysis if requested
+    ai_result = None
+    if args.ai_analysis and report.total_failed > 0:
+        try:
+            ai_result = analyze_unified_run(
+                unified_run,
+                provider=args.provider,
+                model=getattr(args, "model", None),
+            )
+        except Exception as e:
+            print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
+
+    # Output based on format
+    if args.output_format == "unified-json":
+        print(format_unified_as_json(unified_run))
+    elif args.output_format == "json":
+        print(_format_junit_json(report, ai_result))
+    elif args.output_format == "github-comment":
+        output = format_unified_as_markdown(unified_run)
+        if ai_result:
+            output += "\n\n" + ai_result.to_markdown()
+        print(output)
+    else:
+        print(_format_junit_text(report, ai_result))
+
+    return 1 if report.total_failed > 0 else 0
+
+
+def _format_junit_json(report, ai_result) -> str:
+    """Format JUnit report as JSON."""
+    data = {
+        "has_failures": report.total_failed > 0,
+        "summary": {
+            "total": report.total_tests,
+            "passed": report.total_passed,
+            "failed": report.total_failed,
+            "errors": report.total_errors,
+            "skipped": report.total_skipped,
+        },
+        "failed_tests": [
+            {
+                "name": tc.name,
+                "classname": tc.classname,
+                "status": tc.status,
+                "error": tc.failure_message,
+            }
+            for tc in report.failed_tests
+        ],
+    }
+    if ai_result:
+        data["ai_diagnosis"] = {
+            "root_cause": ai_result.diagnosis.root_cause,
+            "evidence": ai_result.diagnosis.evidence,
+            "suggested_fix": ai_result.diagnosis.suggested_fix,
+            "confidence": ai_result.diagnosis.confidence.value,
+        }
+    return json.dumps(data, indent=2)
+
+
+def _format_junit_text(report, ai_result=None) -> str:
+    """Format JUnit report as plain text."""
+    lines = [
+        "Heisenberg Test Analysis (JUnit)",
+        "=" * 40,
+        "",
+        f"Summary: {report.total_passed} passed, {report.total_failed} failed, "
+        f"{report.total_skipped} skipped",
+        "",
+    ]
+
+    if report.failed_tests:
+        lines.extend(["Failed Tests:", "-" * 40])
+        for tc in report.failed_tests:
+            lines.append(f"  - {tc.classname} > {tc.name}")
+            lines.append(f"    Status: {tc.status}")
+            if tc.failure_message:
+                msg = tc.failure_message
+                if len(msg) > 100:
+                    msg = msg[:100] + "..."
+                lines.append(f"    Error: {msg}")
+            lines.append("")
+
+    if ai_result:
+        lines.extend(_format_ai_diagnosis_section(ai_result))
+
+    return "\n".join(lines)
 
 
 def _format_failed_tests_section(failed_tests: list) -> list[str]:
