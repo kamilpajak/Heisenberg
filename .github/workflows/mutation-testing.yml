@@ -38,13 +38,13 @@ jobs:
         run: |
           echo "Starting mutation testing..."
 
-          # mutmut 3.x: positional args override paths_to_mutate from pyproject.toml
+          # mutmut 2.x: uses --paths-to-mutate flag, config from setup.cfg
           if [ -n "${{ github.event.inputs.paths_to_mutate }}" ]; then
             MUTATE_PATH="${{ github.event.inputs.paths_to_mutate }}"
             echo "Mutating specific path: $MUTATE_PATH"
-            uv run mutmut run "$MUTATE_PATH" || true
+            uv run mutmut run --paths-to-mutate "$MUTATE_PATH" || true
           else
-            echo "Mutating all core modules (from pyproject.toml config)..."
+            echo "Mutating all core modules (from setup.cfg config)..."
             uv run mutmut run || true
           fi
 

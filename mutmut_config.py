@@ -9,8 +9,16 @@ def pre_mutation(context):
     """Filter out mutations that would generate false positives.
 
     Args:
-        context: Mutmut context with current_source_line and skip attribute.
+        context: Mutmut context with current_source_line, filename, and skip attribute.
     """
+    # Skip entire files: CLI, backend, entry points
+    filename = context.filename
+    skip_paths = ["/cli/", "/backend/", "__init__.py", "__main__.py", "cli.py"]
+    for skip_path in skip_paths:
+        if skip_path in filename:
+            context.skip = True
+            return
+
     line = context.current_source_line
 
     # Skip LLM prompt-related lines (changing "You are an expert" to "XXu are an expert"
