@@ -65,12 +65,12 @@ class TestAnthropicIntegration:
             user_prompt="Why might a login button timeout occur?",
         )
 
-        assert "response" in result
-        assert len(result["response"]) > 0
-        assert "input_tokens" in result
-        assert "output_tokens" in result
-        assert result["input_tokens"] > 0
-        assert result["output_tokens"] > 0
+        assert result.content is not None
+        assert len(result.content) > 0
+        assert result.input_tokens is not None
+        assert result.output_tokens is not None
+        assert result.input_tokens > 0
+        assert result.output_tokens > 0
 
     @pytest.mark.skipif(not has_anthropic_key(), reason="ANTHROPIC_API_KEY not set")
     @pytest.mark.asyncio
@@ -84,8 +84,8 @@ class TestAnthropicIntegration:
             user_prompt="Say hello.",
         )
 
-        assert "model" in result
-        assert "claude" in result["model"].lower()
+        assert result.model is not None
+        assert "claude" in result.model.lower()
 
     @pytest.mark.skipif(not has_anthropic_key(), reason="ANTHROPIC_API_KEY not set")
     @pytest.mark.asyncio
@@ -109,7 +109,7 @@ class TestAnthropicIntegration:
             user_prompt=prompt,
         )
 
-        response = result["response"].lower()
+        response = result.content.lower()
         # Should mention something relevant to the error
         assert any(
             term in response
@@ -142,10 +142,10 @@ class TestGeminiIntegration:
             user_prompt="Why might a login button timeout occur?",
         )
 
-        assert "response" in result
-        assert len(result["response"]) > 0
-        assert "input_tokens" in result
-        assert "output_tokens" in result
+        assert result.content is not None
+        assert len(result.content) > 0
+        assert result.input_tokens is not None
+        assert result.output_tokens is not None
 
     @pytest.mark.skipif(not has_google_key(), reason="GOOGLE_API_KEY not set")
     @pytest.mark.asyncio
@@ -159,8 +159,8 @@ class TestGeminiIntegration:
             user_prompt="Say hello.",
         )
 
-        assert "model" in result
-        assert "gemini" in result["model"].lower()
+        assert result.model is not None
+        assert "gemini" in result.model.lower()
 
 
 class TestOpenAIIntegration:
@@ -188,10 +188,10 @@ class TestOpenAIIntegration:
             user_prompt="Why might a login button timeout occur?",
         )
 
-        assert "response" in result
-        assert len(result["response"]) > 0
-        assert "input_tokens" in result
-        assert "output_tokens" in result
+        assert result.content is not None
+        assert len(result.content) > 0
+        assert result.input_tokens is not None
+        assert result.output_tokens is not None
 
     @pytest.mark.skipif(not has_openai_key(), reason="OPENAI_API_KEY not set")
     @pytest.mark.asyncio
@@ -205,8 +205,8 @@ class TestOpenAIIntegration:
             user_prompt="Say hello.",
         )
 
-        assert "model" in result
-        assert "gpt" in result["model"].lower()
+        assert result.model is not None
+        assert "gpt" in result.model.lower()
 
 
 class TestLLMRouterIntegration:
@@ -227,8 +227,8 @@ class TestLLMRouterIntegration:
             user_prompt="What is 2+2?",
         )
 
-        assert "response" in result
-        assert "4" in result["response"] or "four" in result["response"].lower()
+        assert result.content is not None
+        assert "4" in result.content or "four" in result.content.lower()
 
     @pytest.mark.skipif(not has_openai_key(), reason="OPENAI_API_KEY not set")
     @pytest.mark.asyncio
@@ -245,8 +245,8 @@ class TestLLMRouterIntegration:
             user_prompt="What is 2+2?",
         )
 
-        assert "response" in result
-        assert "4" in result["response"] or "four" in result["response"].lower()
+        assert result.content is not None
+        assert "4" in result.content or "four" in result.content.lower()
 
     @pytest.mark.skipif(not has_google_key(), reason="GOOGLE_API_KEY not set")
     @pytest.mark.asyncio
@@ -263,8 +263,8 @@ class TestLLMRouterIntegration:
             user_prompt="What is 2+2?",
         )
 
-        assert "response" in result
-        assert "4" in result["response"] or "four" in result["response"].lower()
+        assert result.content is not None
+        assert "4" in result.content or "four" in result.content.lower()
 
     @pytest.mark.skipif(
         not (has_anthropic_key() and has_openai_key()),
@@ -285,8 +285,8 @@ class TestLLMRouterIntegration:
             user_prompt="Say hello.",
         )
 
-        assert "response" in result
-        assert len(result["response"]) > 0
+        assert result.content is not None
+        assert len(result.content) > 0
 
 
 class TestAnalyzeServiceIntegration:

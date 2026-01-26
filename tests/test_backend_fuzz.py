@@ -107,7 +107,8 @@ def test_feedback_endpoints_fuzz(case):
         raise
     # May fail with 500 if DB not configured, that's expected
     # 405 = Method Not Allowed (valid for wrong HTTP method)
-    assert response.status_code in (200, 201, 404, 405, 422, 500)
+    # 429 = Rate limited (valid during fuzz testing)
+    assert response.status_code in (200, 201, 404, 405, 422, 429, 500)
 
 
 # Fuzz test for tasks endpoints
@@ -121,7 +122,8 @@ def test_tasks_endpoints_fuzz(case):
         raise
     # Should validate and reject bad input, or fail gracefully if DB not configured
     # 405 = Method Not Allowed (valid for wrong HTTP method)
-    assert response.status_code in (200, 201, 404, 405, 422, 500)
+    # 429 = Rate limited (valid during fuzz testing)
+    assert response.status_code in (200, 201, 404, 405, 422, 429, 500)
 
 
 # Fuzz test for usage endpoints
@@ -135,7 +137,8 @@ def test_usage_endpoints_fuzz(case):
         raise
     # 422 for validation errors, 500 if DB not configured
     # 405 = Method Not Allowed (valid for wrong HTTP method)
-    assert response.status_code in (200, 405, 422, 500)
+    # 429 = Rate limited (valid during fuzz testing)
+    assert response.status_code in (200, 405, 422, 429, 500)
 
 
 # Full API fuzz test - test everything

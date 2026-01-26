@@ -119,8 +119,10 @@ class TestGeminiProviderAnalyze:
             user_prompt="Analyze this test failure.",
         )
 
-        assert isinstance(result, dict)
-        assert "response" in result
+        from heisenberg.llm.models import LLMAnalysis
+
+        assert isinstance(result, LLMAnalysis)
+        assert result.content is not None
 
     @pytest.mark.asyncio
     async def test_analyze_returns_token_counts(self, mocker):
@@ -151,10 +153,10 @@ class TestGeminiProviderAnalyze:
             user_prompt="User",
         )
 
-        assert "input_tokens" in result
-        assert "output_tokens" in result
-        assert result["input_tokens"] >= 0
-        assert result["output_tokens"] >= 0
+        assert result.input_tokens is not None
+        assert result.output_tokens is not None
+        assert result.input_tokens >= 0
+        assert result.output_tokens >= 0
 
     @pytest.mark.asyncio
     async def test_analyze_returns_model_info(self, mocker):
@@ -185,7 +187,7 @@ class TestGeminiProviderAnalyze:
             user_prompt="User",
         )
 
-        assert "model" in result
+        assert result.model is not None
 
 
 class TestGeminiFactoryFunction:
