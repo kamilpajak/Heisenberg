@@ -1,7 +1,8 @@
 # The Heisenberg
 
 [![CI](https://github.com/kamilpajak/heisenberg/actions/workflows/ci.yml/badge.svg)](https://github.com/kamilpajak/heisenberg/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/kamilpajak/heisenberg/branch/main/graph/badge.svg)](https://codecov.io/gh/kamilpajak/heisenberg)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamilpajak_Heisenberg&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamilpajak_Heisenberg)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=kamilpajak_Heisenberg&metric=coverage)](https://sonarcloud.io/summary/new_code?id=kamilpajak_Heisenberg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **AI Root Cause Analysis for E2E Test Failures**
