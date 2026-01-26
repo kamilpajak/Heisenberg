@@ -962,7 +962,7 @@ class TestRunFetchGithubCommand:
             output=None,
             artifact_name="playwright",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=False,
             merge_blobs=False,
             include_logs=False,
@@ -990,7 +990,7 @@ class TestRunFetchGithubCommand:
             output=None,
             artifact_name="playwright",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=False,
             merge_blobs=False,
             include_logs=False,
@@ -1017,7 +1017,7 @@ class TestRunFetchGithubCommand:
             output=None,
             artifact_name="playwright",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=True,
             merge_blobs=False,
             include_logs=False,
@@ -1047,7 +1047,7 @@ class TestRunFetchGithubCommand:
             output=None,
             artifact_name="playwright",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=True,
             merge_blobs=False,
             include_logs=False,
@@ -1079,7 +1079,7 @@ class TestRunFetchGithubCommand:
             output=output_file,
             artifact_name="playwright",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=False,
             merge_blobs=False,
             include_logs=False,
@@ -1112,7 +1112,7 @@ class TestRunFetchGithubCommand:
             output=None,
             artifact_name="playwright",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=False,
             merge_blobs=False,
             include_logs=False,
@@ -1145,7 +1145,7 @@ class TestRunFetchGithubCommand:
             output=None,
             artifact_name="playwright",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=False,
             merge_blobs=False,
             include_logs=True,
@@ -1188,7 +1188,7 @@ class TestRunFetchGithubCommand:
             output=None,
             artifact_name="playwright",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=False,
             merge_blobs=True,
             include_logs=False,
@@ -1219,7 +1219,7 @@ class TestRunFetchGithubCommand:
             output=None,
             artifact_name="playwright",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=False,
             merge_blobs=False,
             include_logs=False,
@@ -1260,7 +1260,7 @@ class TestRunFetchGithubCommand:
             output=None,
             artifact_name="playwright",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=False,
             merge_blobs=False,
             include_logs=False,
@@ -1319,7 +1319,7 @@ class TestAnalyzeReportData:
 
         args = argparse.Namespace(
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -1346,7 +1346,7 @@ class TestAnalyzeReportData:
 
         args = argparse.Namespace(
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -1371,7 +1371,7 @@ class TestAnalyzeReportData:
 
         args = argparse.Namespace(
             ai_analysis=True,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -1424,7 +1424,7 @@ class TestAnalyzeReportData:
 
         args = argparse.Namespace(
             ai_analysis=True,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 

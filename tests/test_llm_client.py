@@ -203,7 +203,7 @@ class TestLLMResponse:
             input_tokens=100,
             output_tokens=50,
             model="claude-3-5-sonnet-20241022",
-            provider="claude",
+            provider="anthropic",
         )
 
         # Then
@@ -217,7 +217,7 @@ class TestLLMResponse:
             input_tokens=1000,
             output_tokens=500,
             model="claude-3-5-sonnet-20241022",
-            provider="claude",
+            provider="anthropic",
         )
 
         # Then
@@ -233,7 +233,7 @@ class TestLLMResponse:
             input_tokens=1000,
             output_tokens=500,
             model="claude-3-5-sonnet-20241022",
-            provider="claude",
+            provider="anthropic",
         )
 
         # Then

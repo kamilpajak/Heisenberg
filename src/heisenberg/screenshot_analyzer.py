@@ -106,14 +106,14 @@ Keep your description concise (2-4 sentences) and focus on details relevant to d
 
     def __init__(
         self,
-        provider: str = "gemini",
+        provider: str = "google",
         api_key: str | None = None,
         model: str | None = None,
     ):
         """Initialize the analyzer.
 
         Args:
-            provider: LLM provider (gemini recommended for vision).
+            provider: LLM provider (google recommended for vision).
             api_key: Optional API key.
             model: Optional specific model name.
         """

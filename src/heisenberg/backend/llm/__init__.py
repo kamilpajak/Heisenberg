@@ -23,7 +23,7 @@ def create_provider(provider_name: str, api_key: str) -> LLMProvider:
     Factory function to create LLM providers.
 
     Args:
-        provider_name: Name of the provider ("claude", "openai", or "gemini").
+        provider_name: Name of the provider ("anthropic", "openai", or "google").
         api_key: API key for the provider.
 
     Returns:
@@ -33,9 +33,9 @@ def create_provider(provider_name: str, api_key: str) -> LLMProvider:
         ValueError: If provider name is unknown.
     """
     providers = {
-        "claude": ClaudeProvider,
+        "anthropic": ClaudeProvider,
         "openai": OpenAIProvider,
-        "gemini": GeminiProvider,
+        "google": GeminiProvider,
     }
 
     if provider_name not in providers:

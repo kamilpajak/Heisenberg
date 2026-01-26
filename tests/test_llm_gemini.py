@@ -41,7 +41,7 @@ class TestGeminiProviderInit:
         from heisenberg.backend.llm import GeminiProvider
 
         provider = GeminiProvider(api_key="test-key")
-        assert provider.name == "gemini"
+        assert provider.name == "google"
 
     def test_gemini_provider_accepts_model(self):
         """GeminiProvider should accept custom model."""
@@ -197,15 +197,15 @@ class TestGeminiFactoryFunction:
         """create_provider should support 'gemini'."""
         from heisenberg.backend.llm import GeminiProvider, create_provider
 
-        provider = create_provider("gemini", "test-key")
+        provider = create_provider("google", "test-key")
         assert isinstance(provider, GeminiProvider)
 
     def test_create_provider_gemini_has_correct_name(self):
         """Created Gemini provider should have correct name."""
         from heisenberg.backend.llm import create_provider
 
-        provider = create_provider("gemini", "test-key")
-        assert provider.name == "gemini"
+        provider = create_provider("google", "test-key")
+        assert provider.name == "google"
 
 
 class TestGeminiConfig:

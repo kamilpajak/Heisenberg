@@ -188,7 +188,7 @@ heisenberg fetch-github --repo microsoft/playwright --merge-blobs --artifact-nam
 | `--output, -o` | Save report to file instead of analyzing |
 | `--artifact-name` | Artifact name pattern (default: `playwright`) |
 | `--ai-analysis, -a` | Enable AI analysis |
-| `--provider, -p` | LLM provider: `claude`, `openai`, `gemini` |
+| `--provider, -p` | LLM provider: `anthropic`, `openai`, `google` |
 | `--list-artifacts` | List available artifacts for debugging |
 | `--merge-blobs` | Merge Playwright blob reports (requires Node.js) |
 
@@ -201,7 +201,7 @@ heisenberg fetch-github --repo microsoft/playwright --merge-blobs --artifact-nam
 | `docker-services` | Comma-separated Docker service names | No | `""` |
 | `log-window-seconds` | Time window for log collection | No | `30` |
 | `ai-analysis` | Enable AI-powered analysis | No | `false` |
-| `ai-provider` | LLM provider: `claude`, `openai`, `gemini` | No | `claude` |
+| `ai-provider` | LLM provider: `anthropic`, `openai`, `google` | No | `anthropic` |
 | `anthropic-api-key` | Anthropic API key (for Claude) | No | `""` |
 | `openai-api-key` | OpenAI API key (for GPT-4) | No | `""` |
 | `google-api-key` | Google API key (for Gemini) | No | `""` |
@@ -258,6 +258,117 @@ HIGH (85%) - Strong correlation between database errors and test failure timing.
 3. **Correlate** - Events are aligned by timestamp to build a timeline
 4. **Analyze** - Claude AI examines all evidence to identify the root cause
 5. **Report** - A formatted analysis is posted as a PR comment
+
+## Privacy & Security
+
+Heisenberg is designed with a **"Bring Your Own Key" (BYOK)** model. Your data stays between you and your chosen LLM provider.
+
+### What Data Is Sent to the LLM?
+
+When AI analysis is enabled, Heisenberg sends only the **minimum context needed** for diagnosis:
+
+| Data Type | What's Sent | What's NOT Sent |
+|-----------|-------------|-----------------|
+| **Test Results** | Failed test names, error messages, stack traces | Passing tests, test source code |
+| **Playwright Traces** | Console errors, failed network requests, action timeline | Screenshots (unless vision analysis enabled), full network payloads |
+| **Docker Logs** | Logs within ±30s of failure, filtered for errors/warnings | Full container history, environment variables |
+| **Job Logs** | Relevant error sections from CI output | Full workflow logs, secrets |
+
+### Where Does the Data Go?
+
+```
+Your CI Environment → Heisenberg (processes locally) → LLM Provider API
+                                                        ↓
+                                              (Anthropic / OpenAI / Google)
+```
+
+- **Heisenberg does NOT store your data.** All processing happens in your CI runner or local machine.
+- **Data goes directly to your chosen LLM provider** using YOUR API key.
+- **No telemetry, no analytics, no phone-home.** The CLI/Action works fully offline (except for the LLM API call).
+
+### LLM Provider Data Policies
+
+Your data is subject to your LLM provider's policies:
+
+| Provider | Data Retention | Training Opt-Out |
+|----------|---------------|------------------|
+| **Anthropic (Claude)** | [API data not used for training](https://www.anthropic.com/policies/privacy-policy) | Default |
+| **OpenAI** | [API data not used for training](https://openai.com/policies/api-data-usage-policies) | Default |
+| **Google (Gemini)** | [Paid API data not used for training](https://ai.google.dev/terms) | Default for paid |
+
+### Security Best Practices
+
+1. **Use repository secrets** for API keys - never commit them to code
+2. **Limit Docker services** to only those needed for debugging
+3. **Review the log window** - default 30s is usually sufficient
+4. **Use environment-specific keys** - separate keys for CI vs. local development
+
+### For Enterprise / Regulated Environments
+
+If your organization has strict data residency or compliance requirements:
+
+- **Self-hosted LLM option** coming soon (Ollama, local Llama/Mistral)
+- **On-premise deployment** available in Enterprise tier
+- **Audit logs** for all AI analysis requests (Enterprise)
+
+> **Questions about data handling?** Open an issue or start a [Discussion](https://github.com/kamilpajak/heisenberg/discussions).
+
+## Cost Estimation
+
+Heisenberg uses your own API keys, so you pay only for what you use. Here's what to expect:
+
+### Typical Token Usage Per Analysis
+
+*Based on real-world measurements:*
+
+| Scenario | Input Tokens | Output Tokens | Total |
+|----------|-------------|---------------|-------|
+| **Small** (1-2 failures, no logs) | ~1,500 | ~400 | ~2,000 |
+| **Medium** (3-5 failures) | ~3,000 | ~800 | ~4,000 |
+| **Large** (10 failures)* | ~4,400 | ~1,300 | ~5,700 |
+| **XL** (10+ failures, Docker logs) | ~8,000 | ~2,000 | ~10,000 |
+
+*\*Measured on validation suite with 10 intentional failures*
+
+### Cost Per Analysis by Provider
+
+Based on measured "Large" scenario (~4,400 input + ~1,300 output tokens = 10 failures):
+
+| Provider | Model | Input/1M | Output/1M | Cost per Analysis | Monthly (100 runs) |
+|----------|-------|----------|-----------|-------------------|-------------------|
+| **Anthropic** | Claude Sonnet 4* | $3.00 | $15.00 | ~$0.03 | ~$3 |
+| **Anthropic** | Claude Haiku 4.5 | $1.00 | $5.00 | ~$0.01 | ~$1 |
+| **OpenAI** | GPT-5 | $5.00 | $15.00 | ~$0.04 | ~$4 |
+| **OpenAI** | GPT-5 mini | $0.40 | $1.60 | ~$0.004 | ~$0.40 |
+| **Google** | Gemini 3 Pro Preview** | $2.00 | $12.00 | ~$0.025 | ~$2.50 |
+
+*\*Default model for `--provider anthropic`*
+*\*\*Default model for `--provider google`*
+
+### Cost Optimization Tips
+
+1. **Start with budget models** - Claude Haiku 4.5 or GPT-5 mini are excellent for most failures
+2. **Use Sonnet/GPT-5 for complex cases** - when budget models miss the root cause
+3. **Filter Docker services** - only include services relevant to the failure
+4. **Adjust log window** - default 30s is usually enough, reduce if logs are verbose
+
+### Real-World Example
+
+A team running 50 CI pipelines/day with ~10% failure rate:
+- 5 failed runs/day × 30 days = **150 analyses/month**
+
+| Model | Cost/month | Notes |
+|-------|------------|-------|
+| GPT-5 mini | ~$0.60 | Best value for OpenAI |
+| Claude Haiku 4.5 | ~$1.50 | Fast, reliable |
+| Gemini 3 Pro Preview | ~$3.75 | Default for Gemini |
+| Claude Sonnet 4 | ~$4.50 | Default for Claude, excellent |
+| GPT-5 | ~$6.00 | Top-tier OpenAI |
+
+*Measured: 10 failures = ~5,700 tokens (~$0.03 with Sonnet)*
+
+> **Note:** Prices based on January 2026 API rates. Check provider pricing pages for current rates:
+> [Anthropic](https://www.anthropic.com/pricing) | [OpenAI](https://openai.com/api/pricing) | [Google](https://ai.google.dev/pricing)
 
 ## API Documentation
 

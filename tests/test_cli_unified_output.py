@@ -29,7 +29,7 @@ class TestCliUnifiedJsonOutput:
             post_comment=False,
             ai_analysis=False,
             use_unified=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -52,7 +52,7 @@ class TestCliUnifiedJsonOutput:
             post_comment=False,
             ai_analysis=False,
             use_unified=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -106,7 +106,7 @@ class TestCliUseUnifiedFlag:
                 post_comment=False,
                 ai_analysis=True,
                 use_unified=True,
-                provider="claude",
+                provider="anthropic",
                 model=None,
             )
 
@@ -147,7 +147,7 @@ class TestCliUseUnifiedFlag:
                 post_comment=False,
                 ai_analysis=True,
                 use_unified=False,
-                provider="claude",
+                provider="anthropic",
                 model=None,
                 container_logs=None,
             )

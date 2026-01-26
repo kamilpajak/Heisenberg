@@ -19,7 +19,7 @@ class OpenAIProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "gpt-4o",
+        model: str = "gpt-5",
         max_tokens: int = 4096,
     ) -> None:
         """

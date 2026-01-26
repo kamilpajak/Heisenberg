@@ -19,7 +19,7 @@ class ClaudeProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-3-5-sonnet-20241022",
+        model: str = "claude-sonnet-4-20250514",
         max_tokens: int = 4096,
     ) -> None:
         """
@@ -38,7 +38,7 @@ class ClaudeProvider(LLMProvider):
     @property
     def name(self) -> str:
         """Return the provider name."""
-        return "claude"
+        return "anthropic"
 
     async def analyze(
         self,

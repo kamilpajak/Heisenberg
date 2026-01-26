@@ -60,7 +60,7 @@ class TestLLMServiceFactory:
             "os.environ",
             {"ANTHROPIC_API_KEY": "test-key"},
         ):
-            service = create_llm_service(primary_provider="claude")
+            service = create_llm_service(primary_provider="anthropic")
 
         assert isinstance(service, LLMRouter)
 
@@ -77,7 +77,7 @@ class TestLLMServiceFactory:
             },
         ):
             service = create_llm_service(
-                primary_provider="claude",
+                primary_provider="anthropic",
                 fallback_provider="openai",
             )
 
@@ -90,7 +90,55 @@ class TestLLMServiceFactory:
 
         with patch.dict("os.environ", {}, clear=True):
             with pytest.raises(ValueError, match="API key"):
-                create_llm_service(primary_provider="claude")
+                create_llm_service(primary_provider="anthropic")
+
+    def test_create_llm_service_with_google_provider(self):
+        """create_llm_service should support Google provider."""
+        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.backend.services import create_llm_service
+
+        with patch.dict(
+            "os.environ",
+            {"GOOGLE_API_KEY": "test-google-key"},
+        ):
+            service = create_llm_service(primary_provider="google")
+
+        assert isinstance(service, LLMRouter)
+        assert service.providers[0].name == "google"
+
+    def test_create_llm_service_with_google_api_key_argument(self):
+        """create_llm_service should accept google_api_key argument."""
+        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.backend.services import create_llm_service
+
+        service = create_llm_service(
+            primary_provider="google",
+            google_api_key="test-google-key",
+        )
+
+        assert isinstance(service, LLMRouter)
+        assert service.providers[0].name == "google"
+
+    def test_create_llm_service_with_google_fallback(self):
+        """create_llm_service should support Google as fallback provider."""
+        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.backend.services import create_llm_service
+
+        with patch.dict(
+            "os.environ",
+            {
+                "ANTHROPIC_API_KEY": "test-key",
+                "GOOGLE_API_KEY": "test-google-key",
+            },
+        ):
+            service = create_llm_service(
+                primary_provider="anthropic",
+                fallback_provider="google",
+            )
+
+        assert isinstance(service, LLMRouter)
+        assert len(service.providers) == 2
+        assert service.providers[1].name == "google"
 
 
 class TestAnalyzeServiceWithLLMRouter:
@@ -266,7 +314,7 @@ class TestDependencyInjection:
 
         with patch("heisenberg.backend.dependencies.get_settings") as mock_settings:
             mock_settings.return_value = MagicMock(
-                llm_primary_provider="claude",
+                llm_primary_provider="anthropic",
                 llm_fallback_provider=None,
                 anthropic_api_key="test-key",
                 openai_api_key=None,

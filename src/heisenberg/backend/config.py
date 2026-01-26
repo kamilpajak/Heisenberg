@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     webhook_url: str | None = None
 
     # LLM Configuration
-    llm_primary_provider: str = "claude"
+    llm_primary_provider: str = "anthropic"
     llm_fallback_provider: str | None = None
 
     # External Services

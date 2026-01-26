@@ -15,6 +15,32 @@ from heisenberg.cli import formatters, github_fetch
 from heisenberg.github_client import post_pr_comment
 from heisenberg.unified_model import PlaywrightTransformer, UnifiedTestRun
 
+# Mapping of provider names to their required environment variables
+PROVIDER_API_KEY_ENV_VARS = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "google": "GOOGLE_API_KEY",
+}
+
+
+def validate_api_key_for_provider(provider: str) -> str | None:
+    """Validate that the API key is set for the given provider.
+
+    Args:
+        provider: The LLM provider name (anthropic, openai, google).
+
+    Returns:
+        None if valid, or error message string if invalid.
+    """
+    env_var = PROVIDER_API_KEY_ENV_VARS.get(provider)
+    if not env_var:
+        return f"Unknown provider: {provider}"
+
+    if not os.environ.get(env_var):
+        return f"{env_var} environment variable is not set. Set {env_var} to use --ai-analysis with {provider} provider."
+
+    return None
+
 
 def _load_container_logs(args, result):
     """Load container logs from file if provided."""
@@ -44,7 +70,7 @@ def _run_ai_analysis(args, result, container_logs):
         return analyze_with_ai(
             report=result.report,
             container_logs=container_logs,
-            provider=getattr(args, "provider", "claude"),
+            provider=getattr(args, "provider", "anthropic"),
             model=getattr(args, "model", None),
         )
     except Exception as e:
@@ -95,6 +121,14 @@ def run_analyze(args: argparse.Namespace) -> int:
     if not args.report.exists():
         print(f"Error: Report file not found: {args.report}", file=sys.stderr)
         return 1
+
+    # Validate API key early if AI analysis is requested (fail fast)
+    if getattr(args, "ai_analysis", False):
+        provider = getattr(args, "provider", "anthropic")
+        error = validate_api_key_for_provider(provider)
+        if error:
+            print(f"Error: {error}", file=sys.stderr)
+            return 1
 
     report_format = getattr(args, "report_format", "playwright")
 
@@ -199,7 +233,7 @@ def _analyze_report_data(
                     unified_run = convert_to_unified(result.report)
                     ai_result = analyze_unified_run(
                         unified_run,
-                        provider=getattr(args, "provider", "claude"),
+                        provider=getattr(args, "provider", "anthropic"),
                         model=getattr(args, "model", None),
                         job_logs_context=job_logs_context,
                         screenshot_context=screenshot_context,
@@ -208,7 +242,7 @@ def _analyze_report_data(
                 else:
                     ai_result = analyze_with_ai(
                         report=result.report,
-                        provider=getattr(args, "provider", "claude"),
+                        provider=getattr(args, "provider", "anthropic"),
                         model=getattr(args, "model", None),
                     )
             except Exception as e:
@@ -232,6 +266,14 @@ async def run_fetch_github(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
+
+    # Validate API key early if AI analysis is requested (fail fast)
+    if getattr(args, "ai_analysis", False):
+        provider = getattr(args, "provider", "anthropic")
+        error = validate_api_key_for_provider(provider)
+        if error:
+            print(f"Error: {error}", file=sys.stderr)
+            return 1
 
     repo_parts = args.repo.split("/")
     if len(repo_parts) != 2:

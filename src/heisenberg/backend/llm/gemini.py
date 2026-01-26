@@ -39,7 +39,7 @@ class GeminiProvider(LLMProvider):
     @property
     def name(self) -> str:
         """Return the provider name."""
-        return "gemini"
+        return "google"
 
     @property
     def model(self) -> str:

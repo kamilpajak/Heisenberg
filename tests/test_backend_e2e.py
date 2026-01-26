@@ -218,7 +218,7 @@ Clear error pattern indicates database connectivity issue.
 
         # Setup mock LLM
         mock_provider = MagicMock()
-        mock_provider.name = "claude"
+        mock_provider.name = "anthropic"
         mock_provider.analyze = AsyncMock(
             return_value=_mock_llm_analysis(
                 content=llm_response,
@@ -277,7 +277,7 @@ Partial information available.
 
         # Primary fails with recoverable error
         mock_primary = MagicMock()
-        mock_primary.name = "claude"
+        mock_primary.name = "anthropic"
         mock_primary.analyze = AsyncMock(side_effect=httpx.ConnectError("API rate limited"))
 
         # Fallback succeeds

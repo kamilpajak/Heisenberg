@@ -35,14 +35,14 @@ class TestLLMAnalysisModel:
             input_tokens=100,
             output_tokens=50,
             model="claude-3-5-sonnet-20241022",
-            provider="claude",
+            provider="anthropic",
         )
 
         assert analysis.content == "Test response"
         assert analysis.input_tokens == 100
         assert analysis.output_tokens == 50
         assert analysis.model == "claude-3-5-sonnet-20241022"
-        assert analysis.provider == "claude"
+        assert analysis.provider == "anthropic"
 
     def test_llm_analysis_total_tokens_property(self):
         """LLMAnalysis should have total_tokens property."""
@@ -67,7 +67,7 @@ class TestLLMAnalysisModel:
             input_tokens=1_000_000,  # 1M tokens
             output_tokens=1_000_000,  # 1M tokens
             model="claude-3-5-sonnet-20241022",
-            provider="claude",
+            provider="anthropic",
         )
 
         # Claude 3.5 Sonnet: $3/1M input, $15/1M output

@@ -51,7 +51,7 @@ class TestAnthropicIntegration:
 
         provider = ClaudeProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
         assert provider is not None
-        assert provider.name == "claude"
+        assert provider.name == "anthropic"
 
     @pytest.mark.skipif(not has_anthropic_key(), reason="ANTHROPIC_API_KEY not set")
     @pytest.mark.asyncio
@@ -128,7 +128,7 @@ class TestGeminiIntegration:
 
         provider = GeminiProvider(api_key=os.environ["GOOGLE_API_KEY"])
         assert provider is not None
-        assert provider.name == "gemini"
+        assert provider.name == "google"
 
     @pytest.mark.skipif(not has_google_key(), reason="GOOGLE_API_KEY not set")
     @pytest.mark.asyncio
