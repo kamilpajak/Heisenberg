@@ -11,9 +11,9 @@ This module provides functionality to:
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
-import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
@@ -132,31 +132,30 @@ async def merge_blob_reports(
 
         # Run playwright merge-reports with output redirected to file
         try:
-            with open(output_file, "w") as f:
-                result = subprocess.run(
-                    [
-                        "npx",
-                        "playwright",
-                        "merge-reports",
-                        "--reporter",
-                        output_format,
-                        str(blob_dir),
-                    ],
+            with output_file.open("w") as f:
+                proc = await asyncio.create_subprocess_exec(
+                    "npx",
+                    "playwright",
+                    "merge-reports",
+                    "--reporter",
+                    output_format,
+                    str(blob_dir),
                     stdout=f,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    timeout=120,
+                    stderr=asyncio.subprocess.PIPE,
                     cwd=temp_dir,
                 )
+                try:
+                    _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+                except TimeoutError as e:
+                    proc.kill()
+                    raise BlobMergeError("Merge operation timed out") from e
         except FileNotFoundError as e:
             raise BlobMergeError(
                 "npx not found. Please install Node.js and Playwright: npm install -D @playwright/test"
             ) from e
-        except subprocess.TimeoutExpired as e:
-            raise BlobMergeError("Merge operation timed out") from e
 
-        if result.returncode != 0:
-            raise BlobMergeError(f"Merge failed: {result.stderr}")
+        if proc.returncode != 0:
+            raise BlobMergeError(f"Merge failed: {stderr.decode() if stderr else 'Unknown error'}")
 
         # Read JSON from output file
         if not output_file.exists() or output_file.stat().st_size == 0:

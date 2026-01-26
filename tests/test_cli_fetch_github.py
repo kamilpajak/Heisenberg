@@ -453,31 +453,37 @@ class TestMergeBlobsFunctionality:
 
         from heisenberg.blob_merger import merge_blob_reports
 
-        # Mock subprocess.run to write output file (simulating playwright behavior)
-        def mock_subprocess_run(*args, **kwargs):
-            # Find the output file path from the temp directory
+        # Track calls for assertion
+        called_args = []
+
+        # Mock asyncio.create_subprocess_exec to write output file
+        async def mock_create_subprocess(*args, **kwargs):
+            called_args.append(args)
             cwd = kwargs.get("cwd")
             if cwd:
                 output_file = Path(cwd) / "merged-report.json"
                 output_file.write_text(json.dumps(merged_report_json))
 
-            class MockResult:
+            class MockProcess:
                 returncode = 0
-                stderr = ""
 
-            return MockResult()
+                async def communicate(self):
+                    return b"", b""
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run) as mock_run:
+            return MockProcess()
+
+        with patch(
+            "asyncio.create_subprocess_exec", side_effect=mock_create_subprocess
+        ) as mock_exec:
             await merge_blob_reports(
                 blob_files=[b"blob1.jsonl content"],
                 output_format="json",
             )
 
             # Should have called npx playwright merge-reports
-            mock_run.assert_called_once()
-            call_args = mock_run.call_args
-            assert "playwright" in str(call_args)
-            assert "merge-reports" in str(call_args)
+            mock_exec.assert_called_once()
+            assert "playwright" in str(called_args)
+            assert "merge-reports" in str(called_args)
 
     @pytest.mark.asyncio
     async def test_merge_blobs_returns_parsed_json(self, merged_report_json):
@@ -487,20 +493,22 @@ class TestMergeBlobsFunctionality:
 
         from heisenberg.blob_merger import merge_blob_reports
 
-        # Mock subprocess.run to write output file
-        def mock_subprocess_run(*args, **kwargs):
+        # Mock asyncio.create_subprocess_exec to write output file
+        async def mock_create_subprocess(*args, **kwargs):
             cwd = kwargs.get("cwd")
             if cwd:
                 output_file = Path(cwd) / "merged-report.json"
                 output_file.write_text(json.dumps(merged_report_json))
 
-            class MockResult:
+            class MockProcess:
                 returncode = 0
-                stderr = ""
 
-            return MockResult()
+                async def communicate(self):
+                    return b"", b""
 
-        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            return MockProcess()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess):
             result = await merge_blob_reports(
                 blob_files=[b"blob content"],
                 output_format="json",
@@ -515,8 +523,8 @@ class TestMergeBlobsFunctionality:
         """Should raise clear error when npx/playwright not available."""
         from heisenberg.blob_merger import BlobMergeError, merge_blob_reports
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = FileNotFoundError("npx not found")
+        with patch("asyncio.create_subprocess_exec") as mock_exec:
+            mock_exec.side_effect = FileNotFoundError("npx not found")
 
             with pytest.raises(BlobMergeError) as exc_info:
                 await merge_blob_reports(blob_files=[b"blob"])
@@ -530,10 +538,16 @@ class TestMergeBlobsFunctionality:
         """Should raise error when merge-reports fails."""
         from heisenberg.blob_merger import BlobMergeError, merge_blob_reports
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value.returncode = 1
-            mock_run.return_value.stderr = "Error: No blob reports found"
+        async def mock_create_subprocess(*args, **kwargs):
+            class MockProcess:
+                returncode = 1
 
+                async def communicate(self):
+                    return b"", b"Error: No blob reports found"
+
+            return MockProcess()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess):
             with pytest.raises(BlobMergeError) as exc_info:
                 await merge_blob_reports(blob_files=[b"blob"])
 
