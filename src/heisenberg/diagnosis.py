@@ -83,49 +83,62 @@ def _extract_evidence(response: str) -> list[str]:
 
 def _extract_confidence(response: str) -> tuple[ConfidenceLevel, str | None]:
     """Extract confidence level and explanation from response."""
-    # Look for confidence section - use split-based approach to avoid regex backtracking
-    confidence_text = _extract_section(response, "Confidence", "##")
+    confidence_text = _find_confidence_section(response)
+
     if not confidence_text:
-        # Try alternative headers
-        for header in ["Confidence Score", "Confidence Level"]:
-            confidence_text = _extract_section(response, header, "##")
-            if confidence_text:
-                break
-
-    match = bool(confidence_text)
-
-    if not match:
         return ConfidenceLevel.UNKNOWN, None
 
     confidence_text = confidence_text.strip()
+    level = _determine_confidence_level(confidence_text)
+    explanation = _extract_confidence_explanation(confidence_text)
 
-    # Determine confidence level
-    level = ConfidenceLevel.UNKNOWN
-    upper_text = confidence_text.upper()
+    return level, explanation
 
-    if "HIGH" in upper_text:
-        level = ConfidenceLevel.HIGH
-    elif "MEDIUM" in upper_text:
-        level = ConfidenceLevel.MEDIUM
-    elif "LOW" in upper_text:
-        level = ConfidenceLevel.LOW
 
-    # Extract explanation (everything after the confidence level line)
-    lines = confidence_text.split("\n")
+def _find_confidence_section(response: str) -> str:
+    """Find confidence section using various header patterns."""
+    headers = ["Confidence", "Confidence Score", "Confidence Level"]
+    for header in headers:
+        section = _extract_section(response, header, "##")
+        if section:
+            return section
+    return ""
+
+
+def _determine_confidence_level(text: str) -> ConfidenceLevel:
+    """Determine confidence level from text content."""
+    upper_text = text.upper()
+    level_mapping = [
+        ("HIGH", ConfidenceLevel.HIGH),
+        ("MEDIUM", ConfidenceLevel.MEDIUM),
+        ("LOW", ConfidenceLevel.LOW),
+    ]
+    for keyword, level in level_mapping:
+        if keyword in upper_text:
+            return level
+    return ConfidenceLevel.UNKNOWN
+
+
+def _extract_confidence_explanation(text: str) -> str | None:
+    """Extract explanation text after confidence level line."""
+    lines = text.split("\n")
     explanation_lines = []
     found_level = False
 
     for line in lines:
-        line_upper = line.upper()
-        if any(word in line_upper for word in ["HIGH", "MEDIUM", "LOW"]):
+        if _line_contains_level(line):
             found_level = True
             continue
         if found_level and line.strip():
             explanation_lines.append(line.strip())
 
-    explanation = " ".join(explanation_lines) if explanation_lines else None
+    return " ".join(explanation_lines) if explanation_lines else None
 
-    return level, explanation
+
+def _line_contains_level(line: str) -> bool:
+    """Check if line contains a confidence level keyword."""
+    line_upper = line.upper()
+    return any(word in line_upper for word in ["HIGH", "MEDIUM", "LOW"])
 
 
 def _extract_fallback_root_cause(response: str) -> str:

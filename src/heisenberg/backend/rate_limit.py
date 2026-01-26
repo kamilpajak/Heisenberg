@@ -98,7 +98,7 @@ class SlidingWindowRateLimiter:
 
         stale_keys: list[str] = []
 
-        for key, timestamps in list(self.requests.items()):
+        for key, timestamps in self.requests.items():
             # Filter out old timestamps
             fresh = [t for t in timestamps if t > window_start]
             if fresh:
