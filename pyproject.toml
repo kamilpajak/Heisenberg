@@ -48,6 +48,7 @@ dev = [
     "schemathesis>=3.38.0",
     "asgi-lifespan>=2.1.0",
     "python-semantic-release>=9.0.0",
+    "mutmut>=3.0.0",
 ]
 
 [project.scripts]
@@ -142,3 +143,26 @@ upload_to_vcs_release = true
 dev = [
     "greenlet>=3.3.1",
 ]
+
+# Mutation Testing Configuration (mutmut 3.x)
+[tool.mutmut]
+# Default scope: core logic modules (must be arrays!)
+paths_to_mutate = ["src/heisenberg"]
+
+# Exclude CLI, backend, entry points (they generate noise, not core logic)
+exclude_paths = [
+    "src/heisenberg/cli",
+    "src/heisenberg/backend",
+    "src/heisenberg/__init__.py",
+    "src/heisenberg/__main__.py",
+    "src/heisenberg/cli.py",
+]
+
+# Test runner: -x stops on first failure (CRITICAL for speed)
+runner = "uv run pytest -x --assert=plain -q --tb=no"
+
+# Tests directory (must be array!)
+tests_dir = ["tests"]
+
+# Timeout: mutants taking longer than baseline * factor are killed
+timeout_factor = 2.0
