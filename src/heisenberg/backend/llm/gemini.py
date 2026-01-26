@@ -9,6 +9,7 @@ from google.genai import types
 
 from heisenberg.backend.llm.base import LLMProvider
 from heisenberg.backend.logging import get_logger
+from heisenberg.llm.models import LLMAnalysis
 
 logger = get_logger(__name__)
 
@@ -54,7 +55,7 @@ class GeminiProvider(LLMProvider):
         system_prompt: str,
         user_prompt: str,
         **kwargs: Any,
-    ) -> dict[str, Any]:
+    ) -> LLMAnalysis:
         """
         Analyze test failure using Gemini.
 
@@ -64,7 +65,7 @@ class GeminiProvider(LLMProvider):
             **kwargs: Additional arguments (model, max_tokens).
 
         Returns:
-            Dictionary with response, input_tokens, output_tokens.
+            LLMAnalysis with response content and token usage.
         """
         model_name = kwargs.get("model", self._model)
         max_tokens = kwargs.get("max_tokens", self._max_tokens)
@@ -93,17 +94,18 @@ class GeminiProvider(LLMProvider):
             input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0) or 0
             output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0) or 0
 
-        result = {
-            "response": response.text,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "model": model_name,
-        }
+        result = LLMAnalysis(
+            content=response.text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            model=model_name,
+            provider=self.name,
+        )
 
         logger.debug(
             "gemini_analyze_response",
-            input_tokens=result["input_tokens"],
-            output_tokens=result["output_tokens"],
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
         )
 
         return result
@@ -113,6 +115,6 @@ class GeminiProvider(LLMProvider):
         system_prompt: str,
         user_prompt: str,
         **kwargs: Any,
-    ) -> dict[str, Any]:
+    ) -> LLMAnalysis:
         """Internal API call method for mocking in tests."""
         return await self.analyze(system_prompt, user_prompt, **kwargs)

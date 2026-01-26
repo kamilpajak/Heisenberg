@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Google Gemini as third LLM provider option
 - Updated default Gemini model to `gemini-3-pro-preview`
 
+#### Unified Model
+- Framework-agnostic `UnifiedTestRun` model for multi-framework support
+- JUnit XML parser for broader test framework compatibility
+- `PlaywrightTransformer` for converting Playwright reports to unified format
+
 #### GitHub Action
 - Reusable GitHub Action for test analysis in CI/CD pipelines
 - GitHub artifacts support for fetching Playwright reports directly from workflow runs
@@ -27,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Self-generating validation tests (Phase 1)
 
 ### Changed
+
+#### CLI Modular Refactoring
+- Decomposed monolithic `cli.py` into modular `cli/` package
+- Separated concerns: `commands.py`, `formatters.py`, `github_fetch.py`, `parsers.py`
+- Improved maintainability and testability
 
 #### Backend Improvements
 - Major backend refactoring (phases 1-4): LLM client consolidation, shared models, improved architecture
@@ -45,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SonarCloud code smells, bugs, and security hotspots
 - Regex pattern using negative lookahead instead of reluctant quantifier
 - Backend dependencies installation in CI
+- Cognitive complexity in `diagnosis.py` (refactored `_extract_confidence`)
+- Unnecessary `list()` wrapper in `rate_limit.py`
 
 ### Documentation
 - Comprehensive API documentation

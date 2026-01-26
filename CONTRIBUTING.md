@@ -90,8 +90,14 @@ At least one AI provider key is required for AI analysis features.
 ```
 src/heisenberg/
 ├── __init__.py              # Package version
-├── cli.py                   # Command-line interface
+├── cli/                     # Command-line interface (modular)
+│   ├── __init__.py          # CLI entry point and exports
+│   ├── commands.py          # analyze and fetch-github commands
+│   ├── formatters.py        # Output formatting (text, JSON, markdown)
+│   ├── github_fetch.py      # GitHub API interactions
+│   └── parsers.py           # Report parsing utilities
 ├── playwright_parser.py     # Playwright report parsing
+├── unified_model.py         # Framework-agnostic failure model
 ├── docker_logs.py           # Docker log collection
 ├── log_compressor.py        # Log filtering and compression
 ├── llm_client.py            # LLM client (CLI)
@@ -121,7 +127,7 @@ src/heisenberg/
 
 ## Testing
 
-We use pytest and maintain **100% code coverage** with 848+ tests.
+We use pytest and maintain **100% code coverage** with 1100+ tests.
 
 ### Running Tests
 

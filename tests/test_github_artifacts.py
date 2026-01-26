@@ -436,3 +436,337 @@ class TestFetchAndAnalyzeIntegration:
 
                     assert report is not None
                     assert report["stats"]["unexpected"] == 2
+
+
+class TestBlobReportExtraction:
+    """Test extraction of blob reports (nested ZIP files from sharded Playwright runs).
+
+    Blob reports are used by Playwright when running tests in shards. The structure is:
+    artifact.zip
+    └── report-shard-1.zip
+        └── report.json
+    """
+
+    def _create_nested_zip(self, inner_filename: str, report_data: dict) -> bytes:
+        """Helper to create a nested ZIP structure (blob report format)."""
+        # Create inner ZIP with report
+        inner_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner_zip_buffer, "w") as inner_zf:
+            inner_zf.writestr("report.json", json.dumps(report_data))
+        inner_zip_content = inner_zip_buffer.getvalue()
+
+        # Create outer ZIP containing the inner ZIP
+        outer_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(outer_zip_buffer, "w") as outer_zf:
+            outer_zf.writestr(inner_filename, inner_zip_content)
+
+        return outer_zip_buffer.getvalue()
+
+    def test_extracts_report_from_nested_zip(self):
+        """Should extract Playwright report from nested ZIP (blob report)."""
+        client = GitHubArtifactClient(token="test-token")
+
+        report_data = {
+            "suites": [{"title": "test suite"}],
+            "stats": {"expected": 10, "unexpected": 2, "flaky": 1, "skipped": 0},
+        }
+
+        nested_zip = self._create_nested_zip("report-chromium-shard-1.zip", report_data)
+
+        result = client.extract_playwright_report(nested_zip)
+
+        assert result is not None
+        assert "suites" in result
+        assert result["stats"]["unexpected"] == 2
+
+    def test_extracts_report_from_deeply_nested_zip(self):
+        """Should handle multiple levels of nesting if needed."""
+        client = GitHubArtifactClient(token="test-token")
+
+        report_data = {
+            "suites": [],
+            "stats": {"expected": 5, "unexpected": 0, "flaky": 0, "skipped": 1},
+        }
+
+        # Create double-nested ZIP
+        inner_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner_zip_buffer, "w") as zf:
+            zf.writestr("results.json", json.dumps(report_data))
+        inner_zip = inner_zip_buffer.getvalue()
+
+        middle_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(middle_zip_buffer, "w") as zf:
+            zf.writestr("shard-report.zip", inner_zip)
+        middle_zip = middle_zip_buffer.getvalue()
+
+        outer_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(outer_zip_buffer, "w") as zf:
+            zf.writestr("blob-report.zip", middle_zip)
+        outer_zip = outer_zip_buffer.getvalue()
+
+        result = client.extract_playwright_report(outer_zip)
+
+        assert result is not None
+        assert result["stats"]["skipped"] == 1
+
+    def test_prefers_json_over_nested_zip_when_both_present(self):
+        """When both JSON and nested ZIP exist, should prefer direct JSON."""
+        client = GitHubArtifactClient(token="test-token")
+
+        direct_report = {
+            "suites": [],
+            "stats": {"expected": 100, "unexpected": 0, "flaky": 0, "skipped": 0},
+        }
+        nested_report = {
+            "suites": [],
+            "stats": {"expected": 50, "unexpected": 5, "flaky": 0, "skipped": 0},
+        }
+
+        # Create inner ZIP
+        inner_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner_zip_buffer, "w") as zf:
+            zf.writestr("report.json", json.dumps(nested_report))
+        inner_zip = inner_zip_buffer.getvalue()
+
+        # Create outer ZIP with both direct JSON and nested ZIP
+        outer_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(outer_zip_buffer, "w") as zf:
+            zf.writestr("test-results.json", json.dumps(direct_report))
+            zf.writestr("blob-report.zip", inner_zip)
+        outer_zip = outer_zip_buffer.getvalue()
+
+        result = client.extract_playwright_report(outer_zip)
+
+        assert result is not None
+        # Should get the direct JSON (100 expected), not nested (50 expected)
+        assert result["stats"]["expected"] == 100
+
+    def test_handles_multiple_nested_zips(self):
+        """Should handle artifact with multiple shard ZIPs (picks first valid one)."""
+        client = GitHubArtifactClient(token="test-token")
+
+        report1 = {"suites": [], "stats": {"expected": 10, "unexpected": 1}}
+        report2 = {"suites": [], "stats": {"expected": 20, "unexpected": 2}}
+
+        # Create two inner ZIPs
+        inner1_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner1_buffer, "w") as zf:
+            zf.writestr("report.json", json.dumps(report1))
+
+        inner2_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner2_buffer, "w") as zf:
+            zf.writestr("report.json", json.dumps(report2))
+
+        # Create outer ZIP with multiple shard ZIPs
+        outer_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(outer_zip_buffer, "w") as zf:
+            zf.writestr("report-shard-1.zip", inner1_buffer.getvalue())
+            zf.writestr("report-shard-2.zip", inner2_buffer.getvalue())
+        outer_zip = outer_zip_buffer.getvalue()
+
+        result = client.extract_playwright_report(outer_zip)
+
+        assert result is not None
+        assert "stats" in result
+        # Should get one of the reports (implementation may vary on which)
+        assert result["stats"]["unexpected"] in [1, 2]
+
+    def test_returns_none_when_nested_zip_has_no_report(self):
+        """Should return None if nested ZIP doesn't contain a Playwright report."""
+        client = GitHubArtifactClient(token="test-token")
+
+        # Create inner ZIP without valid report
+        inner_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner_zip_buffer, "w") as zf:
+            zf.writestr("config.json", '{"not": "a report"}')
+        inner_zip = inner_zip_buffer.getvalue()
+
+        outer_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(outer_zip_buffer, "w") as zf:
+            zf.writestr("blob-report.zip", inner_zip)
+        outer_zip = outer_zip_buffer.getvalue()
+
+        result = client.extract_playwright_report(outer_zip)
+
+        assert result is None
+
+    def test_handles_corrupted_nested_zip(self):
+        """Should gracefully handle corrupted nested ZIP files."""
+        client = GitHubArtifactClient(token="test-token")
+
+        outer_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(outer_zip_buffer, "w") as zf:
+            zf.writestr("corrupted.zip", b"not a valid zip file content")
+        outer_zip = outer_zip_buffer.getvalue()
+
+        # Should not raise, just return None
+        result = client.extract_playwright_report(outer_zip)
+
+        assert result is None
+
+    def test_blob_report_naming_patterns(self):
+        """Should recognize common blob report naming patterns."""
+        client = GitHubArtifactClient(token="test-token")
+
+        report_data = {"suites": [], "stats": {"expected": 1, "unexpected": 0}}
+
+        # Test various naming patterns used by Playwright blob reports
+        patterns = [
+            "report-chromium-ubuntu-22.04-node20-0.zip",
+            "blob-report-firefox.zip",
+            "shard-1-of-4.zip",
+            "test-results-webkit.zip",
+        ]
+
+        for pattern in patterns:
+            nested_zip = self._create_nested_zip(pattern, report_data)
+            result = client.extract_playwright_report(nested_zip)
+
+            assert result is not None, f"Failed to extract from pattern: {pattern}"
+            assert "suites" in result
+
+    def test_respects_max_depth_limit(self):
+        """Should stop recursion when max_depth is reached."""
+        client = GitHubArtifactClient(token="test-token")
+
+        report_data = {"suites": [], "stats": {"expected": 1, "unexpected": 0}}
+
+        # Create triple-nested ZIP (depth 3)
+        level3 = io.BytesIO()
+        with zipfile.ZipFile(level3, "w") as zf:
+            zf.writestr("report.json", json.dumps(report_data))
+
+        level2 = io.BytesIO()
+        with zipfile.ZipFile(level2, "w") as zf:
+            zf.writestr("inner.zip", level3.getvalue())
+
+        level1 = io.BytesIO()
+        with zipfile.ZipFile(level1, "w") as zf:
+            zf.writestr("outer.zip", level2.getvalue())
+
+        outer_zip = level1.getvalue()
+
+        # With max_depth=3 (default), should find it
+        result = client.extract_playwright_report(outer_zip, max_depth=3)
+        assert result is not None
+
+        # With max_depth=2, should NOT find it (too shallow)
+        result = client.extract_playwright_report(outer_zip, max_depth=2)
+        assert result is None
+
+    def test_empty_nested_zip(self):
+        """Should handle empty nested ZIP files gracefully."""
+        client = GitHubArtifactClient(token="test-token")
+
+        # Create empty inner ZIP
+        inner_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner_zip_buffer, "w"):
+            pass  # Empty ZIP
+
+        outer_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(outer_zip_buffer, "w") as zf:
+            zf.writestr("empty.zip", inner_zip_buffer.getvalue())
+
+        result = client.extract_playwright_report(outer_zip_buffer.getvalue())
+
+        assert result is None
+
+
+class TestJsonlReportExtraction:
+    """Test extraction of JSONL format reports (Playwright blob report format).
+
+    Playwright blob reports use JSONL (JSON Lines) format where each line
+    is a separate JSON object containing different parts of the report.
+    """
+
+    def _create_jsonl_content(self, objects: list[dict]) -> str:
+        """Create JSONL content from list of objects."""
+        return "\n".join(json.dumps(obj) for obj in objects)
+
+    def test_extracts_report_from_jsonl_file(self):
+        """Should extract Playwright report from JSONL file in nested ZIP."""
+        client = GitHubArtifactClient(token="test-token")
+
+        # JSONL format: multiple JSON objects, one per line
+        # First object typically contains metadata, subsequent contain test results
+        jsonl_objects = [
+            {"metadata": {"version": 1}},
+            {"suites": [{"title": "test"}], "stats": {"expected": 5, "unexpected": 1}},
+        ]
+
+        inner_zip = io.BytesIO()
+        with zipfile.ZipFile(inner_zip, "w") as zf:
+            zf.writestr("report.jsonl", self._create_jsonl_content(jsonl_objects))
+
+        outer_zip = io.BytesIO()
+        with zipfile.ZipFile(outer_zip, "w") as zf:
+            zf.writestr("blob-report.zip", inner_zip.getvalue())
+
+        result = client.extract_playwright_report(outer_zip.getvalue())
+
+        assert result is not None
+        assert "suites" in result or "stats" in result
+
+    def test_finds_jsonl_in_flat_zip(self):
+        """Should find JSONL file even in flat ZIP structure."""
+        client = GitHubArtifactClient(token="test-token")
+
+        jsonl_objects = [
+            {"stats": {"expected": 10, "unexpected": 2, "flaky": 0, "skipped": 1}},
+        ]
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("test-results.jsonl", self._create_jsonl_content(jsonl_objects))
+
+        result = client.extract_playwright_report(zip_buffer.getvalue())
+
+        assert result is not None
+        assert result["stats"]["unexpected"] == 2
+
+    def test_prefers_json_over_jsonl(self):
+        """Should prefer .json over .jsonl when both exist."""
+        client = GitHubArtifactClient(token="test-token")
+
+        json_report = {"suites": [], "stats": {"expected": 100, "unexpected": 0}}
+        jsonl_report = [{"stats": {"expected": 50, "unexpected": 5}}]
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report.json", json.dumps(json_report))
+            zf.writestr("report.jsonl", self._create_jsonl_content(jsonl_report))
+
+        result = client.extract_playwright_report(zip_buffer.getvalue())
+
+        assert result is not None
+        # Should get JSON (100 expected), not JSONL (50 expected)
+        assert result["stats"]["expected"] == 100
+
+    def test_handles_empty_jsonl(self):
+        """Should handle empty JSONL file gracefully."""
+        client = GitHubArtifactClient(token="test-token")
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report.jsonl", "")
+
+        result = client.extract_playwright_report(zip_buffer.getvalue())
+
+        assert result is None
+
+    def test_handles_jsonl_with_only_metadata(self):
+        """Should return None if JSONL only contains metadata, no report data."""
+        client = GitHubArtifactClient(token="test-token")
+
+        jsonl_objects = [
+            {"metadata": {"version": 1}},
+            {"config": {"timeout": 30000}},
+        ]
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report.jsonl", self._create_jsonl_content(jsonl_objects))
+
+        result = client.extract_playwright_report(zip_buffer.getvalue())
+
+        assert result is None

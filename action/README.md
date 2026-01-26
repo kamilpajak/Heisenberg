@@ -94,7 +94,7 @@ jobs:
     report-path: test-results.json
     api-key: ${{ secrets.GOOGLE_API_KEY }}
     provider: gemini
-    model: gemini-2.0-flash
+    model: gemini-3-pro-preview
 ```
 
 ### Post PR Comment

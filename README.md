@@ -1,7 +1,8 @@
 # The Heisenberg
 
 [![CI](https://github.com/kamilpajak/heisenberg/actions/workflows/ci.yml/badge.svg)](https://github.com/kamilpajak/heisenberg/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/kamilpajak/heisenberg/branch/main/graph/badge.svg)](https://codecov.io/gh/kamilpajak/heisenberg)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamilpajak_Heisenberg&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamilpajak_Heisenberg)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=kamilpajak_Heisenberg&metric=coverage)](https://sonarcloud.io/summary/new_code?id=kamilpajak_Heisenberg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **AI Root Cause Analysis for E2E Test Failures**
@@ -20,10 +21,11 @@ Heisenberg is a GitHub Action that automatically diagnoses why your E2E tests fa
 
 ## Features
 
+- **Framework-Agnostic Analysis** - Unified model supports Playwright and JUnit (more frameworks planned)
 - **Playwright Report Parsing** - Extracts failed tests, error messages, and stack traces from JSON reports
 - **Docker Log Collection** - Gathers logs from backend services around the time of failure
 - **Timeline Correlation** - Aligns frontend errors with backend events
-- **AI-Powered Diagnosis** - Uses Claude to analyze all evidence and identify root causes
+- **AI-Powered Diagnosis** - Uses Claude, OpenAI, or Gemini to analyze all evidence and identify root causes
 - **GitHub PR Integration** - Posts formatted analysis as PR comments
 - **Confidence Scoring** - AI rates its confidence in each diagnosis
 - **Log Compression** - Smart filtering to optimize token usage and costs
@@ -165,7 +167,16 @@ heisenberg fetch-github --repo owner/repo --output report.json
 
 # Use a different LLM provider
 heisenberg fetch-github --repo owner/repo --ai-analysis --provider openai
+
+# List available artifacts (for debugging)
+heisenberg fetch-github --repo owner/repo --list-artifacts
+
+# Merge blob reports from sharded test runs (e.g., microsoft/playwright)
+heisenberg fetch-github --repo microsoft/playwright --merge-blobs --artifact-name blob-report
 ```
+
+> **Note:** The `--merge-blobs` flag requires Node.js and Playwright installed locally.
+> It uses `npx playwright merge-reports` to combine sharded test results.
 
 **Options:**
 
@@ -178,6 +189,8 @@ heisenberg fetch-github --repo owner/repo --ai-analysis --provider openai
 | `--artifact-name` | Artifact name pattern (default: `playwright`) |
 | `--ai-analysis, -a` | Enable AI analysis |
 | `--provider, -p` | LLM provider: `claude`, `openai`, `gemini` |
+| `--list-artifacts` | List available artifacts for debugging |
+| `--merge-blobs` | Merge Playwright blob reports (requires Node.js) |
 
 ## Inputs
 
@@ -290,6 +303,7 @@ MIT - see [LICENSE](LICENSE) for details.
 - [x] Google Gemini support
 - [x] GitHub Actions artifact fetching (`fetch-github` command)
 - [x] REST API backend with usage tracking
+- [x] Playwright blob reports support (`--merge-blobs` for sharded tests)
 - [ ] Support for more test frameworks (Jest, Cypress, Selenium)
 - [ ] Historical analysis dashboard
 - [ ] Pattern detection across multiple failures

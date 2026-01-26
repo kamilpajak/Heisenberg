@@ -34,7 +34,7 @@ Simple health check.
 ```json
 {
   "status": "healthy",
-  "version": "0.1.0"
+  "version": "0.2.0"
 }
 ```
 
@@ -46,7 +46,7 @@ Detailed health check with dependency status.
 ```json
 {
   "status": "healthy",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "database": {
     "connected": true,
     "latency_ms": 15.5
