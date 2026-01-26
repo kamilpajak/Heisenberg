@@ -18,11 +18,13 @@ if TYPE_CHECKING:
 def _get_api_keys(
     anthropic_api_key: str | None = None,
     openai_api_key: str | None = None,
+    google_api_key: str | None = None,
 ) -> dict[str, str | None]:
     """Get API keys from arguments or environment."""
     return {
         "anthropic": anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY"),
         "openai": openai_api_key or os.environ.get("OPENAI_API_KEY"),
+        "google": google_api_key or os.environ.get("GOOGLE_API_KEY"),
     }
 
 
@@ -47,15 +49,17 @@ def create_llm_service(
     fallback_provider: str | None = None,
     anthropic_api_key: str | None = None,
     openai_api_key: str | None = None,
+    google_api_key: str | None = None,
 ) -> LLMRouter:
     """
     Create an LLM service with optional fallback.
 
     Args:
-        primary_provider: Name of the primary provider ('claude' or 'openai').
+        primary_provider: Name of the primary provider ('anthropic', 'openai', or 'google').
         fallback_provider: Optional name of the fallback provider.
         anthropic_api_key: Anthropic API key (or from env).
         openai_api_key: OpenAI API key (or from env).
+        google_api_key: Google API key (or from env).
 
     Returns:
         Configured LLMRouter with providers.
@@ -63,7 +67,7 @@ def create_llm_service(
     Raises:
         ValueError: If required API key is missing.
     """
-    api_keys = _get_api_keys(anthropic_api_key, openai_api_key)
+    api_keys = _get_api_keys(anthropic_api_key, openai_api_key, google_api_key)
 
     providers = [_create_single_provider(primary_provider, api_keys)]
 

@@ -26,6 +26,20 @@ class AIAnalysisResult:
     diagnosis: Diagnosis
     input_tokens: int
     output_tokens: int
+    provider: str = "anthropic"
+    model: str | None = None
+
+    # Cost rates per 1M tokens by provider
+    _COST_RATES: dict[str, dict[str, float]] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        """Initialize cost rates."""
+        # Rates per 1M tokens (input, output)
+        self._COST_RATES = {
+            "anthropic": {"input": 3.0, "output": 15.0},
+            "openai": {"input": 5.0, "output": 15.0},
+            "google": {"input": 2.0, "output": 12.0},
+        }
 
     @property
     def total_tokens(self) -> int:
@@ -34,9 +48,10 @@ class AIAnalysisResult:
 
     @property
     def estimated_cost(self) -> float:
-        """Estimate cost in USD (Claude 3.5 Sonnet pricing)."""
-        input_cost = self.input_tokens * 3 / 1_000_000
-        output_cost = self.output_tokens * 15 / 1_000_000
+        """Estimate cost in USD based on provider rates."""
+        rates = self._COST_RATES.get(self.provider, self._COST_RATES["anthropic"])
+        input_cost = self.input_tokens * rates["input"] / 1_000_000
+        output_cost = self.output_tokens * rates["output"] / 1_000_000
         return input_cost + output_cost
 
     def to_markdown(self) -> str:
@@ -97,7 +112,7 @@ class AIAnalyzer:
             report: Playwright test report.
             container_logs: Optional container logs for context.
             api_key: API key. If None, uses from_environment().
-            provider: LLM provider (claude, openai, gemini).
+            provider: LLM provider (anthropic, openai, google).
             model: Specific model to use.
         """
         self.report = report
@@ -132,6 +147,8 @@ class AIAnalyzer:
             diagnosis=diagnosis,
             input_tokens=response.input_tokens,
             output_tokens=response.output_tokens,
+            provider=self.provider,
+            model=getattr(response, "model", self.model),
         )
 
     def _get_llm_client(self):
@@ -324,6 +341,8 @@ def analyze_unified_run(
         diagnosis=diagnosis,
         input_tokens=response.input_tokens,
         output_tokens=response.output_tokens,
+        provider=provider,
+        model=getattr(response, "model", model),
     )
 
 
