@@ -510,6 +510,252 @@ class TestRunAIAnalysis:
         assert result is None
 
 
+class TestValidateApiKeyForProvider:
+    """Test suite for validate_api_key_for_provider function."""
+
+    def test_returns_none_when_anthropic_key_is_set(self, monkeypatch):
+        """Should return None (valid) when ANTHROPIC_API_KEY is set."""
+        from heisenberg.cli.commands import validate_api_key_for_provider
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        result = validate_api_key_for_provider("anthropic")
+        assert result is None
+
+    def test_returns_none_when_openai_key_is_set(self, monkeypatch):
+        """Should return None (valid) when OPENAI_API_KEY is set."""
+        from heisenberg.cli.commands import validate_api_key_for_provider
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        result = validate_api_key_for_provider("openai")
+        assert result is None
+
+    def test_returns_none_when_google_key_is_set(self, monkeypatch):
+        """Should return None (valid) when GOOGLE_API_KEY is set."""
+        from heisenberg.cli.commands import validate_api_key_for_provider
+
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        result = validate_api_key_for_provider("google")
+        assert result is None
+
+    def test_returns_error_when_anthropic_key_missing(self, monkeypatch):
+        """Should return error message when ANTHROPIC_API_KEY is not set."""
+        from heisenberg.cli.commands import validate_api_key_for_provider
+
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        result = validate_api_key_for_provider("anthropic")
+        assert result is not None
+        assert "ANTHROPIC_API_KEY" in result
+
+    def test_returns_error_when_openai_key_missing(self, monkeypatch):
+        """Should return error message when OPENAI_API_KEY is not set."""
+        from heisenberg.cli.commands import validate_api_key_for_provider
+
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        result = validate_api_key_for_provider("openai")
+        assert result is not None
+        assert "OPENAI_API_KEY" in result
+
+    def test_returns_error_when_google_key_missing(self, monkeypatch):
+        """Should return error message when GOOGLE_API_KEY is not set."""
+        from heisenberg.cli.commands import validate_api_key_for_provider
+
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        result = validate_api_key_for_provider("google")
+        assert result is not None
+        assert "GOOGLE_API_KEY" in result
+
+    def test_returns_error_for_unknown_provider(self):
+        """Should return error message for unknown provider."""
+        from heisenberg.cli.commands import validate_api_key_for_provider
+
+        result = validate_api_key_for_provider("unknown-provider")
+        assert result is not None
+        assert "Unknown provider" in result
+
+
+class TestAIAnalysisAPIKeyValidation:
+    """Test suite for API key validation when --ai-analysis is enabled.
+
+    Requirements:
+    1. When --ai-analysis is requested but API key is missing, CLI should:
+       - Return exit code 1 immediately (fail fast)
+       - Print clear "Error:" message to stderr (not "Warning:")
+       - Mention the specific environment variable needed for the provider
+       - NOT print the analysis summary (fail before processing)
+    """
+
+    def test_ai_analysis_fails_fast_when_anthropic_key_missing(
+        self, sample_report_path: Path, capsys, monkeypatch
+    ):
+        """Given --ai-analysis with claude provider but no API key, should fail fast with error."""
+        # Given
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+        args = argparse.Namespace(
+            report=sample_report_path,
+            output_format="text",
+            docker_services="",
+            log_window=30,
+            post_comment=False,
+            ai_analysis=True,
+            provider="anthropic",
+            model=None,
+        )
+
+        # When
+        result = run_analyze(args)
+        captured = capsys.readouterr()
+
+        # Then - should fail fast with clear error
+        assert result == 1, "Should return exit code 1 when API key is missing"
+        assert "ANTHROPIC_API_KEY" in captured.err, "Should mention the required env var"
+        assert "Error:" in captured.err, "Should print 'Error:' not 'Warning:'"
+        assert "Summary:" not in captured.out, "Should fail fast before printing analysis"
+
+    def test_ai_analysis_fails_fast_when_openai_key_missing(
+        self, sample_report_path: Path, capsys, monkeypatch
+    ):
+        """Given --ai-analysis with openai provider but no API key, should fail fast with error."""
+        # Given
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+        args = argparse.Namespace(
+            report=sample_report_path,
+            output_format="text",
+            docker_services="",
+            log_window=30,
+            post_comment=False,
+            ai_analysis=True,
+            provider="openai",
+            model=None,
+        )
+
+        # When
+        result = run_analyze(args)
+        captured = capsys.readouterr()
+
+        # Then
+        assert result == 1, "Should return exit code 1 when API key is missing"
+        assert "OPENAI_API_KEY" in captured.err, "Should mention the required env var"
+        assert "Error:" in captured.err, "Should print 'Error:' not 'Warning:'"
+        assert "Summary:" not in captured.out, "Should fail fast before printing analysis"
+
+    def test_ai_analysis_fails_fast_when_google_key_missing(
+        self, sample_report_path: Path, capsys, monkeypatch
+    ):
+        """Given --ai-analysis with gemini provider but no API key, should fail fast with error."""
+        # Given
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+        args = argparse.Namespace(
+            report=sample_report_path,
+            output_format="text",
+            docker_services="",
+            log_window=30,
+            post_comment=False,
+            ai_analysis=True,
+            provider="google",
+            model=None,
+        )
+
+        # When
+        result = run_analyze(args)
+        captured = capsys.readouterr()
+
+        # Then
+        assert result == 1, "Should return exit code 1 when API key is missing"
+        assert "GOOGLE_API_KEY" in captured.err, "Should mention the required env var"
+        assert "Error:" in captured.err, "Should print 'Error:' not 'Warning:'"
+        assert "Summary:" not in captured.out, "Should fail fast before printing analysis"
+
+    def test_ai_analysis_succeeds_when_correct_key_is_set(
+        self, sample_report_path: Path, capsys, monkeypatch, mock_ai_analyzer
+    ):
+        """Given correct API key for provider, should proceed with analysis."""
+        # Given
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        args = argparse.Namespace(
+            report=sample_report_path,
+            output_format="text",
+            docker_services="",
+            log_window=30,
+            post_comment=False,
+            ai_analysis=True,
+            provider="openai",
+            model=None,
+        )
+
+        # When
+        result = run_analyze(args)
+        captured = capsys.readouterr()
+
+        # Then
+        assert result == 1  # Exit 1 because tests failed, but AI analysis ran
+        mock_ai_analyzer.assert_called_once()
+        assert "Summary:" in captured.out, "Should print analysis when key is valid"
+        assert "Error:" not in captured.err, "Should not print error when key is valid"
+
+    def test_without_ai_analysis_flag_does_not_require_key(
+        self, sample_report_path: Path, capsys, monkeypatch
+    ):
+        """Without --ai-analysis flag, should not require any API key."""
+        # Given - no API keys set
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+        args = argparse.Namespace(
+            report=sample_report_path,
+            output_format="text",
+            docker_services="",
+            log_window=30,
+            post_comment=False,
+            ai_analysis=False,  # AI analysis disabled
+            provider="anthropic",
+            model=None,
+        )
+
+        # When
+        result = run_analyze(args)
+        captured = capsys.readouterr()
+
+        # Then - should succeed (exit 1 only because tests failed, not missing key)
+        assert "Summary:" in captured.out, "Should print analysis without AI"
+        assert "API_KEY" not in captured.err, "Should not complain about API key"
+
+    @pytest.fixture
+    def mock_ai_analyzer(self, monkeypatch):
+        """Mock the AI analyzer for testing."""
+        from unittest.mock import MagicMock
+
+        from heisenberg.ai_analyzer import AIAnalysisResult
+        from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
+
+        mock_result = AIAnalysisResult(
+            diagnosis=Diagnosis(
+                root_cause="Test failure",
+                evidence=["Evidence"],
+                suggested_fix="Fix it",
+                confidence=ConfidenceLevel.HIGH,
+                confidence_explanation="Clear",
+                raw_response="Response",
+            ),
+            input_tokens=100,
+            output_tokens=50,
+        )
+
+        mock_analyze = MagicMock(return_value=mock_result)
+        monkeypatch.setattr("heisenberg.cli.commands.analyze_with_ai", mock_analyze)
+        return mock_analyze
+
+
 @pytest.fixture
 def sample_report_path() -> Path:
     """Path to sample Playwright report fixture."""

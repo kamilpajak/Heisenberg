@@ -148,7 +148,7 @@ async def fetch_and_analyze_screenshots(
 
         print(f"Found {len(all_screenshots)} screenshot(s). Analyzing...", file=sys.stderr)
 
-        analyzer = ScreenshotAnalyzer(provider="gemini")
+        analyzer = ScreenshotAnalyzer(provider="google")
         analyzed = analyzer.analyze_batch(all_screenshots, max_screenshots=5)
 
         return format_screenshots_for_prompt(analyzed)

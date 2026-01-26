@@ -21,7 +21,7 @@ def _get_api_keys(
 ) -> dict[str, str | None]:
     """Get API keys from arguments or environment."""
     return {
-        "claude": anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY"),
+        "anthropic": anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY"),
         "openai": openai_api_key or os.environ.get("OPENAI_API_KEY"),
     }
 

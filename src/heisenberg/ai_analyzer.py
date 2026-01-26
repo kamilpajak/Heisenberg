@@ -87,7 +87,7 @@ class AIAnalyzer:
         report: PlaywrightReport,
         container_logs: dict[str, ContainerLogs] | None = None,
         api_key: str | None = None,
-        provider: str = "claude",
+        provider: str = "anthropic",
         model: str | None = None,
     ):
         """
@@ -141,7 +141,7 @@ class AIAnalyzer:
         from heisenberg.llm_client import LLMConfig
 
         # Use appropriate client based on provider
-        if self.provider == "claude":
+        if self.provider == "anthropic":
             config = LLMConfig()
             if self.model:
                 config.model = self.model
@@ -155,7 +155,7 @@ class AIAnalyzer:
             if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable is not set.")
             return OpenAICompatibleClient(api_key=api_key, model=self.model)
-        elif self.provider == "gemini":
+        elif self.provider == "google":
             api_key = self.api_key or os.environ.get("GOOGLE_API_KEY")
             if not api_key:
                 raise ValueError("GOOGLE_API_KEY environment variable is not set.")
@@ -169,7 +169,7 @@ class OpenAICompatibleClient:
 
     def __init__(self, api_key: str, model: str | None = None):
         self.api_key = api_key
-        self.model = model or "gpt-4o"
+        self.model = model or "gpt-5"
 
     def analyze(self, prompt: str, system_prompt: str | None = None) -> LLMResponse:
         """Send analysis request to OpenAI."""
@@ -234,7 +234,7 @@ class GeminiCompatibleClient:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             model=self.model,
-            provider="gemini",
+            provider="google",
         )
 
 
@@ -242,7 +242,7 @@ def analyze_with_ai(
     report: PlaywrightReport,
     container_logs: dict[str, ContainerLogs] | str | None = None,
     api_key: str | None = None,
-    provider: str = "claude",
+    provider: str = "anthropic",
     model: str | None = None,
 ) -> AIAnalysisResult:
     """
@@ -252,7 +252,7 @@ def analyze_with_ai(
         report: Playwright test report.
         container_logs: Optional container logs (dict or string).
         api_key: Optional API key. If None, reads from environment.
-        provider: LLM provider to use (claude, openai, gemini).
+        provider: LLM provider to use (anthropic, openai, google).
         model: Specific model to use (provider-dependent).
 
     Returns:
@@ -279,7 +279,7 @@ def analyze_unified_run(
     run: UnifiedTestRun,
     container_logs: dict[str, ContainerLogs] | None = None,
     api_key: str | None = None,
-    provider: str = "claude",
+    provider: str = "anthropic",
     model: str | None = None,
     job_logs_context: str | None = None,
     screenshot_context: str | None = None,
@@ -295,7 +295,7 @@ def analyze_unified_run(
         run: UnifiedTestRun containing test failures.
         container_logs: Optional container logs for context.
         api_key: Optional API key. If None, reads from environment.
-        provider: LLM provider to use (claude, openai, gemini).
+        provider: LLM provider to use (anthropic, openai, google).
         model: Specific model to use (provider-dependent).
         job_logs_context: Optional pre-formatted job logs snippets.
         screenshot_context: Optional pre-formatted screenshot descriptions.
@@ -337,7 +337,7 @@ def _get_llm_client_for_provider(
 
     from heisenberg.llm_client import LLMClient, LLMConfig
 
-    if provider == "claude":
+    if provider == "anthropic":
         config = LLMConfig()
         if model:
             config.model = model
@@ -350,7 +350,7 @@ def _get_llm_client_for_provider(
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set.")
         return OpenAICompatibleClient(api_key=api_key, model=model)
-    elif provider == "gemini":
+    elif provider == "google":
         api_key = api_key or os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is not set.")

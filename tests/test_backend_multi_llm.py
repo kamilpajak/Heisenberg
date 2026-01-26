@@ -67,7 +67,7 @@ class TestClaudeProvider:
         from heisenberg.backend.llm.claude import ClaudeProvider
 
         provider = ClaudeProvider(api_key="test-key")
-        assert provider.name == "claude"
+        assert provider.name == "anthropic"
 
     @pytest.mark.asyncio
     async def test_claude_provider_analyze(self):
@@ -206,9 +206,9 @@ class TestLLMRouter:
         from heisenberg.backend.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
-        mock_primary.name = "claude"
+        mock_primary.name = "anthropic"
         mock_primary.analyze = AsyncMock(
-            return_value=_mock_llm_analysis(content="test", provider="claude")
+            return_value=_mock_llm_analysis(content="test", provider="anthropic")
         )
 
         router = LLMRouter(providers=[mock_primary])
@@ -219,7 +219,7 @@ class TestLLMRouter:
         )
 
         assert isinstance(result, LLMAnalysis)
-        assert result.provider == "claude"
+        assert result.provider == "anthropic"
 
 
 class TestLLMSettings:
@@ -234,7 +234,7 @@ class TestLLMSettings:
             secret_key="test-secret-key",
         )
         assert hasattr(settings, "llm_primary_provider")
-        assert settings.llm_primary_provider == "claude"  # default
+        assert settings.llm_primary_provider == "anthropic"  # default
 
     def test_settings_has_fallback_provider(self):
         """Settings should have llm_fallback_provider field."""
@@ -273,7 +273,7 @@ class TestProviderFactory:
         from heisenberg.backend.llm import create_provider
         from heisenberg.backend.llm.claude import ClaudeProvider
 
-        provider = create_provider("claude", api_key="test-key")
+        provider = create_provider("anthropic", api_key="test-key")
 
         assert isinstance(provider, ClaudeProvider)
 

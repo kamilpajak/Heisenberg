@@ -51,7 +51,7 @@ class TestAIAnalyzer:
             input_tokens=500,
             output_tokens=200,
             model="claude-sonnet-4-20250514",
-            provider="claude",
+            provider="anthropic",
         )
         mock_llm_class.return_value = mock_llm
 
@@ -75,7 +75,7 @@ class TestAIAnalyzer:
             input_tokens=500,
             output_tokens=200,
             model="claude-sonnet-4-20250514",
-            provider="claude",
+            provider="anthropic",
         )
         mock_llm_class.return_value = mock_llm
 
@@ -99,7 +99,7 @@ class TestAIAnalyzer:
             input_tokens=500,
             output_tokens=200,
             model="claude-sonnet-4-20250514",
-            provider="claude",
+            provider="anthropic",
         )
         mock_llm_class.return_value = mock_llm
 
@@ -124,7 +124,7 @@ class TestAIAnalyzer:
             input_tokens=500,
             output_tokens=200,
             model="claude-sonnet-4-20250514",
-            provider="claude",
+            provider="anthropic",
         )
         mock_llm_class.return_value = mock_llm
 
@@ -149,7 +149,7 @@ class TestAIAnalyzer:
             input_tokens=500,
             output_tokens=200,
             model="claude-sonnet-4-20250514",
-            provider="claude",
+            provider="anthropic",
         )
         mock_llm_class.return_value = mock_llm
 
@@ -178,7 +178,7 @@ class TestAIAnalyzer:
             input_tokens=500,
             output_tokens=200,
             model="claude-sonnet-4-20250514",
-            provider="claude",
+            provider="anthropic",
         )
         mock_llm_class.return_value = mock_llm
 
@@ -254,7 +254,7 @@ class TestConvenienceFunction:
             input_tokens=500,
             output_tokens=200,
             model="claude-sonnet-4-20250514",
-            provider="claude",
+            provider="anthropic",
         )
         mock_llm_class.return_value = mock_llm
 
@@ -277,7 +277,7 @@ class TestConvenienceFunction:
             input_tokens=500,
             output_tokens=200,
             model="claude-sonnet-4-20250514",
-            provider="claude",
+            provider="anthropic",
         )
         mock_llm_class.from_environment.return_value = mock_llm
 

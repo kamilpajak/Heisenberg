@@ -132,7 +132,7 @@ class TestScreenshotAnalyzer:
         mock_client.models.generate_content.return_value = mock_response
         mock_client_class.return_value = mock_client
 
-        analyzer = ScreenshotAnalyzer(provider="gemini", api_key="test-key")
+        analyzer = ScreenshotAnalyzer(provider="google", api_key="test-key")
         ctx = ScreenshotContext(
             test_name="login-test",
             file_path="auth.spec.ts",
@@ -155,7 +155,7 @@ class TestScreenshotAnalyzer:
         mock_client.models.generate_content.return_value = mock_response
         mock_client_class.return_value = mock_client
 
-        analyzer = ScreenshotAnalyzer(provider="gemini", api_key="test-key")
+        analyzer = ScreenshotAnalyzer(provider="google", api_key="test-key")
         screenshots = [
             ScreenshotContext("test1", "file1.ts", b"png1", None),
             ScreenshotContext("test2", "file2.ts", b"png2", None),
@@ -174,7 +174,7 @@ class TestScreenshotAnalyzer:
         mock_client.models.generate_content.side_effect = Exception("API rate limit")
         mock_client_class.return_value = mock_client
 
-        analyzer = ScreenshotAnalyzer(provider="gemini", api_key="test-key")
+        analyzer = ScreenshotAnalyzer(provider="google", api_key="test-key")
         ctx = ScreenshotContext("test", "file.ts", b"png", None)
 
         result = analyzer.analyze(ctx)
@@ -185,7 +185,7 @@ class TestScreenshotAnalyzer:
 
     def test_analyzer_default_prompt(self):
         """Analyzer should use appropriate prompt for test screenshots."""
-        analyzer = ScreenshotAnalyzer(provider="gemini")
+        analyzer = ScreenshotAnalyzer(provider="google")
 
         prompt = analyzer.get_analysis_prompt()
 

@@ -224,8 +224,11 @@ class TestPlaywrightToUnifiedConversion:
 class TestUnifiedAnalysisInCLI:
     """Tests for using unified model in AI analysis through CLI."""
 
-    def test_cli_uses_unified_for_ai_analysis(self, tmp_path: Path):
+    def test_cli_uses_unified_for_ai_analysis(self, tmp_path: Path, monkeypatch):
         """When --use-unified is set, CLI uses analyze_unified_run."""
+        # Set API key for the test
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
         # Create test report
         report_file = tmp_path / "report.json"
         report_file.write_text(
@@ -266,7 +269,7 @@ class TestUnifiedAnalysisInCLI:
             log_window=30,
             output_format="text",
             ai_analysis=True,
-            provider="claude",
+            provider="anthropic",
             model=None,
             use_unified=True,
             post_comment=False,

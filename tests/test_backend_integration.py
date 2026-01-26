@@ -60,7 +60,7 @@ class TestLLMServiceFactory:
             "os.environ",
             {"ANTHROPIC_API_KEY": "test-key"},
         ):
-            service = create_llm_service(primary_provider="claude")
+            service = create_llm_service(primary_provider="anthropic")
 
         assert isinstance(service, LLMRouter)
 
@@ -77,7 +77,7 @@ class TestLLMServiceFactory:
             },
         ):
             service = create_llm_service(
-                primary_provider="claude",
+                primary_provider="anthropic",
                 fallback_provider="openai",
             )
 
@@ -90,7 +90,7 @@ class TestLLMServiceFactory:
 
         with patch.dict("os.environ", {}, clear=True):
             with pytest.raises(ValueError, match="API key"):
-                create_llm_service(primary_provider="claude")
+                create_llm_service(primary_provider="anthropic")
 
 
 class TestAnalyzeServiceWithLLMRouter:
@@ -266,7 +266,7 @@ class TestDependencyInjection:
 
         with patch("heisenberg.backend.dependencies.get_settings") as mock_settings:
             mock_settings.return_value = MagicMock(
-                llm_primary_provider="claude",
+                llm_primary_provider="anthropic",
                 llm_fallback_provider=None,
                 anthropic_api_key="test-key",
                 openai_api_key=None,

@@ -68,9 +68,9 @@ def _add_analyze_parser(subparsers) -> None:
     analyze_parser.add_argument(
         "--provider",
         "-p",
-        choices=["claude", "openai", "gemini"],
-        default="claude",
-        help="LLM provider to use (default: claude)",
+        choices=["anthropic", "openai", "google"],
+        default="anthropic",
+        help="LLM provider to use (default: anthropic)",
     )
     analyze_parser.add_argument(
         "--model",
@@ -146,9 +146,9 @@ def _add_fetch_github_parser(subparsers) -> None:
     fetch_parser.add_argument(
         "--provider",
         "-p",
-        choices=["claude", "openai", "gemini"],
-        default="claude",
-        help="LLM provider to use (default: claude)",
+        choices=["anthropic", "openai", "google"],
+        default="anthropic",
+        help="LLM provider to use (default: anthropic)",
     )
     fetch_parser.add_argument(
         "--list-artifacts",

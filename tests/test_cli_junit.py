@@ -94,7 +94,7 @@ class TestRunJunitAnalyze:
             report_format="junit",
             output_format="text",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -111,7 +111,7 @@ class TestRunJunitAnalyze:
             report_format="junit",
             output_format="text",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -126,7 +126,7 @@ class TestRunJunitAnalyze:
             report_format="junit",
             output_format="json",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -145,7 +145,7 @@ class TestRunJunitAnalyze:
             report_format="junit",
             output_format="unified-json",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -164,7 +164,7 @@ class TestRunJunitAnalyze:
             report_format="junit",
             output_format="github-comment",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -183,7 +183,7 @@ class TestRunJunitAnalyze:
             report_format="junit",
             output_format="text",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
         )
 
@@ -219,7 +219,7 @@ class TestRunJunitAnalyze:
                 report_format="junit",
                 output_format="text",
                 ai_analysis=True,
-                provider="claude",
+                provider="anthropic",
                 model=None,
             )
 
@@ -243,7 +243,7 @@ class TestRunJunitAnalyze:
                 report_format="junit",
                 output_format="text",
                 ai_analysis=True,
-                provider="claude",
+                provider="anthropic",
                 model=None,
             )
 
@@ -264,7 +264,7 @@ class TestRunAnalyzeJunitDispatch:
             report_format="junit",
             output_format="text",
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             model=None,
             docker_services="",
             log_window=30,

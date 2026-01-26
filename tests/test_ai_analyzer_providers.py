@@ -18,9 +18,9 @@ class TestOpenAICompatibleClient:
     """Tests for OpenAI-compatible client."""
 
     def test_init_default_model(self):
-        """Should use gpt-4o as default model."""
+        """Should use gpt-5 as default model."""
         client = OpenAICompatibleClient(api_key="test-key")
-        assert client.model == "gpt-4o"
+        assert client.model == "gpt-5"
 
     def test_init_custom_model(self):
         """Should accept custom model."""
@@ -121,7 +121,7 @@ class TestGeminiCompatibleClient:
         assert result.content == "Test response"
         assert result.input_tokens == 100
         assert result.output_tokens == 50
-        assert result.provider == "gemini"
+        assert result.provider == "google"
 
     def test_analyze_handles_no_usage_metadata(self, mocker):
         """Should handle response without usage metadata."""
@@ -149,7 +149,7 @@ class TestGetLLMClientForProvider:
         # Patch where it's imported inside the function
         mock_llm_client = mocker.patch("heisenberg.llm_client.LLMClient")
 
-        _get_llm_client_for_provider("claude", api_key="test-key")
+        _get_llm_client_for_provider("anthropic", api_key="test-key")
 
         mock_llm_client.assert_called_once()
 
@@ -158,7 +158,7 @@ class TestGetLLMClientForProvider:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "env-key")
         mock_llm_client = mocker.patch("heisenberg.llm_client.LLMClient")
 
-        _get_llm_client_for_provider("claude")
+        _get_llm_client_for_provider("anthropic")
 
         mock_llm_client.from_environment.assert_called_once()
 
@@ -185,7 +185,7 @@ class TestGetLLMClientForProvider:
 
     def test_gemini_provider_with_api_key(self):
         """Should create Gemini client with API key."""
-        client = _get_llm_client_for_provider("gemini", api_key="test-key")
+        client = _get_llm_client_for_provider("google", api_key="test-key")
 
         assert isinstance(client, GeminiCompatibleClient)
 
@@ -193,7 +193,7 @@ class TestGetLLMClientForProvider:
         """Should create Gemini client from environment."""
         monkeypatch.setenv("GOOGLE_API_KEY", "env-key")
 
-        client = _get_llm_client_for_provider("gemini")
+        client = _get_llm_client_for_provider("google")
 
         assert isinstance(client, GeminiCompatibleClient)
 
@@ -202,7 +202,7 @@ class TestGetLLMClientForProvider:
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
 
         with pytest.raises(ValueError, match="GOOGLE_API_KEY"):
-            _get_llm_client_for_provider("gemini")
+            _get_llm_client_for_provider("google")
 
     def test_unknown_provider(self):
         """Should raise error for unknown provider."""
@@ -218,7 +218,7 @@ class TestGetLLMClientForProvider:
     def test_custom_model_gemini(self):
         """Should pass custom model to Gemini client."""
         client = _get_llm_client_for_provider(
-            "gemini", api_key="test-key", model="gemini-2.0-flash"
+            "google", api_key="test-key", model="gemini-2.0-flash"
         )
 
         assert client.model == "gemini-2.0-flash"

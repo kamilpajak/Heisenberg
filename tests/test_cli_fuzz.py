@@ -37,7 +37,7 @@ def output_formats() -> st.SearchStrategy[str]:
 
 def providers() -> st.SearchStrategy[str]:
     """Strategy for valid LLM provider choices."""
-    return st.sampled_from(["claude", "openai", "gemini"])
+    return st.sampled_from(["anthropic", "openai", "google"])
 
 
 def report_formats() -> st.SearchStrategy[str]:
@@ -265,7 +265,7 @@ class TestAnalyzeCommandFuzz:
             args = argparse.Namespace(
                 report=report_path,
                 output_format="text",
-                provider="claude",
+                provider="anthropic",
                 log_window=30,
                 docker_services="",
                 ai_analysis=False,
@@ -291,7 +291,7 @@ class TestAnalyzeCommandFuzz:
         args = argparse.Namespace(
             report=Path("/nonexistent/path/report.json"),
             output_format="text",
-            provider="claude",
+            provider="anthropic",
             log_window=30,
             docker_services="",
             ai_analysis=False,
@@ -612,7 +612,7 @@ class TestFetchGitHubFuzz:
             artifact_name="playwright",
             output=None,
             ai_analysis=False,
-            provider="claude",
+            provider="anthropic",
             list_artifacts=False,
             merge_blobs=False,
             include_logs=False,
@@ -650,7 +650,7 @@ class TestMalformedInputFuzz:
             args = argparse.Namespace(
                 report=report_path,
                 output_format="text",
-                provider="claude",
+                provider="anthropic",
                 log_window=30,
                 docker_services="",
                 ai_analysis=False,
@@ -685,7 +685,7 @@ class TestMalformedInputFuzz:
             args = argparse.Namespace(
                 report=report_path,
                 output_format="text",
-                provider="claude",
+                provider="anthropic",
                 log_window=30,
                 docker_services="",
                 ai_analysis=False,
@@ -724,7 +724,7 @@ class TestMalformedInputFuzz:
             args = argparse.Namespace(
                 report=report_path,
                 output_format="text",
-                provider="claude",
+                provider="anthropic",
                 log_window=30,
                 docker_services="",
                 ai_analysis=False,
@@ -812,7 +812,7 @@ class TestUnicodeHandlingFuzz:
             args = argparse.Namespace(
                 report=report_path,
                 output_format="text",
-                provider="claude",
+                provider="anthropic",
                 log_window=30,
                 docker_services="",
                 ai_analysis=False,
