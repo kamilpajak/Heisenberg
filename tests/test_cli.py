@@ -723,7 +723,7 @@ class TestAIAnalysisAPIKeyValidation:
         )
 
         # When
-        result = run_analyze(args)
+        run_analyze(args)
         captured = capsys.readouterr()
 
         # Then - should succeed (exit 1 only because tests failed, not missing key)
