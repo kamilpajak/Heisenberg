@@ -167,7 +167,7 @@ class TestAnalyzeServiceWithLLMRouter:
 
         mock_provider = MagicMock()
         mock_provider.name = "mock"
-        mock_provider.analyze = AsyncMock(
+        mock_provider.analyze_async = AsyncMock(
             return_value=LLMAnalysis(
                 content='{"root_cause": "test error", "evidence": ["line 1"], "suggested_fix": "fix it", "confidence": "high", "confidence_explanation": "clear"}',
                 input_tokens=100,
@@ -194,7 +194,7 @@ class TestAnalyzeServiceWithLLMRouter:
         result = await service.analyze(request)
 
         assert result is not None
-        mock_provider.analyze.assert_called_once()
+        mock_provider.analyze_async.assert_called_once()
 
 
 class TestAnalyzeEndpointIntegration:

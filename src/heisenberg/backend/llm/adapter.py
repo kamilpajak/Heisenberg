@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from heisenberg.llm.models import LLMAnalysis
 
 if TYPE_CHECKING:
-    from heisenberg.backend.llm.router import LLMRouter
+    from heisenberg.llm.router import LLMRouter
 
 # Backwards compatibility alias
 LLMResponse = LLMAnalysis
@@ -40,7 +40,7 @@ class LLMRouterAdapter:
         Returns:
             LLMAnalysis with response content and token usage.
         """
-        return await self._router.analyze(
-            system_prompt=system_prompt or "",
-            user_prompt=prompt,
+        return await self._router.analyze_async(
+            prompt,
+            system_prompt=system_prompt,
         )

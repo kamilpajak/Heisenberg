@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from heisenberg.core.diagnosis import Diagnosis, parse_diagnosis
 from heisenberg.integrations.docker import ContainerLogs
-from heisenberg.llm.client import LLMClient, LLMResponse
+from heisenberg.llm.config import PROVIDER_CONFIGS
 from heisenberg.llm.prompts import build_analysis_prompt
-from heisenberg.parsers.playwright import PlaywrightReport
 
 if TYPE_CHECKING:
     from heisenberg.core.models import UnifiedTestRun
+    from heisenberg.parsers.playwright import PlaywrightReport
 
 # Marker for AI-generated content
 HEISENBERG_AI_MARKER = "## Heisenberg AI Analysis"
@@ -153,106 +154,7 @@ class AIAnalyzer:
 
     def _get_llm_client(self):
         """Get appropriate LLM client based on provider."""
-        import os
-
-        from heisenberg.llm.client import LLMConfig
-
-        # Use appropriate client based on provider
-        if self.provider == "anthropic":
-            config = LLMConfig()
-            if self.model:
-                config.model = self.model
-            # Use from_environment if no api_key provided (for mockability)
-            if self.api_key:
-                return LLMClient(api_key=self.api_key, config=config)
-            else:
-                return LLMClient.from_environment(config=config)
-        elif self.provider == "openai":
-            api_key = self.api_key or os.environ.get("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OPENAI_API_KEY environment variable is not set.")
-            return OpenAICompatibleClient(api_key=api_key, model=self.model)
-        elif self.provider == "google":
-            api_key = self.api_key or os.environ.get("GOOGLE_API_KEY")
-            if not api_key:
-                raise ValueError("GOOGLE_API_KEY environment variable is not set.")
-            return GeminiCompatibleClient(api_key=api_key, model=self.model)
-        else:
-            raise ValueError(f"Unknown provider: {self.provider}")
-
-
-class OpenAICompatibleClient:
-    """OpenAI-compatible LLM client for CLI."""
-
-    def __init__(self, api_key: str, model: str | None = None):
-        self.api_key = api_key
-        self.model = model or "gpt-5"
-
-    def analyze(self, prompt: str, system_prompt: str | None = None) -> LLMResponse:
-        """Send analysis request to OpenAI."""
-        from openai import OpenAI
-
-        client = OpenAI(api_key=self.api_key)
-
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=4096,
-            temperature=0.3,
-        )
-
-        return LLMResponse(
-            content=response.choices[0].message.content or "",
-            input_tokens=response.usage.prompt_tokens if response.usage else 0,
-            output_tokens=response.usage.completion_tokens if response.usage else 0,
-            model=self.model,
-            provider="openai",
-        )
-
-
-class GeminiCompatibleClient:
-    """Gemini-compatible LLM client for CLI."""
-
-    def __init__(self, api_key: str, model: str | None = None):
-        self.api_key = api_key
-        self.model = model or "gemini-3-pro-preview"
-
-    def analyze(self, prompt: str, system_prompt: str | None = None) -> LLMResponse:
-        """Send analysis request to Gemini."""
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=self.api_key)
-
-        config = types.GenerateContentConfig(
-            system_instruction=system_prompt or "",
-            max_output_tokens=4096,
-        )
-
-        response = client.models.generate_content(
-            model=self.model,
-            contents=prompt,
-            config=config,
-        )
-
-        input_tokens = 0
-        output_tokens = 0
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0) or 0
-            output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0) or 0
-
-        return LLMResponse(
-            content=response.text,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            model=self.model,
-            provider="google",
-        )
+        return _get_llm_client_for_provider(self.provider, self.api_key, self.model)
 
 
 def analyze_with_ai(
@@ -352,27 +254,17 @@ def _get_llm_client_for_provider(
     model: str | None = None,
 ):
     """Get LLM client for the specified provider."""
-    import os
+    from heisenberg.llm.providers import create_provider
 
-    from heisenberg.llm.client import LLMClient, LLMConfig
+    # Get config for environment variable lookup
+    config = PROVIDER_CONFIGS.get(provider)
+    if not config:
+        valid = ", ".join(sorted(PROVIDER_CONFIGS.keys()))
+        raise ValueError(f"Unknown provider: {provider}. Valid providers: {valid}")
 
-    if provider == "anthropic":
-        config = LLMConfig()
-        if model:
-            config.model = model
-        if api_key:
-            return LLMClient(api_key=api_key, config=config)
-        else:
-            return LLMClient.from_environment(config=config)
-    elif provider == "openai":
-        api_key = api_key or os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is not set.")
-        return OpenAICompatibleClient(api_key=api_key, model=model)
-    elif provider == "google":
-        api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable is not set.")
-        return GeminiCompatibleClient(api_key=api_key, model=model)
-    else:
-        raise ValueError(f"Unknown provider: {provider}")
+    # Resolve API key from parameter or environment
+    resolved_api_key = api_key or os.environ.get(config.env_var)
+    if not resolved_api_key:
+        raise ValueError(f"{config.env_var} environment variable is not set.")
+
+    return create_provider(provider, resolved_api_key, model=model)

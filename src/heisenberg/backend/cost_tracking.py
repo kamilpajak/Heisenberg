@@ -5,52 +5,11 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-# Model pricing per million tokens (as of Jan 2024)
-MODEL_PRICING: dict[str, dict[str, Decimal]] = {
-    # Claude models
-    "claude-3-5-sonnet-20241022": {
-        "input": Decimal("3.00"),
-        "output": Decimal("15.00"),
-    },
-    "claude-3-5-haiku-20241022": {
-        "input": Decimal("1.00"),
-        "output": Decimal("5.00"),
-    },
-    "claude-3-opus-20240229": {
-        "input": Decimal("15.00"),
-        "output": Decimal("75.00"),
-    },
-    # OpenAI models
-    "gpt-4o": {
-        "input": Decimal("2.50"),
-        "output": Decimal("10.00"),
-    },
-    "gpt-4o-mini": {
-        "input": Decimal("0.15"),
-        "output": Decimal("0.60"),
-    },
-    "gpt-4-turbo": {
-        "input": Decimal("10.00"),
-        "output": Decimal("30.00"),
-    },
-    # Gemini models
-    "gemini-3-pro-preview": {
-        "input": Decimal("1.25"),
-        "output": Decimal("5.00"),
-    },
-    "gemini-2.0-flash": {
-        "input": Decimal("0.10"),
-        "output": Decimal("0.40"),
-    },
-    "gemini-1.5-pro": {
-        "input": Decimal("1.25"),
-        "output": Decimal("5.00"),
-    },
-    "gemini-1.5-flash": {
-        "input": Decimal("0.075"),
-        "output": Decimal("0.30"),
-    },
-}
+from heisenberg.llm.config import MODEL_PRICING
+
+# Re-export MODEL_PRICING for backwards compatibility
+# (some code may import it from this module)
+__all__ = ["MODEL_PRICING", "CostCalculator", "check_budget_alert"]
 
 
 class CostCalculator:

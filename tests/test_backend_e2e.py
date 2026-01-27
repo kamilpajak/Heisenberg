@@ -219,7 +219,7 @@ Clear error pattern indicates database connectivity issue.
         # Setup mock LLM
         mock_provider = MagicMock()
         mock_provider.name = "anthropic"
-        mock_provider.analyze = AsyncMock(
+        mock_provider.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(
                 content=llm_response,
                 input_tokens=500,
@@ -278,12 +278,12 @@ Partial information available.
         # Primary fails with recoverable error
         mock_primary = MagicMock()
         mock_primary.name = "anthropic"
-        mock_primary.analyze = AsyncMock(side_effect=httpx.ConnectError("API rate limited"))
+        mock_primary.analyze_async = AsyncMock(side_effect=httpx.ConnectError("API rate limited"))
 
         # Fallback succeeds
         mock_fallback = MagicMock()
         mock_fallback.name = "openai"
-        mock_fallback.analyze = AsyncMock(
+        mock_fallback.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(
                 content=llm_response,
                 input_tokens=400,
@@ -306,8 +306,8 @@ Partial information available.
 
         # Should succeed with fallback
         assert result is not None
-        mock_primary.analyze.assert_called_once()
-        mock_fallback.analyze.assert_called_once()
+        mock_primary.analyze_async.assert_called_once()
+        mock_fallback.analyze_async.assert_called_once()
 
 
 class TestErrorHandling:

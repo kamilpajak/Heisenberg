@@ -5,20 +5,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from types import MappingProxyType
 
-# Pricing per million tokens (as of 2025)
-# Using MappingProxyType for immutability - prevents accidental modification
-PRICING: MappingProxyType[str, MappingProxyType[str, float]] = MappingProxyType(
-    {
-        "claude-3-5-sonnet-20241022": MappingProxyType({"input": 3.0, "output": 15.0}),
-        "claude-sonnet-4-20250514": MappingProxyType({"input": 3.0, "output": 15.0}),
-        "gpt-4o": MappingProxyType({"input": 2.5, "output": 10.0}),
-        "gpt-4o-mini": MappingProxyType({"input": 0.15, "output": 0.6}),
-        "gemini-1.5-pro": MappingProxyType({"input": 1.25, "output": 5.0}),
-    }
+from heisenberg.llm.config import (
+    DEFAULT_INPUT_COST,
+    DEFAULT_OUTPUT_COST,
+    MODEL_PRICING,
 )
 
-DEFAULT_INPUT_COST = 3.0
-DEFAULT_OUTPUT_COST = 15.0
+# Pricing per million tokens - derived from config for backwards compatibility
+# Uses float instead of Decimal for simpler cost estimation in LLMAnalysis
+PRICING: MappingProxyType[str, MappingProxyType[str, float]] = MappingProxyType(
+    {
+        model: MappingProxyType(
+            {"input": float(prices["input"]), "output": float(prices["output"])}
+        )
+        for model, prices in MODEL_PRICING.items()
+    }
+)
 
 
 @dataclass
@@ -40,8 +42,8 @@ class LLMAnalysis:
     def estimated_cost(self) -> float:
         """Estimate cost in USD based on token usage."""
         pricing = PRICING.get(self.model, {})
-        input_cost_per_million = pricing.get("input", DEFAULT_INPUT_COST)
-        output_cost_per_million = pricing.get("output", DEFAULT_OUTPUT_COST)
+        input_cost_per_million = pricing.get("input", float(DEFAULT_INPUT_COST))
+        output_cost_per_million = pricing.get("output", float(DEFAULT_OUTPUT_COST))
 
         input_cost = self.input_tokens * input_cost_per_million / 1_000_000
         output_cost = self.output_tokens * output_cost_per_million / 1_000_000

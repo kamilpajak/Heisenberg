@@ -56,11 +56,12 @@ class TestClaudeProvider:
         assert ClaudeProvider is not None
 
     def test_claude_provider_is_llm_provider(self):
-        """ClaudeProvider should extend LLMProvider."""
-        from heisenberg.backend.llm.base import LLMProvider
+        """ClaudeProvider should implement LLMProvider protocol."""
         from heisenberg.backend.llm.claude import ClaudeProvider
+        from heisenberg.llm.providers.base import LLMProvider
 
-        assert issubclass(ClaudeProvider, LLMProvider)
+        provider = ClaudeProvider(api_key="test-key")
+        assert isinstance(provider, LLMProvider)
 
     def test_claude_provider_name(self):
         """ClaudeProvider should have correct name."""
@@ -76,12 +77,14 @@ class TestClaudeProvider:
 
         provider = ClaudeProvider(api_key="test-key")
 
-        with patch.object(provider, "_client") as mock_client:
+        with patch.object(provider, "_get_async_client") as mock_get_client:
+            mock_client = MagicMock()
             mock_response = MagicMock()
             mock_response.content = [MagicMock(text='{"root_cause": "test"}')]
             mock_response.usage.input_tokens = 100
             mock_response.usage.output_tokens = 50
             mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
 
             result = await provider.analyze(
                 system_prompt="You are a test analyzer",
@@ -102,11 +105,12 @@ class TestOpenAIProvider:
         assert OpenAIProvider is not None
 
     def test_openai_provider_is_llm_provider(self):
-        """OpenAIProvider should extend LLMProvider."""
-        from heisenberg.backend.llm.base import LLMProvider
+        """OpenAIProvider should implement LLMProvider protocol."""
         from heisenberg.backend.llm.openai import OpenAIProvider
+        from heisenberg.llm.providers.base import LLMProvider
 
-        assert issubclass(OpenAIProvider, LLMProvider)
+        provider = OpenAIProvider(api_key="test-key")
+        assert isinstance(provider, LLMProvider)
 
     def test_openai_provider_name(self):
         """OpenAIProvider should have correct name."""
@@ -147,13 +151,13 @@ class TestLLMRouter:
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
-        mock_primary.analyze = AsyncMock(
+        mock_primary.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="test", provider="primary")
         )
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
-        mock_fallback.analyze = AsyncMock()
+        mock_fallback.analyze_async = AsyncMock()
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
 
@@ -164,8 +168,8 @@ class TestLLMRouter:
 
         assert result is not None
         assert isinstance(result, LLMAnalysis)
-        mock_primary.analyze.assert_called_once()
-        mock_fallback.analyze.assert_not_called()
+        mock_primary.analyze_async.assert_called_once()
+        mock_fallback.analyze_async.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_llm_router_falls_back_on_error(self):
@@ -178,11 +182,11 @@ class TestLLMRouter:
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
         # Use a specific recoverable error (network error) instead of generic Exception
-        mock_primary.analyze = AsyncMock(side_effect=httpx.ConnectError("API error"))
+        mock_primary.analyze_async = AsyncMock(side_effect=httpx.ConnectError("API error"))
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
-        mock_fallback.analyze = AsyncMock(
+        mock_fallback.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
         )
 
@@ -196,8 +200,8 @@ class TestLLMRouter:
         assert result is not None
         assert isinstance(result, LLMAnalysis)
         assert result.content == "fallback response"
-        mock_primary.analyze.assert_called_once()
-        mock_fallback.analyze.assert_called_once()
+        mock_primary.analyze_async.assert_called_once()
+        mock_fallback.analyze_async.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_llm_router_records_provider_used(self):
@@ -207,7 +211,7 @@ class TestLLMRouter:
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "anthropic"
-        mock_primary.analyze = AsyncMock(
+        mock_primary.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="test", provider="anthropic")
         )
 

@@ -111,7 +111,7 @@ class TestLLMRouterExceptionHandling:
 
         # Create a proper Anthropic API error
         mock_request = MagicMock()
-        mock_primary.analyze = AsyncMock(
+        mock_primary.analyze_async = AsyncMock(
             side_effect=AnthropicAPIError(
                 message="Rate limit exceeded",
                 request=mock_request,
@@ -121,7 +121,7 @@ class TestLLMRouterExceptionHandling:
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
-        mock_fallback.analyze = AsyncMock(
+        mock_fallback.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
         )
 
@@ -134,8 +134,8 @@ class TestLLMRouterExceptionHandling:
 
         # Should have fallen back successfully
         assert result.content == "fallback response"
-        mock_primary.analyze.assert_called_once()
-        mock_fallback.analyze.assert_called_once()
+        mock_primary.analyze_async.assert_called_once()
+        mock_fallback.analyze_async.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_router_catches_openai_api_error(self):
@@ -152,7 +152,7 @@ class TestLLMRouterExceptionHandling:
         mock_request = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 429
-        mock_primary.analyze = AsyncMock(
+        mock_primary.analyze_async = AsyncMock(
             side_effect=OpenAIAPIError(
                 message="Rate limit exceeded",
                 request=mock_request,
@@ -162,7 +162,7 @@ class TestLLMRouterExceptionHandling:
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
-        mock_fallback.analyze = AsyncMock(
+        mock_fallback.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
         )
 
@@ -175,8 +175,8 @@ class TestLLMRouterExceptionHandling:
 
         # Should have fallen back successfully
         assert result.content == "fallback response"
-        mock_primary.analyze.assert_called_once()
-        mock_fallback.analyze.assert_called_once()
+        mock_primary.analyze_async.assert_called_once()
+        mock_fallback.analyze_async.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_router_catches_httpx_request_error(self):
@@ -188,11 +188,11 @@ class TestLLMRouterExceptionHandling:
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
-        mock_primary.analyze = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
+        mock_primary.analyze_async = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
-        mock_fallback.analyze = AsyncMock(
+        mock_fallback.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
         )
 
@@ -220,7 +220,7 @@ class TestLLMRouterExceptionHandling:
         # Create a proper HTTPStatusError
         mock_request = httpx.Request("POST", "https://api.example.com")
         mock_response = httpx.Response(500, request=mock_request)
-        mock_primary.analyze = AsyncMock(
+        mock_primary.analyze_async = AsyncMock(
             side_effect=httpx.HTTPStatusError(
                 "Server error", request=mock_request, response=mock_response
             )
@@ -228,7 +228,7 @@ class TestLLMRouterExceptionHandling:
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
-        mock_fallback.analyze = AsyncMock(
+        mock_fallback.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
         )
 
@@ -250,13 +250,13 @@ class TestLLMRouterExceptionHandling:
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
-        mock_primary.analyze = AsyncMock(
+        mock_primary.analyze_async = AsyncMock(
             side_effect=TypeError("'NoneType' object is not subscriptable")
         )
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
-        mock_fallback.analyze = AsyncMock(
+        mock_fallback.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
         )
 
@@ -270,7 +270,7 @@ class TestLLMRouterExceptionHandling:
             )
 
         # Fallback should NOT have been called
-        mock_fallback.analyze.assert_not_called()
+        mock_fallback.analyze_async.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_router_propagates_attribute_errors(self):
@@ -280,13 +280,13 @@ class TestLLMRouterExceptionHandling:
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
-        mock_primary.analyze = AsyncMock(
+        mock_primary.analyze_async = AsyncMock(
             side_effect=AttributeError("'NoneType' object has no attribute 'text'")
         )
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
-        mock_fallback.analyze = AsyncMock(
+        mock_fallback.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
         )
 
@@ -300,7 +300,7 @@ class TestLLMRouterExceptionHandling:
             )
 
         # Fallback should NOT have been called
-        mock_fallback.analyze.assert_not_called()
+        mock_fallback.analyze_async.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_router_propagates_key_errors(self):
@@ -310,11 +310,11 @@ class TestLLMRouterExceptionHandling:
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
-        mock_primary.analyze = AsyncMock(side_effect=KeyError("missing_key"))
+        mock_primary.analyze_async = AsyncMock(side_effect=KeyError("missing_key"))
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
-        mock_fallback.analyze = AsyncMock(
+        mock_fallback.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
         )
 
@@ -328,7 +328,7 @@ class TestLLMRouterExceptionHandling:
             )
 
         # Fallback should NOT have been called
-        mock_fallback.analyze.assert_not_called()
+        mock_fallback.analyze_async.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_router_catches_google_api_error(self):
@@ -341,11 +341,11 @@ class TestLLMRouterExceptionHandling:
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
-        mock_primary.analyze = AsyncMock(side_effect=GoogleAPIError("Quota exceeded"))
+        mock_primary.analyze_async = AsyncMock(side_effect=GoogleAPIError("Quota exceeded"))
 
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
-        mock_fallback.analyze = AsyncMock(
+        mock_fallback.analyze_async = AsyncMock(
             return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
         )
 
