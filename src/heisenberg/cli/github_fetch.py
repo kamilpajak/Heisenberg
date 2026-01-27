@@ -157,6 +157,42 @@ async def fetch_and_analyze_screenshots(
         return None
 
 
+def _analyze_traces_from_zip(zip_data: bytes, analyzer) -> list:
+    """Extract and analyze trace files from a zip archive.
+
+    Args:
+        zip_data: Raw bytes of the zip file.
+        analyzer: TraceAnalyzer instance.
+
+    Returns:
+        List of analyzed trace contexts (max 5).
+    """
+    analyzed_traces = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(zip_data), "r") as outer_zip:
+            for file_info in outer_zip.filelist:
+                if not file_info.filename.lower().endswith("trace.zip"):
+                    continue
+
+                path_parts = file_info.filename.split("/")
+                test_name = path_parts[-2] if len(path_parts) > 1 else "unknown"
+                file_path = next(
+                    (p for p in path_parts if ".spec." in p or ".test." in p),
+                    "unknown-file",
+                )
+
+                trace_zip_data = outer_zip.read(file_info.filename)
+                trace_ctx = analyzer.analyze(trace_zip_data, test_name, file_path)
+                analyzed_traces.append(trace_ctx)
+
+                if len(analyzed_traces) >= 5:
+                    break
+    except Exception as e:
+        print(f"Warning: Error analyzing traces: {e}", file=sys.stderr)
+
+    return analyzed_traces
+
+
 async def fetch_and_analyze_traces(
     token: str,
     owner: str,
@@ -210,31 +246,7 @@ async def fetch_and_analyze_traces(
 
         print(f"Found {len(all_traces)} trace file(s). Analyzing...", file=sys.stderr)
 
-        analyzer = TraceAnalyzer()
-        analyzed_traces = []
-
-        try:
-            with zipfile.ZipFile(io.BytesIO(zip_data), "r") as outer_zip:
-                for file_info in outer_zip.filelist:
-                    name = file_info.filename.lower()
-                    if not name.endswith("trace.zip"):
-                        continue
-
-                    path_parts = file_info.filename.split("/")
-                    test_name = path_parts[-2] if len(path_parts) > 1 else "unknown"
-                    file_path = next(
-                        (p for p in path_parts if ".spec." in p or ".test." in p),
-                        "unknown-file",
-                    )
-
-                    trace_zip_data = outer_zip.read(file_info.filename)
-                    trace_ctx = analyzer.analyze(trace_zip_data, test_name, file_path)
-                    analyzed_traces.append(trace_ctx)
-
-                    if len(analyzed_traces) >= 5:
-                        break
-        except Exception as e:
-            print(f"Warning: Error analyzing traces: {e}", file=sys.stderr)
+        analyzed_traces = _analyze_traces_from_zip(zip_data, TraceAnalyzer())
 
         if not analyzed_traces:
             return None
