@@ -20,6 +20,9 @@ env:
   SCENARIOS_DIR: playground/scenarios
   PYTHON_VERSION: '3.12'
 
+permissions:
+  contents: write
+
 jobs:
   validate:
     name: Validate Existing Scenarios
