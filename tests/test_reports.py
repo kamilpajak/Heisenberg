@@ -639,3 +639,117 @@ class TestReportTypeEnum:
     def test_blob_type_exists(self):
         """ReportType.BLOB should exist for blob reports."""
         assert ReportType.BLOB.value == "blob"
+
+
+# =============================================================================
+# BLOB JSONL FORMAT TESTS
+# =============================================================================
+
+
+class TestBlobJsonlFormat:
+    """Tests for Playwright blob reports with JSONL format."""
+
+    @pytest.fixture
+    def blob_jsonl_zip(self) -> bytes:
+        """Create a blob report with JSONL format (real Playwright format)."""
+        # JSONL content with Playwright events
+        jsonl_content = "\n".join(
+            [
+                json.dumps({"method": "onConfigure", "params": {"config": {}}}),
+                json.dumps({"method": "onBegin", "params": {"projects": []}}),
+                json.dumps(
+                    {
+                        "method": "onTestEnd",
+                        "params": {
+                            "test": {
+                                "testId": "test-1",
+                                "title": "should work",
+                                "expectedStatus": "passed",
+                            },
+                            "result": {
+                                "status": "passed",
+                                "duration": 1500,
+                                "errors": [],
+                            },
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "method": "onTestEnd",
+                        "params": {
+                            "test": {
+                                "testId": "test-2",
+                                "title": "should fail",
+                                "expectedStatus": "passed",
+                            },
+                            "result": {
+                                "status": "failed",
+                                "duration": 2000,
+                                "errors": [{"message": "Expected true"}],
+                            },
+                        },
+                    }
+                ),
+                json.dumps({"method": "onEnd", "params": {"status": "failed"}}),
+            ]
+        )
+
+        # Create inner zip with report.jsonl
+        inner_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner_zip_buffer, "w") as inner_zf:
+            inner_zf.writestr("report.jsonl", jsonl_content)
+        inner_zip_data = inner_zip_buffer.getvalue()
+
+        # Create outer blob report zip
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report-1.zip", inner_zip_data)
+        zip_buffer.seek(0)
+        return zip_buffer.read()
+
+    def test_can_handle_blob_jsonl(self, blob_jsonl_zip: bytes):
+        """Blob reports with JSONL should be recognized."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(blob_jsonl_zip)) as zf:
+            assert handler.can_handle(zf) is True
+
+    def test_extract_blob_jsonl_produces_test_data(self, blob_jsonl_zip: bytes, tmp_path: Path):
+        """Blob JSONL extraction should produce test results from events."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(blob_jsonl_zip)) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        data = json.loads(result.data_file.read_text())
+        # Should have extracted test data from onTestEnd events
+        assert data["stats"]["passed"] == 1
+        assert data["stats"]["failed"] == 1
+        assert data["stats"]["total"] == 2
+
+    def test_extract_blob_jsonl_not_visual_only(self, blob_jsonl_zip: bytes, tmp_path: Path):
+        """Blob JSONL with valid data should not be visual_only."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(blob_jsonl_zip)) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        assert result.visual_only is False
+
+    def test_normalize_blob_jsonl(self, blob_jsonl_zip: bytes, tmp_path: Path):
+        """Blob JSONL should normalize to standard format."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(blob_jsonl_zip)) as zf:
+            extracted = handler.extract(zf, tmp_path)
+
+        normalized = handler.normalize(extracted)
+        assert normalized.framework == "playwright"
+        assert normalized.total_tests == 2
+        assert normalized.passed_tests == 1
+        assert normalized.failed_tests == 1

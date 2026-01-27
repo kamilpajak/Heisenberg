@@ -118,12 +118,16 @@ class PlaywrightHandler(ReportHandler):
         """Extract blob format report.
 
         Blob reports contain .zip files with test data that can be merged.
-        We extract and combine them into a single report.json.
+        Supports both JSON format and JSONL (event stream) format.
         """
         import zipfile as zf_module
 
         output_dir.mkdir(parents=True, exist_ok=True)
-        combined_data: dict = {"suites": [], "stats": {}}
+        combined_data: dict = {
+            "suites": [],
+            "stats": {"passed": 0, "failed": 0, "skipped": 0, "total": 0},
+        }
+        has_data = False
 
         # Extract and process each blob .zip file
         for name in zip_file.namelist():
@@ -132,19 +136,25 @@ class PlaywrightHandler(ReportHandler):
                     blob_data = zip_file.read(name)
                     with zf_module.ZipFile(io.BytesIO(blob_data)) as inner_zip:
                         for inner_name in inner_zip.namelist():
-                            if inner_name.endswith(".json"):
+                            # Handle JSONL format (Playwright event stream)
+                            if inner_name.endswith(".jsonl"):
+                                content = inner_zip.read(inner_name).decode("utf-8")
+                                self._parse_jsonl_events(content, combined_data)
+                                has_data = True
+                            # Handle JSON format
+                            elif inner_name.endswith(".json"):
                                 content = inner_zip.read(inner_name)
                                 data = json.loads(content)
-                                # Merge suite data
                                 if "suites" in data:
                                     combined_data["suites"].extend(data["suites"])
+                                    has_data = True
                                 if "stats" in data:
                                     for k, v in data["stats"].items():
                                         if isinstance(v, int | float):
                                             combined_data["stats"][k] = (
                                                 combined_data["stats"].get(k, 0) + v
                                             )
-                except (zf_module.BadZipFile, json.JSONDecodeError):
+                except (zf_module.BadZipFile, json.JSONDecodeError, UnicodeDecodeError):
                     continue
 
         # Save combined data
@@ -157,8 +167,78 @@ class PlaywrightHandler(ReportHandler):
             data_file=report_path,
             entry_point=report_path,
             raw_data=combined_data,
-            visual_only=False,
+            visual_only=not has_data,
         )
+
+    def _parse_jsonl_events(self, content: str, combined_data: dict) -> None:
+        """Parse JSONL event stream from Playwright blob reporter.
+
+        Extracts test results from onTestEnd events and aggregates stats.
+        """
+        tests_by_id: dict = {}
+
+        for line in content.strip().split("\n"):
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+                method = event.get("method")
+                params = event.get("params", {})
+
+                if method == "onTestEnd":
+                    test_info = params.get("test", {})
+                    result_info = params.get("result", {})
+                    test_id = test_info.get("testId", "")
+
+                    status = result_info.get("status", "passed")
+                    tests_by_id[test_id] = {
+                        "title": test_info.get("title", "Unknown"),
+                        "status": status,
+                        "duration": result_info.get("duration", 0),
+                        "errors": result_info.get("errors", []),
+                    }
+
+                    # Update stats
+                    combined_data["stats"]["total"] += 1
+                    if status == "passed":
+                        combined_data["stats"]["passed"] += 1
+                    elif status in ("failed", "timedOut", "interrupted"):
+                        combined_data["stats"]["failed"] += 1
+                    elif status == "skipped":
+                        combined_data["stats"]["skipped"] += 1
+
+            except json.JSONDecodeError:
+                continue
+
+        # Build suites from tests (simplified - single suite)
+        if tests_by_id:
+            specs = []
+            for _test_id, test_data in tests_by_id.items():
+                specs.append(
+                    {
+                        "title": test_data["title"],
+                        "tests": [
+                            {
+                                "status": "expected"
+                                if test_data["status"] == "passed"
+                                else "unexpected",
+                                "results": [
+                                    {
+                                        "status": test_data["status"],
+                                        "duration": test_data["duration"],
+                                        "errors": test_data["errors"],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                )
+            combined_data["suites"].append(
+                {
+                    "title": "Blob Report Tests",
+                    "specs": specs,
+                }
+            )
 
     def _extract_json_report(self, zip_file: ZipFile, output_dir: Path) -> ExtractedReport:
         """Extract JSON format report."""
@@ -305,11 +385,12 @@ class PlaywrightHandler(ReportHandler):
         suites = self._normalize_suites(data.get("suites", []))
         stats = data.get("stats", {})
 
-        # Calculate totals
-        passed = stats.get("expected", 0)
-        failed = stats.get("unexpected", 0) + stats.get("flaky", 0)
+        # Calculate totals - support both JSON reporter format (expected/unexpected)
+        # and JSONL/blob format (passed/failed)
+        passed = stats.get("passed", 0) or stats.get("expected", 0)
+        failed = stats.get("failed", 0) or (stats.get("unexpected", 0) + stats.get("flaky", 0))
         skipped = stats.get("skipped", 0)
-        total = passed + failed + skipped
+        total = stats.get("total", 0) or (passed + failed + skipped)
 
         return NormalizedReport(
             framework="playwright",
