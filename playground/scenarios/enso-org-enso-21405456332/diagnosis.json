@@ -1,0 +1,22 @@
+{
+  "repo": "enso-org/enso",
+  "run_id": 21405456332,
+  "diagnosis": {
+    "root_cause": "The provided input contains no test failure data to analyze. The test summary indicates that zero tests were executed or reported (Total: 0, Failed: 0), and the \"Failed Tests\" section is completely empty. This usually happens if the test runner crashed before execution, the wrong reporter was used, or the output log was truncated before being copied.",
+    "evidence": [
+      "**Summary Section:** Shows \"Total tests: 0\" and \"Failed: 0\".",
+      "**Failed Tests Section:** Contains no entries, error messages, or stack traces."
+    ],
+    "suggested_fix": "1. **Check Test Runner Configuration:** Ensure Playwright is configured to discover and run the intended test files.\n2. **Review CI/Console Output:** Look for errors occurring *before* the test execution phase (e.g., syntax errors in config files, missing dependencies, or compilation errors).\n3. **Resubmit Request:** Please paste the actual error output, stack traces, and backend logs for the specific tests that failed.",
+    "confidence": "HIGH",
+    "confidence_explanation": "The diagnosis is definitive based on the explicit lack of data in the provided prompt."
+  },
+  "tokens": {
+    "input": 359,
+    "output": 242,
+    "total": 601
+  },
+  "provider": "google",
+  "model": "gemini-3-pro-preview",
+  "analyzed_at": "2026-01-27T17:08:31.005554+00:00"
+}

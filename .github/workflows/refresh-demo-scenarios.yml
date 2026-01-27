@@ -202,7 +202,7 @@ jobs:
               SCENARIO_ID=$(basename "$SCENARIO_DIR")
               echo "Analyzing $SCENARIO_ID..."
 
-              if heisenberg analyze-scenario "$SCENARIO_DIR" -p google 2>/dev/null; then
+              if heisenberg analyze-scenario "$SCENARIO_DIR" -p google; then
                 ANALYZED=$((ANALYZED + 1))
                 echo "Successfully analyzed $SCENARIO_ID"
               else
