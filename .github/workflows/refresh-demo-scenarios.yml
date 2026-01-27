@@ -49,8 +49,16 @@ jobs:
       - name: Validate scenarios
         id: validate
         run: |
-          # Run validation and capture output
-          OUTPUT=$(heisenberg validate-scenarios ${{ env.SCENARIOS_DIR }} --json 2>/dev/null || echo '{"summary":{"stale":0,"invalid":0}}')
+          # Run validation (may return exit code 1 if invalid scenarios exist)
+          set +e
+          OUTPUT=$(heisenberg validate-scenarios ${{ env.SCENARIOS_DIR }} --json 2>/dev/null)
+          EXIT_CODE=$?
+          set -e
+
+          # Use fallback only if command completely failed (no JSON output)
+          if [ -z "$OUTPUT" ] || ! echo "$OUTPUT" | jq -e '.summary' > /dev/null 2>&1; then
+            OUTPUT='{"summary":{"stale":0,"invalid":0}}'
+          fi
 
           STALE=$(echo "$OUTPUT" | jq -r '.summary.stale // 0')
           INVALID=$(echo "$OUTPUT" | jq -r '.summary.invalid // 0')
