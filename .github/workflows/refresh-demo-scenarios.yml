@@ -96,7 +96,7 @@ jobs:
       - name: Discover candidate projects
         id: discover
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           python scripts/discover_projects.py --limit 20 --output /tmp/candidates.json
 
