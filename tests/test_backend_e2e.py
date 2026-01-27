@@ -7,24 +7,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from heisenberg.llm.models import LLMAnalysis
-
-
-def _mock_llm_analysis(
-    content: str,
-    input_tokens: int = 500,
-    output_tokens: int = 200,
-    model: str = "claude-3-5-sonnet-20241022",
-    provider: str = "claude",
-) -> LLMAnalysis:
-    """Create a mock LLMAnalysis for testing."""
-    return LLMAnalysis(
-        content=content,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        model=model,
-        provider=provider,
-    )
+from tests.factories import make_llm_analysis
 
 
 class TestHealthEndpointE2E:
@@ -220,7 +203,7 @@ Clear error pattern indicates database connectivity issue.
         mock_provider = MagicMock()
         mock_provider.name = "anthropic"
         mock_provider.analyze_async = AsyncMock(
-            return_value=_mock_llm_analysis(
+            return_value=make_llm_analysis(
                 content=llm_response,
                 input_tokens=500,
                 output_tokens=200,
@@ -284,7 +267,7 @@ Partial information available.
         mock_fallback = MagicMock()
         mock_fallback.name = "openai"
         mock_fallback.analyze_async = AsyncMock(
-            return_value=_mock_llm_analysis(
+            return_value=make_llm_analysis(
                 content=llm_response,
                 input_tokens=400,
                 output_tokens=150,

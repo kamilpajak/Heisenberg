@@ -1,15 +1,18 @@
 """Tests for AI-powered analyzer integration - TDD Red-Green-Refactor."""
 
-from datetime import UTC, datetime
-from unittest.mock import MagicMock, patch
+from __future__ import annotations
 
-import pytest
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock, patch
 
 from heisenberg.core.analyzer import AIAnalysisResult, AIAnalyzer, analyze_with_ai
 from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
-from heisenberg.integrations.docker import ContainerLogs, LogEntry
 from heisenberg.llm.models import LLMAnalysis
-from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
+from tests.factories import SAMPLE_AI_RESPONSE
+
+if TYPE_CHECKING:
+    from heisenberg.integrations.docker import ContainerLogs
+    from heisenberg.parsers.playwright import PlaywrightReport
 
 
 class TestAIAnalyzer:
@@ -289,89 +292,5 @@ class TestConvenienceFunction:
         mock_get_client.assert_called_once()
 
 
-# Sample AI response for mocking
-SAMPLE_AI_RESPONSE = """## Root Cause Analysis
-The test failure is caused by a database connection timeout. The backend API failed to establish a database connection within the expected time limit.
-
-## Evidence
-- Error message shows "TimeoutError: 30000ms exceeded"
-- Backend logs indicate "Connection pool exhausted"
-- High load on database server
-
-## Suggested Fix
-1. Increase the database connection pool size
-2. Add retry logic for database connections
-3. Consider using connection health checks
-
-## Confidence Score
-HIGH (>80%)
-The stack trace and backend logs clearly correlate, showing the database timeout as the root cause."""
-
-
-# Fixtures
-
-
-@pytest.fixture
-def sample_report() -> PlaywrightReport:
-    """Sample Playwright report with one failed test."""
-    return PlaywrightReport(
-        total_passed=4,
-        total_failed=1,
-        total_skipped=0,
-        total_flaky=0,
-        failed_tests=[
-            FailedTest(
-                title="Login test",
-                file="tests/login.spec.ts",
-                suite="Authentication",
-                project="chromium",
-                status="failed",
-                duration_ms=5000,
-                start_time=datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC),
-                errors=[
-                    ErrorDetail(
-                        message="TimeoutError: locator.click: Timeout 30000ms exceeded",
-                        stack="Error: TimeoutError\n    at login.spec.ts:15:10",
-                    )
-                ],
-                trace_path="trace.zip",
-            )
-        ],
-    )
-
-
-@pytest.fixture
-def sample_logs() -> dict[str, ContainerLogs]:
-    """Sample container logs."""
-    return {
-        "api": ContainerLogs(
-            container_name="api",
-            entries=[
-                LogEntry(
-                    timestamp=datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC),
-                    message="Connection pool exhausted",
-                    stream="stderr",
-                ),
-            ],
-        )
-    }
-
-
-@pytest.fixture
-def sample_result() -> AIAnalysisResult:
-    """Sample AIAnalysisResult for testing."""
-    from heisenberg.core.analyzer import AIAnalysisResult
-    from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
-
-    return AIAnalysisResult(
-        diagnosis=Diagnosis(
-            root_cause="Database connection timeout causing API failure",
-            evidence=["TimeoutError in logs", "Connection pool exhausted"],
-            suggested_fix="Increase connection pool size",
-            confidence=ConfidenceLevel.HIGH,
-            confidence_explanation="Clear correlation in logs",
-            raw_response=SAMPLE_AI_RESPONSE,
-        ),
-        input_tokens=500,
-        output_tokens=200,
-    )
+# Note: Fixtures (sample_report, sample_logs, sample_result) are now defined
+# globally in tests/conftest.py using factories from tests/factories.py

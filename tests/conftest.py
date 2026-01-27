@@ -7,8 +7,23 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.factories import (
+    make_ai_analysis_result,
+    make_container_logs,
+    make_diagnosis,
+    make_llm_analysis,
+    make_playwright_report,
+    make_unified_run,
+)
+
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+    from heisenberg.core.analyzer import AIAnalysisResult
+    from heisenberg.core.diagnosis import Diagnosis
+    from heisenberg.integrations.docker import ContainerLogs
+    from heisenberg.llm.models import LLMAnalysis
+    from heisenberg.parsers.playwright import PlaywrightReport
 
 
 def pytest_addoption(parser):
@@ -90,3 +105,46 @@ def setup_test_database(
     command.upgrade(alembic_cfg, "head")
 
     yield
+
+
+# =============================================================================
+# Shared Test Fixtures
+# =============================================================================
+# These fixtures use factories from tests/factories.py.
+# Prefer using these over defining local fixtures in test files.
+
+
+@pytest.fixture
+def sample_llm_analysis() -> LLMAnalysis:
+    """Sample LLMAnalysis for testing."""
+    return make_llm_analysis()
+
+
+@pytest.fixture
+def sample_report() -> PlaywrightReport:
+    """Sample PlaywrightReport with one failed test."""
+    return make_playwright_report()
+
+
+@pytest.fixture
+def sample_logs() -> dict[str, ContainerLogs]:
+    """Sample container logs for testing."""
+    return {"api": make_container_logs()}
+
+
+@pytest.fixture
+def sample_diagnosis() -> Diagnosis:
+    """Sample Diagnosis for testing."""
+    return make_diagnosis()
+
+
+@pytest.fixture
+def sample_unified_run():
+    """Sample UnifiedTestRun for testing."""
+    return make_unified_run()
+
+
+@pytest.fixture
+def sample_result() -> AIAnalysisResult:
+    """Sample AIAnalysisResult for testing."""
+    return make_ai_analysis_result()

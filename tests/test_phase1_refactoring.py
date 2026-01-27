@@ -11,24 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from heisenberg.llm.models import LLMAnalysis
-
-
-def _mock_llm_analysis(
-    content: str = "test",
-    input_tokens: int = 100,
-    output_tokens: int = 50,
-    model: str = "test-model",
-    provider: str = "test-provider",
-) -> LLMAnalysis:
-    """Create a mock LLMAnalysis for testing."""
-    return LLMAnalysis(
-        content=content,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        model=model,
-        provider=provider,
-    )
+from tests.factories import make_llm_analysis
 
 
 @pytest.fixture
@@ -122,7 +105,7 @@ class TestLLMRouterExceptionHandling:
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
         mock_fallback.analyze_async = AsyncMock(
-            return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
@@ -163,7 +146,7 @@ class TestLLMRouterExceptionHandling:
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
         mock_fallback.analyze_async = AsyncMock(
-            return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
@@ -193,7 +176,7 @@ class TestLLMRouterExceptionHandling:
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
         mock_fallback.analyze_async = AsyncMock(
-            return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
@@ -229,7 +212,7 @@ class TestLLMRouterExceptionHandling:
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
         mock_fallback.analyze_async = AsyncMock(
-            return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
@@ -257,7 +240,7 @@ class TestLLMRouterExceptionHandling:
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
         mock_fallback.analyze_async = AsyncMock(
-            return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
@@ -287,7 +270,7 @@ class TestLLMRouterExceptionHandling:
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
         mock_fallback.analyze_async = AsyncMock(
-            return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
@@ -315,7 +298,7 @@ class TestLLMRouterExceptionHandling:
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
         mock_fallback.analyze_async = AsyncMock(
-            return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
@@ -346,7 +329,7 @@ class TestLLMRouterExceptionHandling:
         mock_fallback = MagicMock(spec=LLMProvider)
         mock_fallback.name = "fallback"
         mock_fallback.analyze_async = AsyncMock(
-            return_value=_mock_llm_analysis(content="fallback response", provider="fallback")
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
