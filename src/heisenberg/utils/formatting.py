@@ -10,7 +10,42 @@ import json
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from heisenberg.core.models import UnifiedTestRun
+    from heisenberg.core.models import TestFailure, UnifiedTestRun
+
+
+def _format_stack_trace(stack_trace: str | None, max_lines: int = 15) -> list[str]:
+    """Format stack trace with optional truncation."""
+    if not stack_trace:
+        return []
+    lines = ["", "**Stack trace:**", "```"]
+    stack_lines = stack_trace.split("\n")
+    if len(stack_lines) > max_lines:
+        lines.extend(stack_lines[:max_lines])
+        lines.append("... (truncated)")
+    else:
+        lines.extend(stack_lines)
+    lines.append("```")
+    return lines
+
+
+def _format_md_failure(failure: TestFailure, index: int) -> list[str]:
+    """Format a single failure for markdown output."""
+    lines = [f"### {index}. {failure.test_title}", f"- **File:** `{failure.file_path}`"]
+
+    if failure.suite_path:
+        lines.append(f"- **Suite:** {' > '.join(failure.suite_path)}")
+
+    meta = failure.metadata
+    lines.append(f"- **Framework:** {meta.framework.value}")
+    if meta.browser:
+        lines.append(f"- **Browser:** {meta.browser}")
+    if meta.duration_ms:
+        lines.append(f"- **Duration:** {meta.duration_ms}ms")
+
+    lines.extend(["", "**Error:**", "```", failure.error.message, "```"])
+    lines.extend(_format_stack_trace(failure.error.stack_trace))
+    lines.append("")
+    return lines
 
 
 def format_unified_as_markdown(run: UnifiedTestRun) -> str:
@@ -22,20 +57,20 @@ def format_unified_as_markdown(run: UnifiedTestRun) -> str:
     Returns:
         Markdown-formatted string.
     """
-    lines = []
-
-    # Header
-    lines.append("# Test Failure Analysis")
-    lines.append("")
+    lines = ["# Test Failure Analysis", ""]
 
     # Summary
     summary = run.summary()
-    lines.append("## Summary")
-    lines.append(f"- **Total tests:** {summary['total']}")
-    lines.append(f"- **Passed:** {summary['passed']}")
-    lines.append(f"- **Failed:** {summary['failed']}")
-    lines.append(f"- **Skipped:** {summary['skipped']}")
-    lines.append(f"- **Pass rate:** {summary['pass_rate']:.1%}")
+    lines.extend(
+        [
+            "## Summary",
+            f"- **Total tests:** {summary['total']}",
+            f"- **Passed:** {summary['passed']}",
+            f"- **Failed:** {summary['failed']}",
+            f"- **Skipped:** {summary['skipped']}",
+            f"- **Pass rate:** {summary['pass_rate']:.1%}",
+        ]
+    )
 
     if run.repository:
         lines.append(f"- **Repository:** {run.repository}")
@@ -48,45 +83,44 @@ def format_unified_as_markdown(run: UnifiedTestRun) -> str:
 
     # Failed tests
     if run.failures:
-        lines.append("## Failed Tests")
-        lines.append("")
-
+        lines.extend(["## Failed Tests", ""])
         for i, failure in enumerate(run.failures, 1):
-            lines.append(f"### {i}. {failure.test_title}")
-            lines.append(f"- **File:** `{failure.file_path}`")
-
-            if failure.suite_path:
-                lines.append(f"- **Suite:** {' > '.join(failure.suite_path)}")
-
-            meta = failure.metadata
-            lines.append(f"- **Framework:** {meta.framework.value}")
-            if meta.browser:
-                lines.append(f"- **Browser:** {meta.browser}")
-            if meta.duration_ms:
-                lines.append(f"- **Duration:** {meta.duration_ms}ms")
-
-            lines.append("")
-            lines.append("**Error:**")
-            lines.append("```")
-            lines.append(failure.error.message)
-            lines.append("```")
-
-            if failure.error.stack_trace:
-                lines.append("")
-                lines.append("**Stack trace:**")
-                lines.append("```")
-                # Truncate long stack traces
-                stack_lines = failure.error.stack_trace.split("\n")
-                if len(stack_lines) > 15:
-                    lines.extend(stack_lines[:15])
-                    lines.append("... (truncated)")
-                else:
-                    lines.extend(stack_lines)
-                lines.append("```")
-
-            lines.append("")
+            lines.extend(_format_md_failure(failure, i))
 
     return "\n".join(lines)
+
+
+def _format_github_run_details(run: UnifiedTestRun) -> list[str]:
+    """Format run details as collapsible GitHub section."""
+    if not run.repository and not run.branch:
+        return []
+    lines = ["<details>", "<summary>Run Details</summary>", ""]
+    if run.repository:
+        lines.append(f"- Repository: `{run.repository}`")
+    if run.branch:
+        lines.append(f"- Branch: `{run.branch}`")
+    if run.run_id:
+        lines.append(f"- Run ID: `{run.run_id}`")
+    if run.run_url:
+        lines.append(f"- [View Run]({run.run_url})")
+    lines.extend(["", "</details>", ""])
+    return lines
+
+
+def _format_github_failure(failure: TestFailure, max_error_len: int = 500) -> list[str]:
+    """Format a single failure for GitHub output."""
+    error_msg = failure.error.message
+    if len(error_msg) > max_error_len:
+        error_msg = error_msg[:max_error_len] + "..."
+    return [
+        f"### {failure.test_title}",
+        f"**File:** `{failure.file_path}`",
+        "",
+        "```",
+        error_msg,
+        "```",
+        "",
+    ]
 
 
 def format_unified_for_github(run: UnifiedTestRun) -> str:
@@ -98,62 +132,36 @@ def format_unified_for_github(run: UnifiedTestRun) -> str:
     Returns:
         GitHub-flavored markdown string suitable for PR comments.
     """
-    lines = []
-
-    # Header with emoji-free status
     summary = run.summary()
     status = "FAILED" if run.failed_tests > 0 else "PASSED"
-    lines.append(f"## Test Results: {status}")
-    lines.append("")
 
-    # Compact summary table
-    lines.append("| Metric | Value |")
-    lines.append("|--------|-------|")
-    lines.append(f"| Total | {summary['total']} |")
-    lines.append(f"| Passed | {summary['passed']} |")
-    lines.append(f"| Failed | {summary['failed']} |")
-    lines.append(f"| Skipped | {summary['skipped']} |")
-    lines.append(f"| Pass Rate | {summary['pass_rate']:.1%} |")
-    lines.append("")
+    lines = [
+        f"## Test Results: {status}",
+        "",
+        "| Metric | Value |",
+        "|--------|-------|",
+        f"| Total | {summary['total']} |",
+        f"| Passed | {summary['passed']} |",
+        f"| Failed | {summary['failed']} |",
+        f"| Skipped | {summary['skipped']} |",
+        f"| Pass Rate | {summary['pass_rate']:.1%} |",
+        "",
+    ]
 
-    # Context
-    if run.repository or run.branch:
-        lines.append("<details>")
-        lines.append("<summary>Run Details</summary>")
-        lines.append("")
-        if run.repository:
-            lines.append(f"- Repository: `{run.repository}`")
-        if run.branch:
-            lines.append(f"- Branch: `{run.branch}`")
-        if run.run_id:
-            lines.append(f"- Run ID: `{run.run_id}`")
-        if run.run_url:
-            lines.append(f"- [View Run]({run.run_url})")
-        lines.append("")
-        lines.append("</details>")
-        lines.append("")
+    lines.extend(_format_github_run_details(run))
 
     # Failed tests (collapsible for long lists)
     if run.failures:
-        if len(run.failures) > 3:
-            lines.append("<details>")
-            lines.append(f"<summary>Failed Tests ({len(run.failures)})</summary>")
-            lines.append("")
+        use_collapsible = len(run.failures) > 3
+        if use_collapsible:
+            lines.extend(
+                ["<details>", f"<summary>Failed Tests ({len(run.failures)})</summary>", ""]
+            )
 
         for failure in run.failures:
-            lines.append(f"### {failure.test_title}")
-            lines.append(f"**File:** `{failure.file_path}`")
-            lines.append("")
-            lines.append("```")
-            # Truncate error message for readability
-            error_msg = failure.error.message
-            if len(error_msg) > 500:
-                error_msg = error_msg[:500] + "..."
-            lines.append(error_msg)
-            lines.append("```")
-            lines.append("")
+            lines.extend(_format_github_failure(failure))
 
-        if len(run.failures) > 3:
+        if use_collapsible:
             lines.append("</details>")
 
     return "\n".join(lines)
