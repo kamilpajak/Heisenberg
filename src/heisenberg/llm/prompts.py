@@ -9,7 +9,7 @@ from heisenberg.parsers.playwright import PlaywrightReport
 from heisenberg.utils.compression import compress_logs_for_llm
 
 if TYPE_CHECKING:
-    from heisenberg.core.models import UnifiedTestRun
+    from heisenberg.core.models import TestFailure, UnifiedTestRun
 
 
 def get_system_prompt() -> str:
@@ -265,18 +265,8 @@ def build_unified_prompt(
     return system_prompt, user_prompt
 
 
-def _build_unified_user_prompt(
-    run: UnifiedTestRun,
-    container_logs: dict[str, ContainerLogs] | None = None,
-    job_logs_context: str | None = None,
-    screenshot_context: str | None = None,
-    trace_context: str | None = None,
-) -> str:
-    """Build user prompt from UnifiedTestRun."""
-
-    sections = []
-
-    # Header with summary
+def _build_prompt_header(run: UnifiedTestRun) -> str:
+    """Build the header section with summary information."""
     summary = run.summary()
     header = f"""# Test Failure Analysis Request
 
@@ -293,66 +283,81 @@ def _build_unified_user_prompt(
         header += f"\n- Branch: {run.branch}"
     if run.run_id:
         header += f"\n- Run ID: {run.run_id}"
+    return header
 
-    sections.append(header)
+
+def _format_failure_for_prompt(failure: TestFailure, index: int) -> list[str]:
+    """Format a single test failure for the prompt."""
+    lines = [f"\n### Test {index}: {failure.test_title}", f"- **File:** {failure.file_path}"]
+
+    if failure.suite_path:
+        lines.append(f"- **Suite:** {' > '.join(failure.suite_path)}")
+
+    meta = failure.metadata
+    lines.append(f"- **Framework:** {meta.framework.value}")
+    if meta.browser:
+        lines.append(f"- **Browser:** {meta.browser}")
+    if meta.duration_ms:
+        lines.append(f"- **Duration:** {meta.duration_ms}ms")
+    if meta.retry_count > 0:
+        lines.append(f"- **Retries:** {meta.retry_count}")
+
+    error = failure.error
+    lines.extend(["\n#### Error", f"**Message:**\n```\n{error.message}\n```"])
+
+    if error.stack_trace:
+        stack_lines = error.stack_trace.split("\n")
+        stack = (
+            "\n".join(stack_lines[:20]) + "\n... (truncated)"
+            if len(stack_lines) > 20
+            else error.stack_trace
+        )
+        lines.append(f"\n**Stack Trace:**\n```\n{stack}\n```")
+
+    if error.location:
+        lines.append(
+            f"- **Location:** Line {error.location.get('line')}, "
+            f"Column {error.location.get('column', 0)}"
+        )
+    return lines
+
+
+def _build_container_logs_section(container_logs: dict[str, ContainerLogs]) -> str:
+    """Build container logs section for prompt."""
+    lines = [
+        "## Backend Container Logs",
+        "Logs collected from containers around the time of test failure:\n",
+    ]
+    for name, logs in container_logs.items():
+        lines.append(f"### Container: {name}")
+        if not logs.entries:
+            lines.append("*No logs available*")
+            continue
+        lines.append("```")
+        entries = logs.entries[:50] if len(logs.entries) > 50 else logs.entries
+        lines.extend(str(entry) for entry in entries)
+        lines.append("```")
+    return "\n".join(lines)
+
+
+def _build_unified_user_prompt(
+    run: UnifiedTestRun,
+    container_logs: dict[str, ContainerLogs] | None = None,
+    job_logs_context: str | None = None,
+    screenshot_context: str | None = None,
+    trace_context: str | None = None,
+) -> str:
+    """Build user prompt from UnifiedTestRun."""
+    sections = [_build_prompt_header(run)]
 
     # Failed tests section
     failed_tests_lines = ["## Failed Tests"]
-
     for i, failure in enumerate(run.failures, 1):
-        failed_tests_lines.append(f"\n### Test {i}: {failure.test_title}")
-        failed_tests_lines.append(f"- **File:** {failure.file_path}")
-
-        if failure.suite_path:
-            failed_tests_lines.append(f"- **Suite:** {' > '.join(failure.suite_path)}")
-
-        # Metadata
-        meta = failure.metadata
-        failed_tests_lines.append(f"- **Framework:** {meta.framework.value}")
-        if meta.browser:
-            failed_tests_lines.append(f"- **Browser:** {meta.browser}")
-        if meta.duration_ms:
-            failed_tests_lines.append(f"- **Duration:** {meta.duration_ms}ms")
-        if meta.retry_count > 0:
-            failed_tests_lines.append(f"- **Retries:** {meta.retry_count}")
-
-        # Error details
-        error = failure.error
-        failed_tests_lines.append("\n#### Error")
-        failed_tests_lines.append(f"**Message:**\n```\n{error.message}\n```")
-
-        if error.stack_trace:
-            stack = error.stack_trace
-            stack_lines = stack.split("\n")
-            if len(stack_lines) > 20:
-                stack = "\n".join(stack_lines[:20]) + "\n... (truncated)"
-            failed_tests_lines.append(f"\n**Stack Trace:**\n```\n{stack}\n```")
-
-        if error.location:
-            failed_tests_lines.append(
-                f"- **Location:** Line {error.location.get('line')}, "
-                f"Column {error.location.get('column', 0)}"
-            )
-
+        failed_tests_lines.extend(_format_failure_for_prompt(failure, i))
     sections.append("\n".join(failed_tests_lines))
 
-    # Container logs section (if provided)
     if container_logs:
-        logs_lines = ["## Backend Container Logs"]
-        logs_lines.append("Logs collected from containers around the time of test failure:\n")
-
-        for name, logs in container_logs.items():
-            logs_lines.append(f"### Container: {name}")
-            if not logs.entries:
-                logs_lines.append("*No logs available*")
-                continue
-            logs_lines.append("```")
-            # Limit to 50 lines per container
-            entries = logs.entries[:50] if len(logs.entries) > 50 else logs.entries
-            logs_lines.extend(str(entry) for entry in entries)
-            logs_lines.append("```")
-
-        sections.append("\n".join(logs_lines))
+        sections.append(_build_container_logs_section(container_logs))
 
     # Job logs context (GitHub Actions logs)
     if job_logs_context:
