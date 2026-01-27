@@ -11,11 +11,11 @@ from heisenberg.backend.schemas import (
     AnalyzeResponse,
     DiagnosisResponse,
 )
-from heisenberg.diagnosis import parse_diagnosis
-from heisenberg.prompt_builder import get_system_prompt
+from heisenberg.core.diagnosis import parse_diagnosis
+from heisenberg.llm.prompts import get_system_prompt
 
 if TYPE_CHECKING:
-    from heisenberg.llm_client import LLMResponse
+    from heisenberg.llm.client import LLMResponse
 
 
 class LLMClientProtocol(Protocol):

@@ -4,14 +4,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from heisenberg.ai_analyzer import (
+from heisenberg.core.analyzer import (
     AIAnalysisResult,
     GeminiCompatibleClient,
     OpenAICompatibleClient,
     _get_llm_client_for_provider,
     analyze_unified_run,
 )
-from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
+from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
 
 class TestOpenAICompatibleClient:
@@ -147,7 +147,7 @@ class TestGetLLMClientForProvider:
     def test_claude_provider_with_api_key(self, mocker):
         """Should create Claude client with API key."""
         # Patch where it's imported inside the function
-        mock_llm_client = mocker.patch("heisenberg.llm_client.LLMClient")
+        mock_llm_client = mocker.patch("heisenberg.llm.client.LLMClient")
 
         _get_llm_client_for_provider("anthropic", api_key="test-key")
 
@@ -156,7 +156,7 @@ class TestGetLLMClientForProvider:
     def test_claude_provider_from_environment(self, mocker, monkeypatch):
         """Should create Claude client from environment."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "env-key")
-        mock_llm_client = mocker.patch("heisenberg.llm_client.LLMClient")
+        mock_llm_client = mocker.patch("heisenberg.llm.client.LLMClient")
 
         _get_llm_client_for_provider("anthropic")
 
@@ -230,7 +230,7 @@ class TestAnalyzeUnifiedRun:
     @pytest.fixture
     def mock_unified_run(self):
         """Create a mock unified run with proper structure."""
-        from heisenberg.unified_model import (
+        from heisenberg.core.models import (
             ErrorInfo,
             FailureMetadata,
             Framework,
@@ -291,7 +291,7 @@ CONFIDENCE_EXPLANATION: Clear error pattern
         mock_llm.analyze.return_value = mock_response
 
         mocker.patch(
-            "heisenberg.ai_analyzer._get_llm_client_for_provider",
+            "heisenberg.core.analyzer._get_llm_client_for_provider",
             return_value=mock_llm,
         )
 
@@ -320,12 +320,12 @@ CONFIDENCE: MEDIUM
         mock_llm.analyze.return_value = mock_response
 
         mocker.patch(
-            "heisenberg.ai_analyzer._get_llm_client_for_provider",
+            "heisenberg.core.analyzer._get_llm_client_for_provider",
             return_value=mock_llm,
         )
 
         mock_build_prompt = mocker.patch(
-            "heisenberg.prompt_builder.build_unified_prompt",
+            "heisenberg.llm.prompts.build_unified_prompt",
             return_value=("system", "user"),
         )
 

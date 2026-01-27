@@ -220,8 +220,8 @@ class TestCLIClientUsesLLMAnalysis:
         """LLMClient.analyze() should return LLMAnalysis."""
         import inspect
 
+        from heisenberg.llm.client import LLMClient
         from heisenberg.llm.models import LLMAnalysis
-        from heisenberg.llm_client import LLMClient
 
         # Check return type annotation
         sig = inspect.signature(LLMClient.analyze)
@@ -231,8 +231,8 @@ class TestCLIClientUsesLLMAnalysis:
 
     def test_llm_response_is_alias_to_llm_analysis(self):
         """LLMResponse should be an alias to LLMAnalysis for backwards compatibility."""
+        from heisenberg.llm.client import LLMResponse
         from heisenberg.llm.models import LLMAnalysis
-        from heisenberg.llm_client import LLMResponse
 
         # LLMResponse should be an alias to LLMAnalysis
         assert LLMResponse is LLMAnalysis

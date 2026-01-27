@@ -2,14 +2,14 @@
 
 import pytest
 
-from heisenberg.prompt_builder import _build_unified_user_prompt, build_unified_prompt
-from heisenberg.unified_model import (
+from heisenberg.core.models import (
     ErrorInfo,
     FailureMetadata,
     Framework,
     UnifiedFailure,
     UnifiedTestRun,
 )
+from heisenberg.llm.prompts import _build_unified_user_prompt, build_unified_prompt
 
 
 @pytest.fixture

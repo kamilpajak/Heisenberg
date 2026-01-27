@@ -76,8 +76,8 @@ class TestCliUseUnifiedFlag:
 
     def test_use_unified_with_ai_analysis(self, sample_report_path: Path, capsys, monkeypatch):
         """Should use unified model for AI analysis when flag is set."""
-        from heisenberg.ai_analyzer import AIAnalysisResult
-        from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
+        from heisenberg.core.analyzer import AIAnalysisResult
+        from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
         mock_result = AIAnalysisResult(
             diagnosis=Diagnosis(
@@ -117,8 +117,8 @@ class TestCliUseUnifiedFlag:
 
     def test_use_unified_false_uses_regular_ai(self, sample_report_path: Path, capsys, monkeypatch):
         """Should use regular AI analysis when use_unified is False."""
-        from heisenberg.ai_analyzer import AIAnalysisResult
-        from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
+        from heisenberg.core.analyzer import AIAnalysisResult
+        from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
         mock_result = AIAnalysisResult(
             diagnosis=Diagnosis(

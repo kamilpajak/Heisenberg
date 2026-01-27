@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from heisenberg.analyzer import AnalysisResult, Analyzer, run_analysis
+from heisenberg.core.legacy_analyzer import AnalysisResult, Analyzer, run_analysis
 
 
 class TestAnalyzer:
@@ -65,7 +65,7 @@ class TestAnalyzer:
         assert result.report is not None
         assert result.report.total_failed == 2
 
-    @patch("heisenberg.analyzer.DockerLogsCollector")
+    @patch("heisenberg.core.legacy_analyzer.DockerLogsCollector")
     def test_analyze_collects_docker_logs_when_configured(
         self, mock_collector_class: MagicMock, sample_report_path: Path
     ):
@@ -188,13 +188,13 @@ class TestRunAnalysisHelper:
 class TestAnalyzerWithDockerLogs:
     """Test analyzer with Docker logs integration."""
 
-    @patch("heisenberg.analyzer.DockerLogsCollector")
+    @patch("heisenberg.core.legacy_analyzer.DockerLogsCollector")
     def test_analyzer_filters_logs_by_failure_timestamp(
         self, mock_collector_class: MagicMock, sample_report_path: Path
     ):
         """Analyzer should filter logs around failure timestamps."""
         # Given
-        from heisenberg.docker_logs import ContainerLogs, LogEntry
+        from heisenberg.integrations.docker import ContainerLogs, LogEntry
 
         mock_logs = ContainerLogs(
             container_name="api",

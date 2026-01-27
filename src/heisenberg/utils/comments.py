@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from heisenberg.playwright_parser import FailedTest, PlaywrightReport
+from heisenberg.parsers.playwright import FailedTest, PlaywrightReport
 
 
 def format_pr_comment(report: PlaywrightReport) -> str:

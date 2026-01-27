@@ -7,7 +7,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from heisenberg.docker_logs import ContainerLogs, LogEntry
+from heisenberg.integrations.docker import ContainerLogs, LogEntry
 
 # Common noisy patterns to filter
 NOISE_PATTERNS = [

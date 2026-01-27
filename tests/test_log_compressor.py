@@ -4,8 +4,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from heisenberg.docker_logs import ContainerLogs, LogEntry
-from heisenberg.log_compressor import (
+from heisenberg.integrations.docker import ContainerLogs, LogEntry
+from heisenberg.utils.compression import (
     CompressedLogs,
     LogCompressor,
     compress_logs_for_llm,

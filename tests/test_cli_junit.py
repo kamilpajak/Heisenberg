@@ -195,8 +195,8 @@ class TestRunJunitAnalyze:
 
     def test_run_junit_analyze_with_ai_analysis(self, sample_junit_xml: Path, capsys, monkeypatch):
         """Should include AI analysis when flag is set."""
-        from heisenberg.ai_analyzer import AIAnalysisResult
-        from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
+        from heisenberg.core.analyzer import AIAnalysisResult
+        from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
         mock_result = AIAnalysisResult(
             diagnosis=Diagnosis(
@@ -294,7 +294,7 @@ class TestFormatJunitJson:
 
     def testformat_junit_json_with_ai_result(self, mock_junit_report):
         """Should include AI diagnosis when present."""
-        from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
+        from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
         mock_ai_result = MagicMock()
         mock_ai_result.diagnosis = Diagnosis(
@@ -373,7 +373,7 @@ class TestFormatJunitText:
 
     def testformat_junit_text_with_ai_result(self, mock_junit_report):
         """Should include AI diagnosis when present."""
-        from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
+        from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
         mock_ai_result = MagicMock()
         mock_ai_result.diagnosis = Diagnosis(

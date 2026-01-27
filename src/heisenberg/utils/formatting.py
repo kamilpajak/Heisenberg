@@ -10,7 +10,7 @@ import json
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from heisenberg.unified_model import UnifiedTestRun
+    from heisenberg.core.models import UnifiedTestRun
 
 
 def format_unified_as_markdown(run: UnifiedTestRun) -> str:

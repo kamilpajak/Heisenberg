@@ -5,11 +5,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from heisenberg.ai_analyzer import AIAnalysisResult, AIAnalyzer, analyze_with_ai
-from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
-from heisenberg.docker_logs import ContainerLogs, LogEntry
-from heisenberg.llm_client import LLMResponse
-from heisenberg.playwright_parser import ErrorDetail, FailedTest, PlaywrightReport
+from heisenberg.core.analyzer import AIAnalysisResult, AIAnalyzer, analyze_with_ai
+from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
+from heisenberg.integrations.docker import ContainerLogs, LogEntry
+from heisenberg.llm.client import LLMResponse
+from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
 
 
 class TestAIAnalyzer:
@@ -41,7 +41,7 @@ class TestAIAnalyzer:
         # Then
         assert analyzer.api_key == "test-key"
 
-    @patch("heisenberg.ai_analyzer.LLMClient")
+    @patch("heisenberg.core.analyzer.LLMClient")
     def test_analyzer_calls_llm(self, mock_llm_class: MagicMock, sample_report: PlaywrightReport):
         """Analyzer should call LLM with prompt."""
         # Given
@@ -63,7 +63,7 @@ class TestAIAnalyzer:
         # Then
         mock_llm.analyze.assert_called_once()
 
-    @patch("heisenberg.ai_analyzer.LLMClient")
+    @patch("heisenberg.core.analyzer.LLMClient")
     def test_analyzer_returns_ai_analysis_result(
         self, mock_llm_class: MagicMock, sample_report: PlaywrightReport
     ):
@@ -87,7 +87,7 @@ class TestAIAnalyzer:
         # Then
         assert isinstance(result, AIAnalysisResult)
 
-    @patch("heisenberg.ai_analyzer.LLMClient")
+    @patch("heisenberg.core.analyzer.LLMClient")
     def test_result_contains_diagnosis(
         self, mock_llm_class: MagicMock, sample_report: PlaywrightReport
     ):
@@ -112,7 +112,7 @@ class TestAIAnalyzer:
         assert isinstance(result.diagnosis, Diagnosis)
         assert result.diagnosis.confidence == ConfidenceLevel.HIGH
 
-    @patch("heisenberg.ai_analyzer.LLMClient")
+    @patch("heisenberg.core.analyzer.LLMClient")
     def test_result_contains_token_usage(
         self, mock_llm_class: MagicMock, sample_report: PlaywrightReport
     ):
@@ -137,7 +137,7 @@ class TestAIAnalyzer:
         assert result.input_tokens == 500
         assert result.output_tokens == 200
 
-    @patch("heisenberg.ai_analyzer.LLMClient")
+    @patch("heisenberg.core.analyzer.LLMClient")
     def test_analyzer_uses_system_prompt(
         self, mock_llm_class: MagicMock, sample_report: PlaywrightReport
     ):
@@ -163,7 +163,7 @@ class TestAIAnalyzer:
         assert "system_prompt" in call_kwargs
         assert call_kwargs["system_prompt"] is not None
 
-    @patch("heisenberg.ai_analyzer.LLMClient")
+    @patch("heisenberg.core.analyzer.LLMClient")
     def test_analyzer_includes_logs_in_prompt(
         self,
         mock_llm_class: MagicMock,
@@ -242,7 +242,7 @@ class TestAIAnalysisResult:
 class TestConvenienceFunction:
     """Test suite for analyze_with_ai helper."""
 
-    @patch("heisenberg.ai_analyzer.LLMClient")
+    @patch("heisenberg.core.analyzer.LLMClient")
     def test_analyze_with_ai_returns_result(
         self, mock_llm_class: MagicMock, sample_report: PlaywrightReport
     ):
@@ -264,7 +264,7 @@ class TestConvenienceFunction:
         # Then
         assert isinstance(result, AIAnalysisResult)
 
-    @patch("heisenberg.ai_analyzer.LLMClient")
+    @patch("heisenberg.core.analyzer.LLMClient")
     def test_analyze_with_ai_from_environment(
         self, mock_llm_class: MagicMock, sample_report: PlaywrightReport, monkeypatch
     ):
@@ -360,8 +360,8 @@ def sample_logs() -> dict[str, ContainerLogs]:
 @pytest.fixture
 def sample_result() -> AIAnalysisResult:
     """Sample AIAnalysisResult for testing."""
-    from heisenberg.ai_analyzer import AIAnalysisResult
-    from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
+    from heisenberg.core.analyzer import AIAnalysisResult
+    from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
     return AIAnalysisResult(
         diagnosis=Diagnosis(

@@ -13,7 +13,7 @@ import os
 import zipfile
 from dataclasses import dataclass
 
-from heisenberg.artifact_utils import extract_spec_file_from_path, extract_test_name_from_path
+from heisenberg.utils.artifacts import extract_spec_file_from_path, extract_test_name_from_path
 
 # Default model for screenshot analysis
 DEFAULT_VISION_MODEL = "gemini-2.0-flash"

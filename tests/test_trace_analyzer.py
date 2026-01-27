@@ -13,7 +13,7 @@ import io
 import json
 import zipfile
 
-from heisenberg.trace_analyzer import (
+from heisenberg.parsers.traces import (
     ActionEntry,
     ConsoleEntry,
     NetworkEntry,

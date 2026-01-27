@@ -3,14 +3,9 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-# Add scripts to path for import
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-
-from discover_projects import (
+from heisenberg.playground.discover import (
     DEFAULT_QUERIES,
     CandidateStatus,
     ProjectCandidate,
@@ -310,7 +305,7 @@ class TestGetFailedRuns:
 class TestGetRunArtifacts:
     """Tests for get_run_artifacts function."""
 
-    @patch("discover_projects.gh_api")
+    @patch("heisenberg.playground.discover.gh_api")
     def test_returns_artifacts_list(self, mock_gh_api):
         """Should return list of artifact dicts."""
         mock_gh_api.return_value = {
@@ -329,8 +324,8 @@ class TestGetRunArtifacts:
 class TestFindValidArtifacts:
     """Tests for find_valid_artifacts function."""
 
-    @patch("discover_projects.get_run_artifacts")
-    @patch("discover_projects.get_failed_runs")
+    @patch("heisenberg.playground.discover.get_run_artifacts")
+    @patch("heisenberg.playground.discover.get_failed_runs")
     def test_checks_multiple_runs(self, mock_get_runs, mock_get_artifacts):
         """Should check multiple runs until valid artifacts found."""
         mock_get_runs.return_value = [
@@ -351,8 +346,8 @@ class TestFindValidArtifacts:
         assert run_id == "200"
         assert "playwright-report" in artifacts
 
-    @patch("discover_projects.get_run_artifacts")
-    @patch("discover_projects.get_failed_runs")
+    @patch("heisenberg.playground.discover.get_run_artifacts")
+    @patch("heisenberg.playground.discover.get_failed_runs")
     def test_skips_expired_artifacts(self, mock_get_runs, mock_get_artifacts):
         """Should skip expired artifacts."""
         mock_get_runs.return_value = [{"id": 100, "html_url": "url1"}]
@@ -406,8 +401,8 @@ class TestSearchRepos:
 class TestAnalyzeCandidate:
     """Tests for analyze_candidate function."""
 
-    @patch("discover_projects.find_valid_artifacts")
-    @patch("discover_projects.get_repo_stars")
+    @patch("heisenberg.playground.discover.find_valid_artifacts")
+    @patch("heisenberg.playground.discover.get_repo_stars")
     def test_uses_provided_stars(self, mock_get_stars, mock_find_artifacts):
         """Should use stars provided as argument, not make API call."""
         mock_find_artifacts.return_value = ("123", "url", ["playwright-report"])
@@ -418,8 +413,8 @@ class TestAnalyzeCandidate:
         assert candidate.stars == 5000
         mock_get_stars.assert_not_called()
 
-    @patch("discover_projects.find_valid_artifacts")
-    @patch("discover_projects.get_repo_stars")
+    @patch("heisenberg.playground.discover.find_valid_artifacts")
+    @patch("heisenberg.playground.discover.get_repo_stars")
     def test_fetches_stars_when_not_provided(self, mock_get_stars, mock_find_artifacts):
         """Should fetch stars via API when not provided."""
         mock_find_artifacts.return_value = ("123", "url", ["playwright-report"])
@@ -430,8 +425,8 @@ class TestAnalyzeCandidate:
         assert candidate.stars == 1234
         mock_get_stars.assert_called_once_with("owner/repo")
 
-    @patch("discover_projects.find_valid_artifacts")
-    @patch("discover_projects.get_repo_stars")
+    @patch("heisenberg.playground.discover.find_valid_artifacts")
+    @patch("heisenberg.playground.discover.get_repo_stars")
     def test_sets_correct_status(self, mock_get_stars, mock_find_artifacts):
         """Should set correct status based on artifacts."""
         mock_find_artifacts.return_value = ("123", "url", ["playwright-report"])
@@ -520,7 +515,7 @@ class TestRateLimitHandling:
 
         mock_run.side_effect = CalledProcessError(1, "gh", stderr="API rate limit exceeded")
 
-        from discover_projects import gh_api
+        from heisenberg.playground.discover import gh_api
 
         result = gh_api("/repos/owner/repo")
 
@@ -535,8 +530,8 @@ class TestRateLimitHandling:
 class TestDiscoverCandidates:
     """Tests for discover_candidates function."""
 
-    @patch("discover_projects.analyze_candidate")
-    @patch("discover_projects.search_repos")
+    @patch("heisenberg.playground.discover.analyze_candidate")
+    @patch("heisenberg.playground.discover.search_repos")
     def test_uses_default_queries(self, mock_search, mock_analyze):
         """Should use DEFAULT_QUERIES when queries not provided."""
         mock_search.return_value = []
@@ -546,7 +541,7 @@ class TestDiscoverCandidates:
             status=CandidateStatus.COMPATIBLE,
         )
 
-        from discover_projects import discover_candidates
+        from heisenberg.playground.discover import discover_candidates
 
         discover_candidates(global_limit=10, min_stars=0)
 

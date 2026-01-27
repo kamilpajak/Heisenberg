@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from heisenberg.github_client import (
+from heisenberg.integrations.github_client import (
     GitHubClient,
     GitHubClientError,
     GitHubContext,
@@ -126,7 +126,7 @@ class TestGitHubClient:
         with pytest.raises(ValueError, match="token"):
             GitHubClient.from_environment()
 
-    @patch("heisenberg.github_client.requests.post")
+    @patch("heisenberg.integrations.github_client.requests.post")
     def test_client_posts_comment_to_pr(self, mock_post: MagicMock):
         """Client should post comment via GitHub API."""
         # Given
@@ -158,7 +158,7 @@ class TestGitHubClient:
         assert call_kwargs["json"]["body"] == "Test comment body"
         assert "Authorization" in call_kwargs["headers"]
 
-    @patch("heisenberg.github_client.requests.post")
+    @patch("heisenberg.integrations.github_client.requests.post")
     def test_client_handles_api_error(self, mock_post: MagicMock):
         """Client should handle API errors gracefully."""
         # Given
@@ -175,8 +175,8 @@ class TestGitHubClient:
         with pytest.raises(Exception, match="403|error|failed"):
             client.post_pr_comment(context, "Comment")
 
-    @patch("heisenberg.github_client.requests.get")
-    @patch("heisenberg.github_client.requests.patch")
+    @patch("heisenberg.integrations.github_client.requests.get")
+    @patch("heisenberg.integrations.github_client.requests.patch")
     def test_client_updates_existing_comment(self, mock_patch: MagicMock, mock_get: MagicMock):
         """Client should update existing Heisenberg comment if found."""
         # Given
@@ -208,8 +208,8 @@ class TestGitHubClient:
 class TestPostPrCommentHelper:
     """Test suite for post_pr_comment convenience function."""
 
-    @patch("heisenberg.github_client.GitHubClient")
-    @patch("heisenberg.github_client.GitHubContext")
+    @patch("heisenberg.integrations.github_client.GitHubClient")
+    @patch("heisenberg.integrations.github_client.GitHubContext")
     def test_post_pr_comment_creates_client_and_context(
         self, mock_context_class: MagicMock, mock_client_class: MagicMock, monkeypatch
     ):
@@ -232,8 +232,8 @@ class TestPostPrCommentHelper:
         mock_client_class.from_environment.assert_called_once()
         mock_client.post_or_update_comment.assert_called_with(mock_context, "Test body")
 
-    @patch("heisenberg.github_client.GitHubClient")
-    @patch("heisenberg.github_client.GitHubContext")
+    @patch("heisenberg.integrations.github_client.GitHubClient")
+    @patch("heisenberg.integrations.github_client.GitHubContext")
     def test_post_pr_comment_skips_if_not_pr(
         self, mock_context_class: MagicMock, mock_client_class: MagicMock, monkeypatch
     ):

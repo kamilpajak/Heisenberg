@@ -28,7 +28,7 @@ class TestGitHubAPIConnection:
     @pytest.mark.asyncio
     async def test_can_connect_to_github_api(self):
         """Should successfully connect to GitHub API with valid token."""
-        from heisenberg.github_artifacts import GitHubArtifactClient
+        from heisenberg.integrations.github_artifacts import GitHubArtifactClient
 
         token = os.environ["GITHUB_TOKEN"]
         client = GitHubArtifactClient(token=token)
@@ -42,7 +42,7 @@ class TestGitHubAPIConnection:
     @pytest.mark.asyncio
     async def test_invalid_token_raises_error(self):
         """Should raise error with invalid token."""
-        from heisenberg.github_artifacts import GitHubAPIError, GitHubArtifactClient
+        from heisenberg.integrations.github_artifacts import GitHubAPIError, GitHubArtifactClient
 
         client = GitHubArtifactClient(token="invalid-token-12345")
 
@@ -58,7 +58,7 @@ class TestWorkflowRunsListing:
     @pytest.mark.asyncio
     async def test_list_runs_from_public_repo(self):
         """Should list workflow runs from a public repository."""
-        from heisenberg.github_artifacts import GitHubArtifactClient
+        from heisenberg.integrations.github_artifacts import GitHubArtifactClient
 
         token = os.environ["GITHUB_TOKEN"]
         client = GitHubArtifactClient(token=token)
@@ -74,7 +74,7 @@ class TestWorkflowRunsListing:
     @pytest.mark.asyncio
     async def test_list_runs_returns_workflow_run_objects(self):
         """Should return proper WorkflowRun dataclass objects."""
-        from heisenberg.github_artifacts import GitHubArtifactClient, WorkflowRun
+        from heisenberg.integrations.github_artifacts import GitHubArtifactClient, WorkflowRun
 
         token = os.environ["GITHUB_TOKEN"]
         client = GitHubArtifactClient(token=token)
@@ -94,7 +94,7 @@ class TestArtifactsListing:
     @pytest.mark.asyncio
     async def test_list_artifacts_from_run(self):
         """Should list artifacts from a workflow run."""
-        from heisenberg.github_artifacts import GitHubArtifactClient
+        from heisenberg.integrations.github_artifacts import GitHubArtifactClient
 
         token = os.environ["GITHUB_TOKEN"]
         client = GitHubArtifactClient(token=token)
@@ -117,7 +117,7 @@ class TestArtifactsListing:
     @pytest.mark.asyncio
     async def test_artifacts_have_required_fields(self):
         """Artifacts should have all required fields."""
-        from heisenberg.github_artifacts import Artifact, GitHubArtifactClient
+        from heisenberg.integrations.github_artifacts import Artifact, GitHubArtifactClient
 
         token = os.environ["GITHUB_TOKEN"]
         client = GitHubArtifactClient(token=token)
@@ -148,7 +148,7 @@ class TestNonExistentRepository:
     @pytest.mark.asyncio
     async def test_nonexistent_repo_raises_404(self):
         """Should raise 404 error for non-existent repository."""
-        from heisenberg.github_artifacts import GitHubAPIError, GitHubArtifactClient
+        from heisenberg.integrations.github_artifacts import GitHubAPIError, GitHubArtifactClient
 
         token = os.environ["GITHUB_TOKEN"]
         client = GitHubArtifactClient(token=token)
@@ -168,7 +168,7 @@ class TestRateLimiting:
     @pytest.mark.asyncio
     async def test_multiple_requests_succeed(self):
         """Should handle multiple sequential requests without rate limiting."""
-        from heisenberg.github_artifacts import GitHubArtifactClient
+        from heisenberg.integrations.github_artifacts import GitHubArtifactClient
 
         token = os.environ["GITHUB_TOKEN"]
         client = GitHubArtifactClient(token=token)

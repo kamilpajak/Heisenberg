@@ -9,15 +9,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-from heisenberg.ai_analyzer import analyze_unified_run, analyze_with_ai
-from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
-from heisenberg.analyzer import run_analysis
 from heisenberg.cli import formatters, github_fetch
-from heisenberg.freeze_case import CaseFreezer, FreezeConfig
-from heisenberg.github_client import post_pr_comment
-from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
-from heisenberg.unified_model import PlaywrightTransformer, UnifiedTestRun
-from heisenberg.validate_cases import CaseValidator, ValidatorConfig
+from heisenberg.core.analyzer import analyze_unified_run, analyze_with_ai
+from heisenberg.core.legacy_analyzer import run_analysis
+from heisenberg.core.models import PlaywrightTransformer, UnifiedTestRun
+from heisenberg.integrations.github_client import post_pr_comment
+from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
+from heisenberg.playground.freeze import CaseFreezer, FreezeConfig
+from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
+from heisenberg.playground.validate import CaseValidator, ValidatorConfig
 
 # Mapping of provider names to their required environment variables
 PROVIDER_API_KEY_ENV_VARS = {
@@ -164,7 +164,7 @@ def run_analyze(args: argparse.Namespace) -> int:
         ai_result = _run_ai_analysis(args, result, container_logs)
 
     if args.output_format == "unified-json":
-        from heisenberg.formatters import format_unified_as_json
+        from heisenberg.utils.formatting import format_unified_as_json
 
         unified_run = convert_to_unified(result.report)
         print(format_unified_as_json(unified_run))
@@ -178,8 +178,8 @@ def run_analyze(args: argparse.Namespace) -> int:
 
 def _run_junit_analyze(args: argparse.Namespace) -> int:
     """Run analysis for JUnit XML reports."""
-    from heisenberg.formatters import format_unified_as_json, format_unified_as_markdown
-    from heisenberg.junit_parser import JUnitParser
+    from heisenberg.parsers.junit import JUnitParser
+    from heisenberg.utils.formatting import format_unified_as_json, format_unified_as_markdown
 
     try:
         report = JUnitParser.parse_file(args.report)
@@ -260,7 +260,7 @@ def _analyze_report_data(
 
 async def run_fetch_github(args: argparse.Namespace) -> int:
     """Run the fetch-github command."""
-    from heisenberg.github_artifacts import GitHubAPIError, GitHubArtifactClient
+    from heisenberg.integrations.github_artifacts import GitHubAPIError, GitHubArtifactClient
 
     token = args.token or os.environ.get("GITHUB_TOKEN")
     if not token:

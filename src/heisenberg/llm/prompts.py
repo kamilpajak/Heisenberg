@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from heisenberg.docker_logs import ContainerLogs
-from heisenberg.log_compressor import compress_logs_for_llm
-from heisenberg.playwright_parser import PlaywrightReport
+from heisenberg.integrations.docker import ContainerLogs
+from heisenberg.parsers.playwright import PlaywrightReport
+from heisenberg.utils.compression import compress_logs_for_llm
 
 if TYPE_CHECKING:
-    from heisenberg.unified_model import UnifiedTestRun
+    from heisenberg.core.models import UnifiedTestRun
 
 
 def get_system_prompt() -> str:

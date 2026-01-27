@@ -16,7 +16,7 @@ import pytest
 
 # Import will fail until we implement the module
 try:
-    from heisenberg.freeze_case import (
+    from heisenberg.playground.freeze import (
         CaseFreezer,
         CaseMetadata,
         FreezeConfig,
@@ -220,7 +220,7 @@ class TestFreezeWorkflow:
     @pytest.fixture
     def mock_github_client(self):
         """Mock GitHubArtifactClient."""
-        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock:
+        with patch("heisenberg.playground.freeze.GitHubArtifactClient") as mock:
             client_instance = AsyncMock()
             # extract_playwright_report is a sync method, not async
             client_instance.extract_playwright_report = MagicMock()
@@ -302,7 +302,7 @@ class TestFreezeWorkflow:
         mock_github_client.download_artifact.return_value = sample_report_zip
 
         # Mock repo info for stars
-        with patch("heisenberg.freeze_case.get_repo_stars", return_value=5000):
+        with patch("heisenberg.playground.freeze.get_repo_stars", return_value=5000):
             config = FreezeConfig(
                 repo="owner/repo",
                 output_dir=temp_output_dir,
@@ -384,7 +384,7 @@ class TestFreezeErrorHandling:
     @pytest.mark.asyncio
     async def test_freeze_raises_on_no_failed_runs(self, temp_output_dir):
         """Should raise error when no failed runs found."""
-        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.playground.freeze.GitHubArtifactClient") as mock_client:
             mock_client.return_value.list_workflow_runs = AsyncMock(return_value=[])
 
             config = FreezeConfig(
@@ -400,7 +400,7 @@ class TestFreezeErrorHandling:
     @pytest.mark.asyncio
     async def test_freeze_raises_on_no_playwright_artifacts(self, temp_output_dir):
         """Should raise error when no Playwright artifacts found."""
-        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.playground.freeze.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -423,7 +423,7 @@ class TestFreezeErrorHandling:
     @pytest.mark.asyncio
     async def test_freeze_raises_on_expired_artifacts(self, temp_output_dir):
         """Should raise error when all Playwright artifacts are expired."""
-        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.playground.freeze.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -510,7 +510,7 @@ class TestTraceHandling:
             zf.writestr("report.json", json.dumps(report_data))
         report_zip = report_zip_buffer.getvalue()
 
-        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.playground.freeze.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -565,7 +565,7 @@ class TestFailureFiltering:
             {"expected": 10, "unexpected": 0, "flaky": 0, "skipped": 0}
         )
 
-        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.playground.freeze.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -594,7 +594,7 @@ class TestFailureFiltering:
             {"expected": 0, "unexpected": 0, "flaky": 0, "skipped": 8}
         )
 
-        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.playground.freeze.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -628,7 +628,7 @@ class TestFailureFiltering:
             zf.writestr("data/abc123.zip", b"binary blob data")
         html_report_zip = zip_buffer.getvalue()
 
-        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.playground.freeze.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -657,7 +657,7 @@ class TestFailureFiltering:
             {"expected": 8, "unexpected": 2, "flaky": 0, "skipped": 0}
         )
 
-        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.playground.freeze.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -688,7 +688,7 @@ class TestFailureFiltering:
             {"expected": 10, "unexpected": 0, "flaky": 0, "skipped": 0}
         )
 
-        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.playground.freeze.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [

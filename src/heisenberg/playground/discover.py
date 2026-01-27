@@ -35,11 +35,11 @@ DEFAULT_QUERIES = [
 ]
 
 PLAYWRIGHT_PATTERNS = [
-    r"^playwright[-_]?report",      # playwright-report, playwright_report
-    r"^blob[-_]?report",            # blob-report (Playwright sharding)
-    r"^playwright[-_]?traces?",     # playwright-trace, playwright-traces
-    r"^trace\.zip$",                # trace.zip
-    r"playwright.*report",          # any-playwright-report
+    r"^playwright[-_]?report",  # playwright-report, playwright_report
+    r"^blob[-_]?report",  # blob-report (Playwright sharding)
+    r"^playwright[-_]?traces?",  # playwright-trace, playwright-traces
+    r"^trace\.zip$",  # trace.zip
+    r"playwright.*report",  # any-playwright-report
 ]
 
 _PLAYWRIGHT_REGEX = re.compile("|".join(PLAYWRIGHT_PATTERNS), re.IGNORECASE)
@@ -51,13 +51,14 @@ MAX_RUNS_TO_CHECK = 5
 # DOMAIN MODELS
 # =============================================================================
 
+
 class CandidateStatus(Enum):
     """Status of a candidate project."""
 
-    COMPATIBLE = "compatible"           # Has valid Playwright artifacts
-    HAS_ARTIFACTS = "has_artifacts"     # Has artifacts but not Playwright
-    NO_ARTIFACTS = "no_artifacts"       # Run exists but no artifacts
-    NO_FAILED_RUNS = "no_failed_runs"   # No failed workflow runs
+    COMPATIBLE = "compatible"  # Has valid Playwright artifacts
+    HAS_ARTIFACTS = "has_artifacts"  # Has artifacts but not Playwright
+    NO_ARTIFACTS = "no_artifacts"  # Run exists but no artifacts
+    NO_FAILED_RUNS = "no_failed_runs"  # No failed workflow runs
 
 
 @dataclass
@@ -86,6 +87,7 @@ class ProjectCandidate:
 # =============================================================================
 # GITHUB CLIENT (API Communication)
 # =============================================================================
+
 
 def gh_api(endpoint: str, params: dict | None = None) -> dict | list | None:
     """Call GitHub API via gh CLI."""
@@ -142,10 +144,7 @@ def get_repo_stars(repo: str) -> int:
 
 def get_failed_runs(repo: str, limit: int = MAX_RUNS_TO_CHECK) -> list[dict]:
     """Get recent failed workflow runs for a repository."""
-    cmd = [
-        "gh", "api", "-X", "GET",
-        f"/repos/{repo}/actions/runs?status=failure&per_page={limit}"
-    ]
+    cmd = ["gh", "api", "-X", "GET", f"/repos/{repo}/actions/runs?status=failure&per_page={limit}"]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         data = json.loads(result.stdout)
@@ -167,6 +166,7 @@ def get_run_artifacts(repo: str, run_id: str) -> list[dict]:
 # DOMAIN LOGIC (Validation & Analysis)
 # =============================================================================
 
+
 def is_playwright_artifact(name: str) -> bool:
     """Check if artifact name suggests Playwright report."""
     return bool(_PLAYWRIGHT_REGEX.search(name))
@@ -174,11 +174,7 @@ def is_playwright_artifact(name: str) -> bool:
 
 def filter_expired_artifacts(artifacts: list[dict]) -> list[str]:
     """Filter out expired artifacts, return names of valid ones."""
-    return [
-        a["name"]
-        for a in artifacts
-        if not a.get("expired", False)
-    ]
+    return [a["name"] for a in artifacts if not a.get("expired", False)]
 
 
 def find_valid_artifacts(repo: str) -> tuple[str | None, str | None, list[str]]:
@@ -243,8 +239,7 @@ def analyze_candidate(repo: str, stars: int | None = None) -> ProjectCandidate:
 
 
 def filter_by_min_stars(
-    candidates: list[ProjectCandidate],
-    min_stars: int = 100
+    candidates: list[ProjectCandidate], min_stars: int = 100
 ) -> list[ProjectCandidate]:
     """Filter candidates by minimum star count."""
     return [c for c in candidates if c.stars >= min_stars]
@@ -258,6 +253,7 @@ def sort_candidates(candidates: list[ProjectCandidate]) -> list[ProjectCandidate
 # =============================================================================
 # DISCOVERY ORCHESTRATION
 # =============================================================================
+
 
 def discover_candidates(
     global_limit: int = 30,
@@ -298,6 +294,7 @@ def discover_candidates(
 # =============================================================================
 # PRESENTER (CLI Output Formatting)
 # =============================================================================
+
 
 def format_status_icon(status: CandidateStatus) -> str:
     """Get the icon for a candidate status."""
@@ -350,9 +347,9 @@ def print_summary(
     for i, candidate in enumerate(candidates, 1):
         print_candidate_line(candidate, i, len(candidates), out)
 
-    print(f"\n{'='*70}", file=out)
+    print(f"\n{'=' * 70}", file=out)
     print(f"📊 Results: {compatible_count} compatible / {len(candidates)} checked", file=out)
-    print(f"{'='*70}\n", file=out)
+    print(f"{'=' * 70}\n", file=out)
 
 
 def print_compatible_projects(
@@ -397,17 +394,12 @@ def save_results(candidates: list[ProjectCandidate], output_path: str) -> None:
 # CLI ENTRY POINT
 # =============================================================================
 
+
 def main() -> None:
     """Main entry point for CLI."""
-    parser = argparse.ArgumentParser(
-        description="Discover projects for Heisenberg testing"
-    )
-    parser.add_argument(
-        "--min-stars", type=int, default=100, help="Minimum stars"
-    )
-    parser.add_argument(
-        "--limit", type=int, default=30, help="Max repos to analyze (global)"
-    )
+    parser = argparse.ArgumentParser(description="Discover projects for Heisenberg testing")
+    parser.add_argument("--min-stars", type=int, default=100, help="Minimum stars")
+    parser.add_argument("--limit", type=int, default=30, help="Max repos to analyze (global)")
     parser.add_argument("--output", "-o", help="Output JSON file")
     args = parser.parse_args()
 

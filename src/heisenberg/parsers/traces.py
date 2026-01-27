@@ -18,7 +18,7 @@ import zipfile
 from dataclasses import dataclass, field
 from typing import TextIO
 
-from heisenberg.artifact_utils import extract_spec_file_from_path, extract_test_name_from_path
+from heisenberg.utils.artifacts import extract_spec_file_from_path, extract_test_name_from_path
 
 # Default limits for trace entries
 DEFAULT_MAX_CONSOLE_ENTRIES = 20

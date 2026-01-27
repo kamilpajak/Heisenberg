@@ -133,35 +133,35 @@ class TestValidatorConfig:
 
     def test_config_requires_cases_dir(self):
         """ValidatorConfig should require cases_dir."""
-        from heisenberg.validate_cases import ValidatorConfig
+        from heisenberg.playground.validate import ValidatorConfig
 
         config = ValidatorConfig(cases_dir=Path("/tmp/scenarios"))
         assert config.cases_dir == Path("/tmp/scenarios")
 
     def test_config_has_default_max_age_days(self):
         """ValidatorConfig should default max_age_days to 90."""
-        from heisenberg.validate_cases import ValidatorConfig
+        from heisenberg.playground.validate import ValidatorConfig
 
         config = ValidatorConfig(cases_dir=Path("/tmp/scenarios"))
         assert config.max_age_days == 90
 
     def test_config_accepts_custom_max_age(self):
         """ValidatorConfig should accept custom max_age_days."""
-        from heisenberg.validate_cases import ValidatorConfig
+        from heisenberg.playground.validate import ValidatorConfig
 
         config = ValidatorConfig(cases_dir=Path("/tmp/scenarios"), max_age_days=30)
         assert config.max_age_days == 30
 
     def test_config_has_require_diagnosis_flag(self):
         """ValidatorConfig should have require_diagnosis flag."""
-        from heisenberg.validate_cases import ValidatorConfig
+        from heisenberg.playground.validate import ValidatorConfig
 
         config = ValidatorConfig(cases_dir=Path("/tmp/scenarios"), require_diagnosis=True)
         assert config.require_diagnosis is True
 
     def test_config_require_diagnosis_defaults_true(self):
         """require_diagnosis should default to True."""
-        from heisenberg.validate_cases import ValidatorConfig
+        from heisenberg.playground.validate import ValidatorConfig
 
         config = ValidatorConfig(cases_dir=Path("/tmp/scenarios"))
         assert config.require_diagnosis is True
@@ -175,7 +175,7 @@ class TestValidationResult:
 
     def test_result_has_case_id(self):
         """ValidationResult should have case_id."""
-        from heisenberg.validate_cases import ValidationResult, ValidationStatus
+        from heisenberg.playground.validate import ValidationResult, ValidationStatus
 
         result = ValidationResult(
             case_id="test-123",
@@ -186,7 +186,7 @@ class TestValidationResult:
 
     def test_result_has_status(self):
         """ValidationResult should have status."""
-        from heisenberg.validate_cases import ValidationResult, ValidationStatus
+        from heisenberg.playground.validate import ValidationResult, ValidationStatus
 
         result = ValidationResult(
             case_id="test-123",
@@ -197,7 +197,7 @@ class TestValidationResult:
 
     def test_result_has_issues_list(self):
         """ValidationResult should have issues list."""
-        from heisenberg.validate_cases import ValidationResult, ValidationStatus
+        from heisenberg.playground.validate import ValidationResult, ValidationStatus
 
         result = ValidationResult(
             case_id="test-123",
@@ -208,7 +208,7 @@ class TestValidationResult:
 
     def test_result_is_valid_property(self):
         """ValidationResult.is_valid should return True only for VALID status."""
-        from heisenberg.validate_cases import ValidationResult, ValidationStatus
+        from heisenberg.playground.validate import ValidationResult, ValidationStatus
 
         valid = ValidationResult("a", ValidationStatus.VALID, [])
         stale = ValidationResult("b", ValidationStatus.STALE, ["old"])
@@ -227,7 +227,7 @@ class TestCaseValidator:
 
     def test_validator_requires_config(self, tmp_path):
         """CaseValidator should require config."""
-        from heisenberg.validate_cases import CaseValidator, ValidatorConfig
+        from heisenberg.playground.validate import CaseValidator, ValidatorConfig
 
         config = ValidatorConfig(cases_dir=tmp_path)
         validator = CaseValidator(config)
@@ -235,7 +235,7 @@ class TestCaseValidator:
 
     def test_validate_scenario_returns_result(self, complete_scenario):
         """validate_scenario should return ValidationResult."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationResult,
             ValidatorConfig,
@@ -250,7 +250,7 @@ class TestCaseValidator:
 
     def test_complete_scenario_is_valid(self, complete_scenario):
         """Complete fresh scenario should be VALID."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationStatus,
             ValidatorConfig,
@@ -266,7 +266,7 @@ class TestCaseValidator:
 
     def test_stale_scenario_is_stale(self, stale_scenario):
         """Scenario older than max_age_days should be STALE."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationStatus,
             ValidatorConfig,
@@ -282,7 +282,7 @@ class TestCaseValidator:
 
     def test_incomplete_scenario_is_invalid(self, incomplete_scenario):
         """Scenario missing diagnosis.json should be INVALID when require_diagnosis=True."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationStatus,
             ValidatorConfig,
@@ -298,7 +298,7 @@ class TestCaseValidator:
 
     def test_incomplete_scenario_valid_when_diagnosis_not_required(self, incomplete_scenario):
         """Scenario missing diagnosis should be VALID when require_diagnosis=False."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationStatus,
             ValidatorConfig,
@@ -313,7 +313,7 @@ class TestCaseValidator:
 
     def test_missing_metadata_is_invalid(self, tmp_path):
         """Scenario missing metadata.json should be INVALID."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationStatus,
             ValidatorConfig,
@@ -333,7 +333,7 @@ class TestCaseValidator:
 
     def test_missing_report_is_invalid(self, tmp_path, fresh_metadata):
         """Scenario missing report.json should be INVALID."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationStatus,
             ValidatorConfig,
@@ -360,7 +360,7 @@ class TestValidateAll:
 
     def test_validate_all_returns_list(self, cases_dir_mixed):
         """validate_all should return list of ValidationResults."""
-        from heisenberg.validate_cases import CaseValidator, ValidatorConfig
+        from heisenberg.playground.validate import CaseValidator, ValidatorConfig
 
         config = ValidatorConfig(cases_dir=cases_dir_mixed)
         validator = CaseValidator(config)
@@ -372,7 +372,7 @@ class TestValidateAll:
 
     def test_validate_all_checks_each_scenario(self, cases_dir_mixed):
         """validate_all should check each scenario directory."""
-        from heisenberg.validate_cases import CaseValidator, ValidatorConfig
+        from heisenberg.playground.validate import CaseValidator, ValidatorConfig
 
         config = ValidatorConfig(cases_dir=cases_dir_mixed)
         validator = CaseValidator(config)
@@ -386,7 +386,7 @@ class TestValidateAll:
 
     def test_validate_all_empty_dir(self, tmp_path):
         """validate_all should return empty list for empty directory."""
-        from heisenberg.validate_cases import CaseValidator, ValidatorConfig
+        from heisenberg.playground.validate import CaseValidator, ValidatorConfig
 
         config = ValidatorConfig(cases_dir=tmp_path)
         validator = CaseValidator(config)
@@ -404,7 +404,7 @@ class TestValidationReport:
 
     def test_generate_report_returns_report(self, cases_dir_mixed):
         """generate_report should return ValidationReport."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationReport,
             ValidatorConfig,
@@ -419,7 +419,7 @@ class TestValidationReport:
 
     def test_report_has_summary_stats(self, cases_dir_mixed):
         """ValidationReport should have summary statistics."""
-        from heisenberg.validate_cases import CaseValidator, ValidatorConfig
+        from heisenberg.playground.validate import CaseValidator, ValidatorConfig
 
         config = ValidatorConfig(cases_dir=cases_dir_mixed)
         validator = CaseValidator(config)
@@ -434,7 +434,7 @@ class TestValidationReport:
 
     def test_report_has_results_list(self, cases_dir_mixed):
         """ValidationReport should contain individual results."""
-        from heisenberg.validate_cases import CaseValidator, ValidatorConfig
+        from heisenberg.playground.validate import CaseValidator, ValidatorConfig
 
         config = ValidatorConfig(cases_dir=cases_dir_mixed)
         validator = CaseValidator(config)
@@ -445,7 +445,7 @@ class TestValidationReport:
 
     def test_report_to_dict(self, cases_dir_mixed):
         """ValidationReport should serialize to dict."""
-        from heisenberg.validate_cases import CaseValidator, ValidatorConfig
+        from heisenberg.playground.validate import CaseValidator, ValidatorConfig
 
         config = ValidatorConfig(cases_dir=cases_dir_mixed)
         validator = CaseValidator(config)
@@ -459,7 +459,7 @@ class TestValidationReport:
 
     def test_report_to_json(self, cases_dir_mixed):
         """ValidationReport should serialize to JSON."""
-        from heisenberg.validate_cases import CaseValidator, ValidatorConfig
+        from heisenberg.playground.validate import CaseValidator, ValidatorConfig
 
         config = ValidatorConfig(cases_dir=cases_dir_mixed)
         validator = CaseValidator(config)
@@ -480,7 +480,7 @@ class TestValidationEdgeCases:
 
     def test_invalid_json_in_metadata(self, tmp_path):
         """Invalid JSON in metadata.json should result in INVALID."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationStatus,
             ValidatorConfig,
@@ -501,7 +501,7 @@ class TestValidationEdgeCases:
 
     def test_missing_captured_at_in_metadata(self, tmp_path):
         """Missing captured_at in metadata should result in INVALID."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationStatus,
             ValidatorConfig,
@@ -523,7 +523,7 @@ class TestValidationEdgeCases:
 
     def test_custom_max_age_threshold(self, tmp_path):
         """Custom max_age_days should affect staleness check."""
-        from heisenberg.validate_cases import (
+        from heisenberg.playground.validate import (
             CaseValidator,
             ValidationStatus,
             ValidatorConfig,

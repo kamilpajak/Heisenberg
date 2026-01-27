@@ -4,16 +4,16 @@ import json
 
 import pytest
 
-from heisenberg.formatters import (
-    format_unified_as_json,
-    format_unified_as_markdown,
-)
-from heisenberg.unified_model import (
+from heisenberg.core.models import (
     ErrorInfo,
     FailureMetadata,
     Framework,
     UnifiedFailure,
     UnifiedTestRun,
+)
+from heisenberg.utils.formatting import (
+    format_unified_as_json,
+    format_unified_as_markdown,
 )
 
 

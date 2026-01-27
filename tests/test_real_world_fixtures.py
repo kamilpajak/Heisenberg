@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from heisenberg.playwright_parser import parse_playwright_report
+from heisenberg.parsers.playwright import parse_playwright_report
 
 # Path to real-world fixtures
 REAL_WORLD_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "real-world"

@@ -2,7 +2,7 @@
 
 __version__ = "1.6.1"
 
-from heisenberg.unified_model import (
+from heisenberg.core.models import (
     Attachments,
     ErrorInfo,
     FailureMetadata,

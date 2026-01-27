@@ -13,7 +13,7 @@ import pytest
 
 # Import will fail until we implement the module
 try:
-    from heisenberg.github_artifacts import (
+    from heisenberg.integrations.github_artifacts import (
         Artifact,
         GitHubAPIError,
         GitHubArtifactClient,

@@ -141,21 +141,21 @@ class TestGeneratorConfig:
 
     def test_config_requires_cases_dir(self):
         """GeneratorConfig should require cases_dir."""
-        from heisenberg.manifest_generator import GeneratorConfig
+        from heisenberg.playground.manifest import GeneratorConfig
 
         config = GeneratorConfig(cases_dir=Path("/tmp/scenarios"))
         assert config.cases_dir == Path("/tmp/scenarios")
 
     def test_config_has_default_output_path(self):
         """GeneratorConfig should default output to manifest.json in cases_dir."""
-        from heisenberg.manifest_generator import GeneratorConfig
+        from heisenberg.playground.manifest import GeneratorConfig
 
         config = GeneratorConfig(cases_dir=Path("/tmp/scenarios"))
         assert config.output_path == Path("/tmp/scenarios/manifest.json")
 
     def test_config_accepts_custom_output_path(self):
         """GeneratorConfig should accept custom output path."""
-        from heisenberg.manifest_generator import GeneratorConfig
+        from heisenberg.playground.manifest import GeneratorConfig
 
         config = GeneratorConfig(
             cases_dir=Path("/tmp/scenarios"),
@@ -165,14 +165,14 @@ class TestGeneratorConfig:
 
     def test_config_has_include_pending_flag(self):
         """GeneratorConfig should have include_pending flag."""
-        from heisenberg.manifest_generator import GeneratorConfig
+        from heisenberg.playground.manifest import GeneratorConfig
 
         config = GeneratorConfig(cases_dir=Path("/tmp/scenarios"), include_pending=True)
         assert config.include_pending is True
 
     def test_config_include_pending_defaults_false(self):
         """include_pending should default to False."""
-        from heisenberg.manifest_generator import GeneratorConfig
+        from heisenberg.playground.manifest import GeneratorConfig
 
         config = GeneratorConfig(cases_dir=Path("/tmp/scenarios"))
         assert config.include_pending is False
@@ -186,7 +186,7 @@ class TestManifestGenerator:
 
     def test_generator_requires_config(self, tmp_path):
         """ManifestGenerator should require config."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=tmp_path)
         generator = ManifestGenerator(config)
@@ -194,7 +194,7 @@ class TestManifestGenerator:
 
     def test_discover_scenarios_finds_directories(self, cases_dir_multiple):
         """discover_scenarios should find all scenario directories."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=cases_dir_multiple)
         generator = ManifestGenerator(config)
@@ -208,7 +208,7 @@ class TestManifestGenerator:
 
     def test_discover_scenarios_ignores_files(self, tmp_path):
         """discover_scenarios should ignore files, only return directories."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         (tmp_path / "readme.md").write_text("# README")
         (tmp_path / "scenario-123").mkdir()
@@ -223,7 +223,7 @@ class TestManifestGenerator:
 
     def test_discover_scenarios_empty_dir(self, tmp_path):
         """discover_scenarios should return empty list for empty directory."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=tmp_path)
         generator = ManifestGenerator(config)
@@ -238,7 +238,7 @@ class TestLoadScenarioData:
 
     def test_load_scenario_returns_entry(self, case_dir_with_diagnosis):
         """load_scenario should return ScenarioEntry."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator, ScenarioEntry
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator, ScenarioEntry
 
         config = GeneratorConfig(cases_dir=case_dir_with_diagnosis.parent)
         generator = ManifestGenerator(config)
@@ -249,7 +249,7 @@ class TestLoadScenarioData:
 
     def test_load_scenario_extracts_id(self, case_dir_with_diagnosis):
         """load_scenario should extract scenario ID from directory name."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_with_diagnosis.parent)
         generator = ManifestGenerator(config)
@@ -260,7 +260,7 @@ class TestLoadScenarioData:
 
     def test_load_scenario_extracts_source_info(self, case_dir_with_diagnosis):
         """load_scenario should extract source info from metadata."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_with_diagnosis.parent)
         generator = ManifestGenerator(config)
@@ -273,7 +273,7 @@ class TestLoadScenarioData:
 
     def test_load_scenario_extracts_validation_from_diagnosis(self, case_dir_with_diagnosis):
         """load_scenario should extract validation info from diagnosis."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_with_diagnosis.parent)
         generator = ManifestGenerator(config)
@@ -285,7 +285,7 @@ class TestLoadScenarioData:
 
     def test_load_scenario_builds_asset_paths(self, case_dir_with_diagnosis):
         """load_scenario should build relative asset paths."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_with_diagnosis.parent)
         generator = ManifestGenerator(config)
@@ -297,7 +297,7 @@ class TestLoadScenarioData:
 
     def test_load_scenario_without_diagnosis_returns_pending(self, case_dir_without_diagnosis):
         """load_scenario without diagnosis should mark as pending."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_without_diagnosis.parent)
         generator = ManifestGenerator(config)
@@ -316,7 +316,7 @@ class TestGenerateManifest:
 
     def test_generate_returns_manifest(self, cases_dir_multiple):
         """generate() should return Manifest object."""
-        from heisenberg.manifest_generator import GeneratorConfig, Manifest, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, Manifest, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=cases_dir_multiple)
         generator = ManifestGenerator(config)
@@ -327,7 +327,7 @@ class TestGenerateManifest:
 
     def test_generate_includes_all_analyzed_scenarios(self, cases_dir_multiple):
         """generate() should include all scenarios with diagnosis."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=cases_dir_multiple)
         generator = ManifestGenerator(config)
@@ -340,7 +340,7 @@ class TestGenerateManifest:
         self, tmp_path, sample_metadata, sample_diagnosis
     ):
         """generate() should exclude pending scenarios by default."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         # Create one analyzed and one pending
         s1 = tmp_path / "analyzed-123"
@@ -366,7 +366,7 @@ class TestGenerateManifest:
         self, tmp_path, sample_metadata, sample_diagnosis
     ):
         """generate() should include pending scenarios when include_pending=True."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         s1 = tmp_path / "analyzed-123"
         s1.mkdir()
@@ -388,7 +388,7 @@ class TestGenerateManifest:
 
     def test_generate_sets_generated_at(self, cases_dir_multiple):
         """generate() should set generated_at timestamp."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=cases_dir_multiple)
         generator = ManifestGenerator(config)
@@ -408,7 +408,7 @@ class TestCalculateStats:
 
     def test_stats_counts_total_scenarios(self, cases_dir_multiple):
         """Stats should count total scenarios."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=cases_dir_multiple)
         generator = ManifestGenerator(config)
@@ -426,7 +426,7 @@ class TestCalculateStats:
         sample_diagnosis_low,
     ):
         """Stats should count scenarios by confidence level."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         # HIGH
         s1 = tmp_path / "high-123"
@@ -467,7 +467,7 @@ class TestManifestSerialization:
 
     def test_manifest_to_dict(self, cases_dir_multiple):
         """Manifest should serialize to dict."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=cases_dir_multiple)
         generator = ManifestGenerator(config)
@@ -482,7 +482,7 @@ class TestManifestSerialization:
 
     def test_manifest_to_json(self, cases_dir_multiple):
         """Manifest should serialize to JSON string."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=cases_dir_multiple)
         generator = ManifestGenerator(config)
@@ -503,7 +503,7 @@ class TestSaveManifest:
 
     def test_save_writes_manifest_file(self, cases_dir_multiple):
         """save() should write manifest.json to output path."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         output_path = cases_dir_multiple / "manifest.json"
         config = GeneratorConfig(cases_dir=cases_dir_multiple, output_path=output_path)
@@ -516,7 +516,7 @@ class TestSaveManifest:
 
     def test_saved_manifest_is_valid_json(self, cases_dir_multiple):
         """Saved manifest.json should be valid JSON."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         output_path = cases_dir_multiple / "manifest.json"
         config = GeneratorConfig(cases_dir=cases_dir_multiple, output_path=output_path)
@@ -531,7 +531,7 @@ class TestSaveManifest:
 
     def test_generate_and_save_convenience(self, cases_dir_multiple):
         """generate_and_save() should generate and save in one call."""
-        from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
+        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         output_path = cases_dir_multiple / "manifest.json"
         config = GeneratorConfig(cases_dir=cases_dir_multiple, output_path=output_path)

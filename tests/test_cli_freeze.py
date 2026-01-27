@@ -35,7 +35,7 @@ def mock_freezer():
 @pytest.fixture
 def mock_gh_token():
     """Mock gh auth token command."""
-    with patch("heisenberg.freeze_case.subprocess.run") as mock_run:
+    with patch("heisenberg.playground.freeze.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(stdout="ghp_test_token\n", returncode=0)
         yield mock_run
 
@@ -130,7 +130,7 @@ class TestRunFreeze:
     async def test_run_freeze_creates_freezer_with_config(self, tmp_path):
         """run_freeze should create CaseFreezer with correct config."""
         from heisenberg.cli.commands import run_freeze
-        from heisenberg.freeze_case import FreezeConfig
+        from heisenberg.playground.freeze import FreezeConfig
 
         args = argparse.Namespace(
             repo="TryGhost/Ghost",

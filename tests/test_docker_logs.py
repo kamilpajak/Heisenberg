@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
-from heisenberg.docker_logs import (
+from heisenberg.integrations.docker import (
     ContainerLogs,
     DockerLogsCollector,
     LogEntry,
@@ -140,7 +140,7 @@ class TestDockerLogsCollector:
         # Then
         assert collector.services == []
 
-    @patch("heisenberg.docker_logs.subprocess.run")
+    @patch("heisenberg.integrations.docker.subprocess.run")
     def test_collector_calls_docker_logs_command(self, mock_run: MagicMock):
         """Collector should call docker logs for each service."""
         # Given
@@ -161,7 +161,7 @@ class TestDockerLogsCollector:
         assert "logs" in call_args
         assert "api-service" in call_args
 
-    @patch("heisenberg.docker_logs.subprocess.run")
+    @patch("heisenberg.integrations.docker.subprocess.run")
     def test_collector_parses_docker_log_output(self, mock_run: MagicMock):
         """Collector should parse docker logs output into LogEntry objects."""
         # Given
@@ -181,7 +181,7 @@ class TestDockerLogsCollector:
         assert len(results["api"].entries) == 2
         assert results["api"].entries[0].message == "Test message line 1"
 
-    @patch("heisenberg.docker_logs.subprocess.run")
+    @patch("heisenberg.integrations.docker.subprocess.run")
     def test_collector_handles_docker_not_available(self, mock_run: MagicMock):
         """Collector should handle docker command not available."""
         # Given
@@ -194,7 +194,7 @@ class TestDockerLogsCollector:
         # Then
         assert results == {}
 
-    @patch("heisenberg.docker_logs.subprocess.run")
+    @patch("heisenberg.integrations.docker.subprocess.run")
     def test_collector_handles_container_not_found(self, mock_run: MagicMock):
         """Collector should handle non-existent container gracefully."""
         # Given
@@ -211,7 +211,7 @@ class TestDockerLogsCollector:
         # Then
         assert "nonexistent" not in results or results["nonexistent"].entries == []
 
-    @patch("heisenberg.docker_logs.subprocess.run")
+    @patch("heisenberg.integrations.docker.subprocess.run")
     def test_collector_uses_timestamps_flag(self, mock_run: MagicMock):
         """Collector should use --timestamps flag for parsing."""
         # Given
@@ -229,7 +229,7 @@ class TestDockerLogsCollector:
 class TestCollectLogsAroundTimestamp:
     """Test suite for collect_logs_around_timestamp helper."""
 
-    @patch("heisenberg.docker_logs.DockerLogsCollector")
+    @patch("heisenberg.integrations.docker.DockerLogsCollector")
     def test_collect_logs_creates_collector(self, mock_collector_class: MagicMock):
         """Should create collector with provided services."""
         # Given
@@ -247,7 +247,7 @@ class TestCollectLogsAroundTimestamp:
         # Then
         mock_collector_class.from_string.assert_called_with("api,db")
 
-    @patch("heisenberg.docker_logs.DockerLogsCollector")
+    @patch("heisenberg.integrations.docker.DockerLogsCollector")
     def test_collect_logs_filters_by_window(self, mock_collector_class: MagicMock):
         """Should filter logs by time window."""
         # Given

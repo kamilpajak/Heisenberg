@@ -8,10 +8,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from heisenberg.diagnosis import ConfidenceLevel, parse_diagnosis
-from heisenberg.docker_logs import ContainerLogs, LogEntry
-from heisenberg.playwright_parser import ErrorDetail, FailedTest, PlaywrightReport
-from heisenberg.prompt_builder import PromptBuilder, get_system_prompt
+from heisenberg.core.diagnosis import ConfidenceLevel, parse_diagnosis
+from heisenberg.integrations.docker import ContainerLogs, LogEntry
+from heisenberg.llm.prompts import PromptBuilder, get_system_prompt
+from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
 
 
 class TestDatabaseTimeoutScenario:

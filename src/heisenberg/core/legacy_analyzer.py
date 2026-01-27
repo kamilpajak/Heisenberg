@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from heisenberg.comment_formatter import format_pr_comment
-from heisenberg.docker_logs import ContainerLogs, DockerLogsCollector
-from heisenberg.playwright_parser import PlaywrightReport, parse_playwright_report
+from heisenberg.integrations.docker import ContainerLogs, DockerLogsCollector
+from heisenberg.parsers.playwright import PlaywrightReport, parse_playwright_report
+from heisenberg.utils.comments import format_pr_comment
 
 
 @dataclass

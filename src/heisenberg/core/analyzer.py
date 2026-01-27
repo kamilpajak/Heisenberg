@@ -6,14 +6,14 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
-from heisenberg.diagnosis import Diagnosis, parse_diagnosis
-from heisenberg.docker_logs import ContainerLogs
-from heisenberg.llm_client import LLMClient, LLMResponse
-from heisenberg.playwright_parser import PlaywrightReport
-from heisenberg.prompt_builder import build_analysis_prompt
+from heisenberg.core.diagnosis import Diagnosis, parse_diagnosis
+from heisenberg.integrations.docker import ContainerLogs
+from heisenberg.llm.client import LLMClient, LLMResponse
+from heisenberg.llm.prompts import build_analysis_prompt
+from heisenberg.parsers.playwright import PlaywrightReport
 
 if TYPE_CHECKING:
-    from heisenberg.unified_model import UnifiedTestRun
+    from heisenberg.core.models import UnifiedTestRun
 
 # Marker for AI-generated content
 HEISENBERG_AI_MARKER = "## Heisenberg AI Analysis"
@@ -155,7 +155,7 @@ class AIAnalyzer:
         """Get appropriate LLM client based on provider."""
         import os
 
-        from heisenberg.llm_client import LLMConfig
+        from heisenberg.llm.client import LLMConfig
 
         # Use appropriate client based on provider
         if self.provider == "anthropic":
@@ -321,7 +321,7 @@ def analyze_unified_run(
     Returns:
         AIAnalysisResult with diagnosis.
     """
-    from heisenberg.prompt_builder import build_unified_prompt
+    from heisenberg.llm.prompts import build_unified_prompt
 
     # Build prompts from unified model
     system_prompt, user_prompt = build_unified_prompt(
@@ -354,7 +354,7 @@ def _get_llm_client_for_provider(
     """Get LLM client for the specified provider."""
     import os
 
-    from heisenberg.llm_client import LLMClient, LLMConfig
+    from heisenberg.llm.client import LLMClient, LLMConfig
 
     if provider == "anthropic":
         config = LLMConfig()

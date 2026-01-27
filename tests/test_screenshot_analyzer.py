@@ -9,7 +9,7 @@ from __future__ import annotations
 import base64
 from unittest.mock import MagicMock, patch
 
-from heisenberg.screenshot_analyzer import (
+from heisenberg.parsers.screenshots import (
     ScreenshotAnalyzer,
     ScreenshotContext,
     extract_screenshots_from_artifact,
@@ -198,7 +198,7 @@ class TestScreenshotPromptIntegration:
 
     def test_format_screenshots_for_prompt(self):
         """Format multiple screenshot descriptions for AI prompt."""
-        from heisenberg.screenshot_analyzer import format_screenshots_for_prompt
+        from heisenberg.parsers.screenshots import format_screenshots_for_prompt
 
         screenshots = [
             ScreenshotContext(
@@ -225,7 +225,7 @@ class TestScreenshotPromptIntegration:
 
     def test_format_empty_screenshots(self):
         """Return empty string when no screenshots."""
-        from heisenberg.screenshot_analyzer import format_screenshots_for_prompt
+        from heisenberg.parsers.screenshots import format_screenshots_for_prompt
 
         formatted = format_screenshots_for_prompt([])
 
@@ -233,12 +233,12 @@ class TestScreenshotPromptIntegration:
 
     def test_prompt_builder_accepts_screenshot_context(self):
         """Prompt builder should include screenshot descriptions."""
-        from heisenberg.prompt_builder import build_unified_prompt
-        from heisenberg.unified_model import (
+        from heisenberg.core.models import (
             ErrorInfo,
             UnifiedFailure,
             UnifiedTestRun,
         )
+        from heisenberg.llm.prompts import build_unified_prompt
 
         failure = UnifiedFailure(
             test_id="1",

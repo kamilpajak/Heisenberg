@@ -12,8 +12,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from heisenberg.ai_analyzer import AIAnalyzer
-from heisenberg.playwright_parser import parse_playwright_report
+from heisenberg.core.analyzer import AIAnalyzer
+from heisenberg.parsers.playwright import parse_playwright_report
 
 
 @dataclass

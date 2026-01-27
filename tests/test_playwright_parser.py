@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from heisenberg.playwright_parser import (
+from heisenberg.parsers.playwright import (
     PlaywrightReport,
     _extract_failed_specs,
     parse_playwright_report,

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-from heisenberg.job_logs_processor import JobLogsProcessor
+from heisenberg.parsers.job_logs import JobLogsProcessor
 
 
 class TestJobLogsFetching:
@@ -18,7 +18,7 @@ class TestJobLogsFetching:
     @patch("subprocess.run")
     def test_fetch_job_logs_via_gh_cli(self, mock_run):
         """Fetch job logs using gh CLI."""
-        from heisenberg.github_logs_fetcher import GitHubLogsFetcher
+        from heisenberg.integrations.github_logs import GitHubLogsFetcher
 
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -37,7 +37,7 @@ class TestJobLogsFetching:
     @patch("subprocess.run")
     def test_fetch_job_logs_handles_error(self, mock_run):
         """Handle errors when fetching job logs."""
-        from heisenberg.github_logs_fetcher import GitHubLogsFetcher
+        from heisenberg.integrations.github_logs import GitHubLogsFetcher
 
         mock_run.return_value = MagicMock(
             returncode=1,
@@ -55,7 +55,7 @@ class TestJobLogsFetching:
     @patch("subprocess.run")
     def test_fetch_failed_jobs_for_run(self, mock_run):
         """Get list of failed jobs for a workflow run."""
-        from heisenberg.github_logs_fetcher import GitHubLogsFetcher
+        from heisenberg.integrations.github_logs import GitHubLogsFetcher
 
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -102,7 +102,7 @@ Stack trace follows...
     def test_combined_report_and_logs(self):
         """Combine test report failures with job log context."""
         # Simulate what the CLI would do
-        from heisenberg.unified_model import ErrorInfo, UnifiedFailure
+        from heisenberg.core.models import ErrorInfo, UnifiedFailure
 
         failure = UnifiedFailure(
             test_id="1",
@@ -132,14 +132,14 @@ class TestEnhancedPromptBuilder:
 
     def test_prompt_includes_log_snippets(self):
         """AI prompt should include relevant log snippets."""
-        from heisenberg.prompt_builder import build_unified_prompt
-        from heisenberg.unified_model import (
+        from heisenberg.core.models import (
             ErrorInfo,
             FailureMetadata,
             Framework,
             UnifiedFailure,
             UnifiedTestRun,
         )
+        from heisenberg.llm.prompts import build_unified_prompt
 
         failure = UnifiedFailure(
             test_id="1",

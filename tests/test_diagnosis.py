@@ -2,7 +2,7 @@
 
 import pytest
 
-from heisenberg.diagnosis import (
+from heisenberg.core.diagnosis import (
     ConfidenceLevel,
     Diagnosis,
     _determine_confidence_level,

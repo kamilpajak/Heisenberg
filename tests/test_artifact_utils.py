@@ -1,6 +1,6 @@
 """Tests for artifact_utils module."""
 
-from heisenberg.artifact_utils import extract_spec_file_from_path, extract_test_name_from_path
+from heisenberg.utils.artifacts import extract_spec_file_from_path, extract_test_name_from_path
 
 
 class TestExtractTestNameFromPath:

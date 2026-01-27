@@ -415,7 +415,7 @@ class TestUnifiedConversionFuzz:
         branch: str | None,
     ):
         """Unified conversion should not crash with various metadata."""
-        from heisenberg.playwright_parser import PlaywrightReport
+        from heisenberg.parsers.playwright import PlaywrightReport
 
         # Create minimal report
         report = PlaywrightReport(

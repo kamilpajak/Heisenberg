@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from heisenberg.unified_model import (
+from heisenberg.core.models import (
     ErrorInfo,
     FailureMetadata,
     Framework,
@@ -22,7 +22,7 @@ class TestUnifiedPromptBuilder:
 
     def test_build_prompt_from_unified_run(self):
         """Prompt builder creates valid prompt from UnifiedTestRun."""
-        from heisenberg.prompt_builder import build_unified_prompt
+        from heisenberg.llm.prompts import build_unified_prompt
 
         run = UnifiedTestRun(
             run_id="test-run-123",
@@ -64,7 +64,7 @@ class TestUnifiedPromptBuilder:
 
     def test_build_prompt_includes_summary(self):
         """Prompt includes test run summary statistics."""
-        from heisenberg.prompt_builder import build_unified_prompt
+        from heisenberg.llm.prompts import build_unified_prompt
 
         run = UnifiedTestRun(
             run_id="run-1",
@@ -90,7 +90,7 @@ class TestUnifiedPromptBuilder:
 
     def test_build_prompt_includes_metadata(self):
         """Prompt includes test metadata like browser and framework."""
-        from heisenberg.prompt_builder import build_unified_prompt
+        from heisenberg.llm.prompts import build_unified_prompt
 
         run = UnifiedTestRun(
             run_id="run-1",
@@ -121,7 +121,7 @@ class TestUnifiedPromptBuilder:
 
     def test_build_prompt_multiple_failures(self):
         """Prompt includes all failures when multiple exist."""
-        from heisenberg.prompt_builder import build_unified_prompt
+        from heisenberg.llm.prompts import build_unified_prompt
 
         run = UnifiedTestRun(
             run_id="run-1",
@@ -165,7 +165,7 @@ class TestUnifiedAIAnalyzer:
 
     def test_analyze_unified_run(self):
         """AI analyzer accepts UnifiedTestRun and returns diagnosis."""
-        from heisenberg.ai_analyzer import analyze_unified_run
+        from heisenberg.core.analyzer import analyze_unified_run
 
         run = UnifiedTestRun(
             run_id="test-123",
@@ -184,7 +184,7 @@ class TestUnifiedAIAnalyzer:
             ],
         )
 
-        with patch("heisenberg.ai_analyzer._get_llm_client_for_provider") as mock_get_client:
+        with patch("heisenberg.core.analyzer._get_llm_client_for_provider") as mock_get_client:
             mock_client = MagicMock()
             mock_client.analyze.return_value = MagicMock(
                 content="""
@@ -213,7 +213,7 @@ class TestUnifiedAIAnalyzer:
 
     def test_analyze_unified_with_provider(self):
         """AI analyzer respects provider parameter."""
-        from heisenberg.ai_analyzer import analyze_unified_run
+        from heisenberg.core.analyzer import analyze_unified_run
 
         run = UnifiedTestRun(
             run_id="test-123",
@@ -231,7 +231,7 @@ class TestUnifiedAIAnalyzer:
             ],
         )
 
-        with patch("heisenberg.ai_analyzer._get_llm_client_for_provider") as mock_get_client:
+        with patch("heisenberg.core.analyzer._get_llm_client_for_provider") as mock_get_client:
             mock_client = MagicMock()
             mock_client.analyze.return_value = MagicMock(
                 content="## Root Cause\nTest\n## Evidence\n- E\n## Suggested Fix\nF\n## Confidence\nHIGH",
@@ -250,9 +250,9 @@ class TestEndToEndUnifiedFlow:
 
     def test_playwright_to_unified_to_analysis(self):
         """Full flow: Playwright report -> UnifiedTestRun -> AI Analysis."""
-        from heisenberg.ai_analyzer import analyze_unified_run
-        from heisenberg.playwright_parser import ErrorDetail, FailedTest, PlaywrightReport
-        from heisenberg.unified_model import PlaywrightTransformer
+        from heisenberg.core.analyzer import analyze_unified_run
+        from heisenberg.core.models import PlaywrightTransformer
+        from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
 
         # 1. Create Playwright report
         report = PlaywrightReport(
@@ -291,7 +291,7 @@ class TestEndToEndUnifiedFlow:
         assert unified_run.failures[0].error.message == "Payment button not clickable"
 
         # 3. Analyze with AI (mocked)
-        with patch("heisenberg.ai_analyzer._get_llm_client_for_provider") as mock_get_client:
+        with patch("heisenberg.core.analyzer._get_llm_client_for_provider") as mock_get_client:
             mock_client = MagicMock()
             mock_client.analyze.return_value = MagicMock(
                 content="""

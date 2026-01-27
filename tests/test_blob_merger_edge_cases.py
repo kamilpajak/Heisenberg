@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from heisenberg.blob_merger import (
+from heisenberg.utils.merging import (
     BlobMergeError,
     extract_blob_files,
     extract_blob_zips,

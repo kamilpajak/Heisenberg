@@ -58,14 +58,14 @@ class TestFormattersModule:
 
     def test_format_unified_as_markdown(self):
         """format_unified_as_markdown produces valid markdown."""
-        from heisenberg.formatters import format_unified_as_markdown
-        from heisenberg.unified_model import (
+        from heisenberg.core.models import (
             ErrorInfo,
             FailureMetadata,
             Framework,
             UnifiedFailure,
             UnifiedTestRun,
         )
+        from heisenberg.utils.formatting import format_unified_as_markdown
 
         run = UnifiedTestRun(
             run_id="test-123",
@@ -96,12 +96,12 @@ class TestFormattersModule:
 
     def test_format_unified_for_github(self):
         """format_unified_for_github produces GitHub-compatible markdown."""
-        from heisenberg.formatters import format_unified_for_github
-        from heisenberg.unified_model import (
+        from heisenberg.core.models import (
             ErrorInfo,
             UnifiedFailure,
             UnifiedTestRun,
         )
+        from heisenberg.utils.formatting import format_unified_for_github
 
         run = UnifiedTestRun(
             run_id="gh-456",
@@ -135,12 +135,12 @@ class TestFormattersModule:
 
     def test_format_unified_as_json(self):
         """format_unified_as_json produces valid JSON."""
-        from heisenberg.formatters import format_unified_as_json
-        from heisenberg.unified_model import (
+        from heisenberg.core.models import (
             ErrorInfo,
             UnifiedFailure,
             UnifiedTestRun,
         )
+        from heisenberg.utils.formatting import format_unified_as_json
 
         run = UnifiedTestRun(
             run_id="test-789",
@@ -171,7 +171,7 @@ class TestPlaywrightToUnifiedConversion:
 
     def test_convert_playwright_report_to_unified(self):
         """CLI helper converts PlaywrightReport to UnifiedTestRun."""
-        from heisenberg.playwright_parser import (
+        from heisenberg.parsers.playwright import (
             ErrorDetail,
             FailedTest,
             PlaywrightReport,

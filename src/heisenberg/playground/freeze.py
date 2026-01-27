@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from zipfile import ZipFile
 
-from heisenberg.github_artifacts import GitHubArtifactClient
+from heisenberg.integrations.github_artifacts import GitHubArtifactClient
 from heisenberg.reports import ReportType, get_default_registry
 
 

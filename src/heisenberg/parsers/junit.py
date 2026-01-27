@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from heisenberg.unified_model import UnifiedTestRun
+    from heisenberg.core.models import UnifiedTestRun
 
 
 @dataclass
@@ -206,7 +206,7 @@ class JUnitParser:
         Returns:
             UnifiedTestRun with failures from JUnit report.
         """
-        from heisenberg.unified_model import (
+        from heisenberg.core.models import (
             ErrorInfo,
             FailureMetadata,
             Framework,

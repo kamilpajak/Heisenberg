@@ -6,7 +6,7 @@ log snippets from GitHub Actions job logs to improve failure diagnosis.
 
 from __future__ import annotations
 
-from heisenberg.job_logs_processor import JobLogsProcessor, LogSnippet
+from heisenberg.parsers.job_logs import JobLogsProcessor, LogSnippet
 
 
 class TestLogSnippetExtraction:

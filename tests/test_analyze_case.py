@@ -88,7 +88,7 @@ def frozen_scenario(tmp_path, sample_metadata, sample_report):
 @pytest.fixture
 def mock_diagnosis():
     """Create a mock Diagnosis object."""
-    from heisenberg.diagnosis import ConfidenceLevel, Diagnosis
+    from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
     return Diagnosis(
         root_cause="Timeout waiting for login button selector",
@@ -103,7 +103,7 @@ def mock_diagnosis():
 @pytest.fixture
 def mock_ai_result(mock_diagnosis):
     """Create a mock AIAnalysisResult."""
-    from heisenberg.ai_analyzer import AIAnalysisResult
+    from heisenberg.core.analyzer import AIAnalysisResult
 
     return AIAnalysisResult(
         diagnosis=mock_diagnosis,
@@ -122,28 +122,28 @@ class TestAnalyzeConfig:
 
     def test_config_requires_case_dir(self):
         """AnalyzeConfig should require case_dir."""
-        from heisenberg.analyze_case import AnalyzeConfig
+        from heisenberg.playground.analyze import AnalyzeConfig
 
         config = AnalyzeConfig(case_dir=Path("/tmp/scenario"))
         assert config.case_dir == Path("/tmp/scenario")
 
     def test_config_has_default_provider(self):
         """AnalyzeConfig should default to anthropic provider."""
-        from heisenberg.analyze_case import AnalyzeConfig
+        from heisenberg.playground.analyze import AnalyzeConfig
 
         config = AnalyzeConfig(case_dir=Path("/tmp/scenario"))
         assert config.provider == "anthropic"
 
     def test_config_accepts_custom_provider(self):
         """AnalyzeConfig should accept custom provider."""
-        from heisenberg.analyze_case import AnalyzeConfig
+        from heisenberg.playground.analyze import AnalyzeConfig
 
         config = AnalyzeConfig(case_dir=Path("/tmp/scenario"), provider="openai")
         assert config.provider == "openai"
 
     def test_config_accepts_model(self):
         """AnalyzeConfig should accept model parameter."""
-        from heisenberg.analyze_case import AnalyzeConfig
+        from heisenberg.playground.analyze import AnalyzeConfig
 
         config = AnalyzeConfig(
             case_dir=Path("/tmp/scenario"),
@@ -153,14 +153,14 @@ class TestAnalyzeConfig:
 
     def test_config_model_defaults_to_none(self):
         """Model should default to None (use provider default)."""
-        from heisenberg.analyze_case import AnalyzeConfig
+        from heisenberg.playground.analyze import AnalyzeConfig
 
         config = AnalyzeConfig(case_dir=Path("/tmp/scenario"))
         assert config.model is None
 
     def test_config_accepts_api_key(self):
         """AnalyzeConfig should accept api_key parameter."""
-        from heisenberg.analyze_case import AnalyzeConfig
+        from heisenberg.playground.analyze import AnalyzeConfig
 
         config = AnalyzeConfig(
             case_dir=Path("/tmp/scenario"),
@@ -177,7 +177,7 @@ class TestScenarioAnalyzer:
 
     def test_analyzer_requires_config(self, frozen_scenario):
         """ScenarioAnalyzer should require config."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
@@ -185,7 +185,7 @@ class TestScenarioAnalyzer:
 
     def test_analyzer_loads_metadata(self, frozen_scenario, sample_metadata):
         """ScenarioAnalyzer should load metadata from scenario directory."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
@@ -196,7 +196,7 @@ class TestScenarioAnalyzer:
 
     def test_analyzer_loads_report(self, frozen_scenario):
         """ScenarioAnalyzer should load report from scenario directory."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
@@ -207,7 +207,7 @@ class TestScenarioAnalyzer:
 
     def test_analyzer_raises_on_missing_metadata(self, tmp_path):
         """ScenarioAnalyzer should raise if metadata.json missing."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         case_dir = tmp_path / "empty-scenario"
         case_dir.mkdir()
@@ -220,7 +220,7 @@ class TestScenarioAnalyzer:
 
     def test_analyzer_raises_on_missing_report(self, tmp_path, sample_metadata):
         """ScenarioAnalyzer should raise if report.json missing."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         case_dir = tmp_path / "no-report-scenario"
         case_dir.mkdir()
@@ -238,12 +238,12 @@ class TestScenarioAnalyzerAnalyze:
 
     def test_analyze_returns_analysis_result(self, frozen_scenario, mock_ai_result):
         """analyze() should return AnalysisResult."""
-        from heisenberg.analyze_case import AnalysisResult, AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalysisResult, AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.analyze_case.AIAnalyzer") as MockAI:
+        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
             MockAI.return_value.analyze.return_value = mock_ai_result
 
             result = analyzer.analyze()
@@ -252,12 +252,12 @@ class TestScenarioAnalyzerAnalyze:
 
     def test_analyze_creates_ai_analyzer_with_report(self, frozen_scenario, mock_ai_result):
         """analyze() should create AIAnalyzer with parsed PlaywrightReport."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.analyze_case.AIAnalyzer") as MockAI:
+        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
             MockAI.return_value.analyze.return_value = mock_ai_result
 
             analyzer.analyze()
@@ -266,18 +266,18 @@ class TestScenarioAnalyzerAnalyze:
             call_kwargs = MockAI.call_args.kwargs
             assert "report" in call_kwargs
             # Report should be a PlaywrightReport, not raw dict
-            from heisenberg.playwright_parser import PlaywrightReport
+            from heisenberg.parsers.playwright import PlaywrightReport
 
             assert isinstance(call_kwargs["report"], PlaywrightReport)
 
     def test_analyze_uses_config_provider(self, frozen_scenario, mock_ai_result):
         """analyze() should use provider from config."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario, provider="openai")
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.analyze_case.AIAnalyzer") as MockAI:
+        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
             MockAI.return_value.analyze.return_value = mock_ai_result
 
             analyzer.analyze()
@@ -287,7 +287,7 @@ class TestScenarioAnalyzerAnalyze:
 
     def test_analyze_uses_config_model(self, frozen_scenario, mock_ai_result):
         """analyze() should use model from config."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(
             case_dir=frozen_scenario,
@@ -295,7 +295,7 @@ class TestScenarioAnalyzerAnalyze:
         )
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.analyze_case.AIAnalyzer") as MockAI:
+        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
             MockAI.return_value.analyze.return_value = mock_ai_result
 
             analyzer.analyze()
@@ -307,12 +307,12 @@ class TestScenarioAnalyzerAnalyze:
         self, frozen_scenario, mock_ai_result, mock_diagnosis
     ):
         """AnalysisResult should contain diagnosis details."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.analyze_case.AIAnalyzer") as MockAI:
+        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
             MockAI.return_value.analyze.return_value = mock_ai_result
 
             result = analyzer.analyze()
@@ -326,12 +326,12 @@ class TestScenarioAnalyzerAnalyze:
         self, frozen_scenario, mock_ai_result, sample_metadata
     ):
         """AnalysisResult should contain scenario metadata."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.analyze_case.AIAnalyzer") as MockAI:
+        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
             MockAI.return_value.analyze.return_value = mock_ai_result
 
             result = analyzer.analyze()
@@ -348,7 +348,7 @@ class TestAnalysisResult:
 
     def test_analysis_result_to_dict(self, mock_diagnosis):
         """AnalysisResult should convert to dict for JSON serialization."""
-        from heisenberg.analyze_case import AnalysisResult
+        from heisenberg.playground.analyze import AnalysisResult
 
         result = AnalysisResult(
             repo="owner/repo",
@@ -376,7 +376,7 @@ class TestAnalysisResult:
 
     def test_analysis_result_to_json(self, mock_diagnosis):
         """AnalysisResult should serialize to JSON."""
-        from heisenberg.analyze_case import AnalysisResult
+        from heisenberg.playground.analyze import AnalysisResult
 
         result = AnalysisResult(
             repo="owner/repo",
@@ -407,12 +407,12 @@ class TestSaveDiagnosis:
 
     def test_analyzer_saves_diagnosis(self, frozen_scenario, mock_ai_result):
         """analyze() should save diagnosis.json to scenario directory."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.analyze_case.AIAnalyzer") as MockAI:
+        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
             MockAI.return_value.analyze.return_value = mock_ai_result
 
             analyzer.analyze()
@@ -422,12 +422,12 @@ class TestSaveDiagnosis:
 
     def test_saved_diagnosis_is_valid_json(self, frozen_scenario, mock_ai_result):
         """Saved diagnosis.json should be valid JSON."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.analyze_case.AIAnalyzer") as MockAI:
+        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
             MockAI.return_value.analyze.return_value = mock_ai_result
 
             analyzer.analyze()
@@ -440,12 +440,12 @@ class TestSaveDiagnosis:
 
     def test_saved_diagnosis_contains_analyzed_at(self, frozen_scenario, mock_ai_result):
         """Saved diagnosis should include analyzed_at timestamp."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.analyze_case.AIAnalyzer") as MockAI:
+        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
             MockAI.return_value.analyze.return_value = mock_ai_result
 
             analyzer.analyze()
@@ -466,7 +466,7 @@ class TestAnalyzeErrorHandling:
 
     def test_analyze_raises_on_invalid_report(self, tmp_path, sample_metadata):
         """analyze() should raise on invalid report.json content."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         case_dir = tmp_path / "bad-report-scenario"
         case_dir.mkdir()
@@ -481,12 +481,12 @@ class TestAnalyzeErrorHandling:
 
     def test_analyze_raises_on_ai_error(self, frozen_scenario):
         """analyze() should propagate AI analysis errors."""
-        from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
+        from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.analyze_case.AIAnalyzer") as MockAI:
+        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
             MockAI.return_value.analyze.side_effect = ValueError("API key not set")
 
             with pytest.raises(ValueError, match="API key"):

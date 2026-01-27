@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from heisenberg.llm_client import (
+from heisenberg.llm.client import (
     LLMClient,
     LLMClientError,
     LLMConfig,
@@ -101,7 +101,7 @@ class TestLLMClient:
         with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
             LLMClient.from_environment()
 
-    @patch("heisenberg.llm_client.anthropic.Anthropic")
+    @patch("heisenberg.llm.client.anthropic.Anthropic")
     def test_client_sends_message(self, mock_anthropic_class: MagicMock):
         """Client should send message to Anthropic API."""
         # Given
@@ -125,7 +125,7 @@ class TestLLMClient:
         assert call_kwargs["model"] == "claude-sonnet-4-20250514"
         assert "Test prompt content" in str(call_kwargs["messages"])
 
-    @patch("heisenberg.llm_client.anthropic.Anthropic")
+    @patch("heisenberg.llm.client.anthropic.Anthropic")
     def test_client_returns_llm_response(self, mock_anthropic_class: MagicMock):
         """Client should return structured LLMResponse."""
         # Given
@@ -149,7 +149,7 @@ class TestLLMClient:
         assert response.input_tokens == 150
         assert response.output_tokens == 75
 
-    @patch("heisenberg.llm_client.anthropic.Anthropic")
+    @patch("heisenberg.llm.client.anthropic.Anthropic")
     def test_client_uses_system_prompt(self, mock_anthropic_class: MagicMock):
         """Client should use system prompt for context."""
         # Given
@@ -171,7 +171,7 @@ class TestLLMClient:
         call_kwargs = mock_client.messages.create.call_args[1]
         assert call_kwargs["system"] == "You are a test analyst"
 
-    @patch("heisenberg.llm_client.anthropic.Anthropic")
+    @patch("heisenberg.llm.client.anthropic.Anthropic")
     def test_client_handles_api_error(self, mock_anthropic_class: MagicMock):
         """Client should handle API errors gracefully."""
         # Given

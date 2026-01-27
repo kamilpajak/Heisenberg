@@ -4,13 +4,13 @@ from datetime import UTC, datetime
 
 import pytest
 
-from heisenberg.docker_logs import ContainerLogs, LogEntry
-from heisenberg.playwright_parser import ErrorDetail, FailedTest, PlaywrightReport
-from heisenberg.prompt_builder import (
+from heisenberg.integrations.docker import ContainerLogs, LogEntry
+from heisenberg.llm.prompts import (
     PromptBuilder,
     build_analysis_prompt,
     get_system_prompt,
 )
+from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
 
 
 class TestPromptBuilder:

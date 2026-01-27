@@ -62,9 +62,9 @@ async def fetch_and_process_job_logs(
     Returns:
         Formatted job logs context string, or None if no logs available.
     """
-    from heisenberg.github_artifacts import GitHubArtifactClient
-    from heisenberg.github_logs_fetcher import GitHubLogsFetcher
-    from heisenberg.job_logs_processor import JobLogsProcessor
+    from heisenberg.integrations.github_artifacts import GitHubArtifactClient
+    from heisenberg.integrations.github_logs import GitHubLogsFetcher
+    from heisenberg.parsers.job_logs import JobLogsProcessor
 
     client = GitHubArtifactClient(token=token)
     actual_run_id = await _resolve_run_id(client, owner, repo, run_id)
@@ -115,8 +115,8 @@ async def fetch_and_analyze_screenshots(
     Returns:
         Formatted screenshot analysis string, or None if no screenshots.
     """
-    from heisenberg.github_artifacts import GitHubArtifactClient
-    from heisenberg.screenshot_analyzer import (
+    from heisenberg.integrations.github_artifacts import GitHubArtifactClient
+    from heisenberg.parsers.screenshots import (
         ScreenshotAnalyzer,
         extract_screenshots_from_artifact,
         format_screenshots_for_prompt,
@@ -176,8 +176,8 @@ async def fetch_and_analyze_traces(
     Returns:
         Formatted trace analysis string, or None if no traces.
     """
-    from heisenberg.github_artifacts import GitHubArtifactClient
-    from heisenberg.trace_analyzer import (
+    from heisenberg.integrations.github_artifacts import GitHubArtifactClient
+    from heisenberg.parsers.traces import (
         TraceAnalyzer,
         extract_trace_from_artifact,
         format_trace_for_prompt,
@@ -264,7 +264,7 @@ async def list_artifacts(
     Returns:
         0 on success, 1 on error.
     """
-    from heisenberg.github_artifacts import GitHubArtifactClient
+    from heisenberg.integrations.github_artifacts import GitHubArtifactClient
 
     if output is None:
         output = sys.stdout
@@ -326,8 +326,8 @@ async def fetch_and_merge_blobs(
     Returns:
         Merged JSON report or None.
     """
-    from heisenberg.blob_merger import BlobMergeError, extract_blob_zips, merge_blob_reports
-    from heisenberg.github_artifacts import GitHubArtifactClient
+    from heisenberg.integrations.github_artifacts import GitHubArtifactClient
+    from heisenberg.utils.merging import BlobMergeError, extract_blob_zips, merge_blob_reports
 
     client = GitHubArtifactClient(token=token)
 

@@ -7,7 +7,7 @@ through a common interface.
 
 from __future__ import annotations
 
-from heisenberg.unified_model import (
+from heisenberg.core.models import (
     Attachments,
     ErrorInfo,
     FailureMetadata,
@@ -205,7 +205,7 @@ class TestPlaywrightToUnifiedTransformer:
 
     def test_transform_single_failure(self):
         """Transform a single Playwright failure to UnifiedFailure."""
-        from heisenberg.unified_model import PlaywrightTransformer
+        from heisenberg.core.models import PlaywrightTransformer
 
         playwright_failure = {
             "title": "login > should redirect to dashboard",
@@ -235,8 +235,8 @@ class TestPlaywrightToUnifiedTransformer:
 
     def test_transform_full_report(self):
         """Transform a complete Playwright report to UnifiedTestRun."""
-        from heisenberg.playwright_parser import ErrorDetail, FailedTest, PlaywrightReport
-        from heisenberg.unified_model import PlaywrightTransformer
+        from heisenberg.core.models import PlaywrightTransformer
+        from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
 
         # Create a PlaywrightReport with proper structure
         report = PlaywrightReport(
@@ -269,7 +269,7 @@ class TestPlaywrightToUnifiedTransformer:
 
     def test_transform_handles_missing_fields(self):
         """Transformer handles missing optional fields gracefully."""
-        from heisenberg.unified_model import PlaywrightTransformer
+        from heisenberg.core.models import PlaywrightTransformer
 
         minimal_failure = {
             "title": "basic test",
@@ -288,7 +288,7 @@ class TestPlaywrightToUnifiedTransformer:
 
     def test_transform_multiple_errors(self):
         """Transformer concatenates multiple errors."""
-        from heisenberg.unified_model import PlaywrightTransformer
+        from heisenberg.core.models import PlaywrightTransformer
 
         failure_with_multiple_errors = {
             "title": "multi-error test",

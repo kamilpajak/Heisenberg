@@ -6,8 +6,8 @@ and convert them to the unified failure model.
 
 from __future__ import annotations
 
-from heisenberg.junit_parser import JUnitParser
-from heisenberg.unified_model import Framework, UnifiedTestRun
+from heisenberg.core.models import Framework, UnifiedTestRun
+from heisenberg.parsers.junit import JUnitParser
 
 
 class TestJUnitParser:

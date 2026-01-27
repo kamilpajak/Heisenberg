@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from heisenberg.comment_formatter import format_pr_comment
-from heisenberg.playwright_parser import ErrorDetail, FailedTest, PlaywrightReport
+from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
+from heisenberg.utils.comments import format_pr_comment
 
 
 @pytest.fixture
