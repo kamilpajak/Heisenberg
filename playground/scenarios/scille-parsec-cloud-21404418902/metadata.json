@@ -1,0 +1,15 @@
+{
+  "repo": "Scille/parsec-cloud",
+  "repo_url": "https://github.com/Scille/parsec-cloud",
+  "stars": 293,
+  "run_id": 21404418902,
+  "run_url": "https://github.com/Scille/parsec-cloud/actions/runs/21404418902",
+  "captured_at": "2026-01-27T17:06:39.996302+00:00",
+  "artifact_names": [
+    "blob-report-1",
+    "blob-report-2",
+    "playwright-report"
+  ],
+  "report_type": "blob",
+  "visual_only": false
+}
