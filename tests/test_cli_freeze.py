@@ -379,7 +379,9 @@ class TestFreezeMainIntegration:
         with patch.object(
             sys, "argv", ["heisenberg", "freeze", "-r", "owner/repo", "--token", "ghp_x"]
         ):
-            with patch("heisenberg.cli.run_freeze") as mock_run:
+            # Use MagicMock explicitly to avoid AsyncMock auto-detection
+            # (we're mocking asyncio.run anyway, so the coroutine won't be awaited)
+            with patch("heisenberg.cli.run_freeze", new_callable=MagicMock) as mock_run:
                 mock_run.return_value = 0
 
                 from heisenberg.cli import main
