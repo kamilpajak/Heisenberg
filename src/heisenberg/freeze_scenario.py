@@ -6,13 +6,16 @@ and saves them locally as "frozen scenarios" for the Heisenberg playground.
 
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from zipfile import ZipFile
 
 from heisenberg.github_artifacts import GitHubArtifactClient
+from heisenberg.reports import ReportType, get_default_registry
 
 
 @dataclass
@@ -48,6 +51,8 @@ class FrozenScenario:
     report_path: Path
     trace_path: Path | None = None
     logs_path: Path | None = None
+    report_type: ReportType = ReportType.JSON
+    html_report_path: Path | None = None  # For HTML reports, path to index.html
 
 
 def get_repo_stars(repo: str) -> int:
@@ -189,16 +194,25 @@ class ScenarioFreezer:
         scenario_dir = self.config.output_dir / scenario_id
         scenario_dir.mkdir(parents=True, exist_ok=True)
 
-        # Download and save report
+        # Download and extract report using framework-agnostic handler
         report_artifact = playwright_artifacts[0]  # Take first Playwright artifact
         zip_data = await self.client.download_artifact(owner, repo, artifact_id=report_artifact.id)
-        report_data = self.client.extract_playwright_report(zip_data)
 
-        if report_data is None:
-            raise ValueError(f"Could not extract Playwright report from {report_artifact.name}")
+        # Use the reports registry to identify and extract the report
+        registry = get_default_registry()
+        handler = registry.identify(zip_data)
 
-        report_path = scenario_dir / "report.json"
-        report_path.write_text(json.dumps(report_data, indent=2))
+        if handler is None:
+            raise ValueError(f"Could not identify report format in {report_artifact.name}")
+
+        with ZipFile(io.BytesIO(zip_data)) as zf:
+            extracted = handler.extract(zf, scenario_dir)
+
+        report_path = extracted.data_file
+        report_type = extracted.report_type
+        html_report_path = (
+            extracted.entry_point if extracted.report_type == ReportType.HTML else None
+        )
 
         # Check for trace artifacts
         trace_path = None
@@ -244,4 +258,6 @@ class ScenarioFreezer:
             metadata_path=metadata_path,
             report_path=report_path,
             trace_path=trace_path,
+            report_type=report_type,
+            html_report_path=html_report_path,
         )

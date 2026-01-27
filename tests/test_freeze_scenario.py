@@ -246,9 +246,20 @@ class TestFreezeWorkflow:
             "stats": {"expected": 5, "unexpected": 2, "flaky": 1, "skipped": 0},
         }
 
+    @pytest.fixture
+    def sample_report_zip(self, sample_report):
+        """Sample Playwright report as a valid ZIP file."""
+        import io
+        import zipfile
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report.json", json.dumps(sample_report))
+        return zip_buffer.getvalue()
+
     @pytest.mark.asyncio
     async def test_freeze_creates_scenario_directory(
-        self, temp_output_dir, mock_github_client, sample_report
+        self, temp_output_dir, mock_github_client, sample_report_zip
     ):
         """freeze() should create scenario directory structure."""
         # Setup mocks using NamedTuple helpers
@@ -258,8 +269,7 @@ class TestFreezeWorkflow:
         mock_github_client.get_artifacts.return_value = [
             MockArtifact(id=67890, name="playwright-report", expired=False)
         ]
-        mock_github_client.download_artifact.return_value = b"fake-zip"
-        mock_github_client.extract_playwright_report.return_value = sample_report
+        mock_github_client.download_artifact.return_value = sample_report_zip
 
         config = FreezeConfig(
             repo="owner/repo",
@@ -276,7 +286,7 @@ class TestFreezeWorkflow:
 
     @pytest.mark.asyncio
     async def test_freeze_saves_metadata_json(
-        self, temp_output_dir, mock_github_client, sample_report
+        self, temp_output_dir, mock_github_client, sample_report_zip
     ):
         """freeze() should save metadata.json with source info."""
         mock_github_client.list_workflow_runs.return_value = [
@@ -289,8 +299,7 @@ class TestFreezeWorkflow:
         mock_github_client.get_artifacts.return_value = [
             MockArtifact(id=67890, name="playwright-report", expired=False)
         ]
-        mock_github_client.download_artifact.return_value = b"fake-zip"
-        mock_github_client.extract_playwright_report.return_value = sample_report
+        mock_github_client.download_artifact.return_value = sample_report_zip
 
         # Mock repo info for stars
         with patch("heisenberg.freeze_scenario.get_repo_stars", return_value=5000):
@@ -311,7 +320,7 @@ class TestFreezeWorkflow:
 
     @pytest.mark.asyncio
     async def test_freeze_saves_report_json(
-        self, temp_output_dir, mock_github_client, sample_report
+        self, temp_output_dir, mock_github_client, sample_report_zip
     ):
         """freeze() should save the Playwright report as report.json."""
         mock_github_client.list_workflow_runs.return_value = [
@@ -320,8 +329,7 @@ class TestFreezeWorkflow:
         mock_github_client.get_artifacts.return_value = [
             MockArtifact(id=67890, name="playwright-report", expired=False)
         ]
-        mock_github_client.download_artifact.return_value = b"fake-zip"
-        mock_github_client.extract_playwright_report.return_value = sample_report
+        mock_github_client.download_artifact.return_value = sample_report_zip
 
         config = FreezeConfig(
             repo="owner/repo",
@@ -338,14 +346,13 @@ class TestFreezeWorkflow:
 
     @pytest.mark.asyncio
     async def test_freeze_uses_specified_run_id(
-        self, temp_output_dir, mock_github_client, sample_report
+        self, temp_output_dir, mock_github_client, sample_report_zip
     ):
         """freeze() should use specified run_id instead of finding latest."""
         mock_github_client.get_artifacts.return_value = [
             MockArtifact(id=67890, name="playwright-report", expired=False)
         ]
-        mock_github_client.download_artifact.return_value = b"fake-zip"
-        mock_github_client.extract_playwright_report.return_value = sample_report
+        mock_github_client.download_artifact.return_value = sample_report_zip
 
         config = FreezeConfig(
             repo="owner/repo",
@@ -493,6 +500,16 @@ class TestTraceHandling:
     @pytest.mark.asyncio
     async def test_freeze_saves_trace_zip_if_present(self, temp_output_dir):
         """Should save trace.zip if trace artifact is found."""
+        import io
+        import zipfile
+
+        # Create a valid Playwright report ZIP
+        report_data = {"suites": [], "stats": {"expected": 1, "unexpected": 0}}
+        report_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(report_zip_buffer, "w") as zf:
+            zf.writestr("report.json", json.dumps(report_data))
+        report_zip = report_zip_buffer.getvalue()
+
         with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
@@ -504,16 +521,9 @@ class TestTraceHandling:
                 MockArtifact(id=2, name="playwright-traces", expired=False),
             ]
             client.download_artifact.side_effect = [
-                b"report-zip-content",
+                report_zip,
                 b"trace-zip-content",
             ]
-            # extract_playwright_report is sync, not async
-            client.extract_playwright_report = MagicMock(
-                return_value={
-                    "suites": [],
-                    "stats": {"expected": 1, "unexpected": 0},
-                }
-            )
 
             config = FreezeConfig(
                 repo="owner/repo",
