@@ -258,6 +258,7 @@ jobs:
 
           git add ${{ env.SCENARIOS_DIR }}
           git commit -m "chore: refresh demo scenarios [skip ci]"
+          git pull --rebase origin main
           git push
 
       - name: Summary
@@ -311,5 +312,6 @@ jobs:
           git add ${{ env.SCENARIOS_DIR }}
           if ! git diff --staged --quiet; then
             git commit -m "chore: remove stale demo scenarios [skip ci]"
+            git pull --rebase origin main
             git push
           fi
