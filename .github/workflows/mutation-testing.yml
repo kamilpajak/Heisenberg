@@ -63,7 +63,7 @@ jobs:
           uv run mutmut show || true
 
       - name: Upload Mutation Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: mutation-report
           path: |
