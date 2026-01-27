@@ -17,6 +17,7 @@ from heisenberg.cli.commands import (
 )
 from heisenberg.cli.formatters import format_size
 from heisenberg.cli.github_fetch import (
+    _analyze_traces_from_zip,
     fetch_and_analyze_screenshots,
     fetch_and_analyze_traces,
     fetch_and_merge_blobs,
@@ -1495,3 +1496,114 @@ class TestConvertToUnified:
         assert result.branch == "main"
         assert result.total_tests == 6
         assert result.passed_tests == 5
+
+
+class TestAnalyzeTracesFromZip:
+    """Tests for _analyze_traces_from_zip helper function."""
+
+    def test_returns_empty_list_for_empty_zip(self):
+        """Should return empty list when zip has no trace files."""
+        import io
+        import zipfile
+
+        # Create empty zip
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            zf.writestr("readme.txt", "no traces here")
+        zip_data = buffer.getvalue()
+
+        mock_analyzer = MagicMock()
+        result = _analyze_traces_from_zip(zip_data, mock_analyzer)
+
+        assert result == []
+        mock_analyzer.analyze.assert_not_called()
+
+    def test_processes_trace_zip_files(self):
+        """Should process files ending with trace.zip."""
+        import io
+        import zipfile
+
+        # Create zip with a trace.zip file
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            # Create inner trace zip
+            inner_buffer = io.BytesIO()
+            with zipfile.ZipFile(inner_buffer, "w") as inner_zf:
+                inner_zf.writestr("trace.json", "{}")
+            zf.writestr("test-name/trace.zip", inner_buffer.getvalue())
+        zip_data = buffer.getvalue()
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze.return_value = {"test": "result"}
+
+        result = _analyze_traces_from_zip(zip_data, mock_analyzer)
+
+        assert len(result) == 1
+        mock_analyzer.analyze.assert_called_once()
+
+    def test_extracts_test_name_from_path(self):
+        """Should extract test name from parent directory."""
+        import io
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            inner_buffer = io.BytesIO()
+            with zipfile.ZipFile(inner_buffer, "w") as inner_zf:
+                inner_zf.writestr("trace.json", "{}")
+            zf.writestr("my-test-case/trace.zip", inner_buffer.getvalue())
+        zip_data = buffer.getvalue()
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze.return_value = {"test": "result"}
+
+        _analyze_traces_from_zip(zip_data, mock_analyzer)
+
+        # Verify test_name was extracted from path
+        call_args = mock_analyzer.analyze.call_args
+        assert call_args[0][1] == "my-test-case"  # test_name argument
+
+    def test_limits_to_five_traces(self):
+        """Should process at most 5 trace files."""
+        import io
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            for i in range(10):
+                inner_buffer = io.BytesIO()
+                with zipfile.ZipFile(inner_buffer, "w") as inner_zf:
+                    inner_zf.writestr("trace.json", "{}")
+                zf.writestr(f"test-{i}/trace.zip", inner_buffer.getvalue())
+        zip_data = buffer.getvalue()
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze.return_value = {"test": "result"}
+
+        result = _analyze_traces_from_zip(zip_data, mock_analyzer)
+
+        assert len(result) == 5
+        assert mock_analyzer.analyze.call_count == 5
+
+    def test_handles_analysis_errors_gracefully(self, capsys):
+        """Should handle errors during trace analysis."""
+        import io
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            inner_buffer = io.BytesIO()
+            with zipfile.ZipFile(inner_buffer, "w") as inner_zf:
+                inner_zf.writestr("trace.json", "{}")
+            zf.writestr("test/trace.zip", inner_buffer.getvalue())
+        zip_data = buffer.getvalue()
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze.side_effect = Exception("Analysis failed")
+
+        result = _analyze_traces_from_zip(zip_data, mock_analyzer)
+
+        # Should return empty list on error but not crash
+        assert result == []
+        captured = capsys.readouterr()
+        assert "Error analyzing traces" in captured.err

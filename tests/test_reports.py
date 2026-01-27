@@ -847,3 +847,105 @@ class TestBlobJsonlFormat:
         assert normalized.total_tests == 2
         assert normalized.passed_tests == 1
         assert normalized.failed_tests == 1
+
+
+# =============================================================================
+# PLAYWRIGHT HANDLER HELPER TESTS
+# =============================================================================
+
+
+class TestPlaywrightHandlerHelpers:
+    """Tests for PlaywrightHandler helper methods."""
+
+    def test_update_stats_for_status_passed(self):
+        """_update_stats_for_status should increment passed counter."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        stats = {"total": 0, "passed": 0, "failed": 0, "skipped": 0}
+
+        handler._update_stats_for_status(stats, "passed")
+
+        assert stats["total"] == 1
+        assert stats["passed"] == 1
+        assert stats["failed"] == 0
+
+    def test_update_stats_for_status_failed(self):
+        """_update_stats_for_status should increment failed for failure statuses."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        stats = {"total": 0, "passed": 0, "failed": 0, "skipped": 0}
+
+        handler._update_stats_for_status(stats, "failed")
+        handler._update_stats_for_status(stats, "timedOut")
+        handler._update_stats_for_status(stats, "interrupted")
+
+        assert stats["total"] == 3
+        assert stats["failed"] == 3
+
+    def test_update_stats_for_status_skipped(self):
+        """_update_stats_for_status should increment skipped counter."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        stats = {"total": 0, "passed": 0, "failed": 0, "skipped": 0}
+
+        handler._update_stats_for_status(stats, "skipped")
+
+        assert stats["total"] == 1
+        assert stats["skipped"] == 1
+
+    def test_build_specs_from_tests(self):
+        """_build_specs_from_tests should convert tests dict to spec format."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        tests_by_id = {
+            "test-1": {
+                "title": "Test One",
+                "status": "passed",
+                "duration": 100,
+                "errors": [],
+            },
+            "test-2": {
+                "title": "Test Two",
+                "status": "failed",
+                "duration": 200,
+                "errors": [{"message": "Error"}],
+            },
+        }
+
+        specs = handler._build_specs_from_tests(tests_by_id)
+
+        assert len(specs) == 2
+        titles = {s["title"] for s in specs}
+        assert "Test One" in titles
+        assert "Test Two" in titles
+
+    def test_merge_stats(self):
+        """_merge_stats should combine numeric values."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        combined = {"passed": 5, "failed": 2}
+        new_stats = {"passed": 3, "failed": 1, "skipped": 2}
+
+        handler._merge_stats(combined, new_stats)
+
+        assert combined["passed"] == 8
+        assert combined["failed"] == 3
+        assert combined["skipped"] == 2
+
+    def test_merge_stats_ignores_non_numeric(self):
+        """_merge_stats should ignore non-numeric values."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        combined = {"passed": 5}
+        new_stats = {"passed": 3, "name": "test"}
+
+        handler._merge_stats(combined, new_stats)
+
+        assert combined["passed"] == 8
+        assert "name" not in combined
