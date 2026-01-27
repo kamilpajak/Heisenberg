@@ -1,0 +1,17 @@
+{
+  "repo": "enso-org/enso",
+  "repo_url": "https://github.com/enso-org/enso",
+  "stars": 7433,
+  "run_id": 21405456332,
+  "run_url": "https://github.com/enso-org/enso/actions/runs/21405456332",
+  "captured_at": "2026-01-27T16:53:48.835303+00:00",
+  "artifact_names": [
+    "blob-report-2",
+    "blob-report-4",
+    "blob-report-3",
+    "blob-report-1",
+    "playwright-report-1-21405456332"
+  ],
+  "report_type": "blob",
+  "visual_only": false
+}
