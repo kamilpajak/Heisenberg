@@ -1,0 +1,22 @@
+{
+  "repo": "Scille/parsec-cloud",
+  "run_id": 21404418902,
+  "diagnosis": {
+    "root_cause": "The provided test report indicates that **all 8 tests were skipped** and none failed or passed. This typically occurs for one of three reasons:\n1. A **Global Setup or `beforeAll` hook failed** earlier in the execution (which often skips the individual tests but should report an error).\n2. The tests are explicitly marked with `test.skip()` or `test.fixme()` in the code.\n3. The test runner was executed with specific **filters** (e.g., `--grep`) that matched the file names but excluded the specific test cases.",
+    "evidence": [
+      "**Summary Section:** Shows `Total tests: 8`, `Skipped: 8`, `Failed: 0`.",
+      "**Failed Tests Section:** Empty (No error messages or stack traces provided)."
+    ],
+    "suggested_fix": "1. **Check Console Output:** Look for errors appearing *before* the test summary. If a `beforeAll` hook fails, the error usually appears there, even if the individual tests are marked as skipped.\n2. **Verify Configuration:** Check `playwright.config.ts` for global skip logic or project dependencies.\n3. **Check Filters:** Ensure the test command didn't include a `--grep` or `-g` flag that filtered out all tests in the suite.\n4. **Resubmit:** If there was an error message that caused the skip, please provide the full console output including the error log.",
+    "confidence": "LOW",
+    "confidence_explanation": "The provided input contains no error data to analyze, only a status summary indicating execution was skipped."
+  },
+  "tokens": {
+    "input": 359,
+    "output": 372,
+    "total": 731
+  },
+  "provider": "google",
+  "model": "gemini-3-pro-preview",
+  "analyzed_at": "2026-01-27T17:15:37.929158+00:00"
+}

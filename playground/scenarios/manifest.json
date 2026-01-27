@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-01-27T17:11:57.962872+00:00",
+  "generated_at": "2026-01-27T17:15:38.636720+00:00",
   "scenarios": [
     {
       "id": "enso-org-enso-21405456332",
@@ -21,13 +21,34 @@
         "root_cause": "The provided input contains no test failure data to analyze. The test summary indicates that zero tests were executed or reported (Total: 0, Failed: 0), and the \"Failed Tests\" section is completely empty. This usually happens if the test runner crashed before execution, the wrong reporter was used, or the output log was truncated before being copied.",
         "analyzed_at": "2026-01-27T17:08:31.005554+00:00"
       }
+    },
+    {
+      "id": "scille-parsec-cloud-21404418902",
+      "display_name": "Scille/parsec-cloud (LOW)",
+      "source": {
+        "repo": "Scille/parsec-cloud",
+        "repo_url": "https://github.com/Scille/parsec-cloud",
+        "stars": 293,
+        "captured_at": "2026-01-27T17:06:39.996302+00:00",
+        "original_run_id": 21404418902
+      },
+      "assets": {
+        "report": "scille-parsec-cloud-21404418902/report.json",
+        "diagnosis": "scille-parsec-cloud-21404418902/diagnosis.json"
+      },
+      "validation": {
+        "status": "analyzed",
+        "confidence": "LOW",
+        "root_cause": "The provided test report indicates that **all 8 tests were skipped** and none failed or passed. This typically occurs for one of three reasons:\n1. A **Global Setup or `beforeAll` hook failed** earlier in the execution (which often skips the individual tests but should report an error).\n2. The tests are explicitly marked with `test.skip()` or `test.fixme()` in the code.\n3. The test runner was executed with specific **filters** (e.g., `--grep`) that matched the file names but excluded the specific test cases.",
+        "analyzed_at": "2026-01-27T17:15:37.929158+00:00"
+      }
     }
   ],
   "stats": {
-    "total_scenarios": 1,
+    "total_scenarios": 2,
     "high_confidence": 1,
     "medium_confidence": 0,
-    "low_confidence": 0,
+    "low_confidence": 1,
     "pending": 0
   }
 }
