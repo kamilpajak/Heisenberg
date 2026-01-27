@@ -269,42 +269,46 @@ async def list_artifacts(
     if output is None:
         output = sys.stdout
 
-    client = GitHubArtifactClient(token=token)
+    try:
+        client = GitHubArtifactClient(token=token)
 
-    if run_id is None:
-        runs = await client.list_workflow_runs(owner, repo)
-        failed_runs = [r for r in runs if r.conclusion == "failure"]
-        if not failed_runs:
-            output.write("No failed workflow runs found.\n")
-            output.write(
-                "\nTip: For local reports, use: heisenberg analyze --report <path-to-json>\n"
-            )
+        if run_id is None:
+            runs = await client.list_workflow_runs(owner, repo)
+            failed_runs = [r for r in runs if r.conclusion == "failure"]
+            if not failed_runs:
+                output.write("No failed workflow runs found.\n")
+                output.write(
+                    "\nTip: For local reports, use: heisenberg analyze --report <path-to-json>\n"
+                )
+                return 0
+            run_id = failed_runs[0].id
+            output.write(f"Using latest failed run: {run_id}\n")
+            output.write(f"  URL: {failed_runs[0].html_url}\n\n")
+
+        artifacts = await client.get_artifacts(owner, repo, run_id=run_id)
+
+        if not artifacts:
+            output.write(f"No artifacts found for run {run_id}.\n")
             return 0
-        run_id = failed_runs[0].id
-        output.write(f"Using latest failed run: {run_id}\n")
-        output.write(f"  URL: {failed_runs[0].html_url}\n\n")
 
-    artifacts = await client.get_artifacts(owner, repo, run_id=run_id)
+        output.write(f"Artifacts for run {run_id}:\n")
+        output.write("-" * 60 + "\n")
 
-    if not artifacts:
-        output.write(f"No artifacts found for run {run_id}.\n")
+        for artifact in artifacts:
+            expired_marker = " [EXPIRED]" if artifact.expired else ""
+            size = format_size(artifact.size_in_bytes)
+            output.write(f"  {artifact.name:<40} {size:>10}{expired_marker}\n")
+
+        output.write("-" * 60 + "\n")
+        output.write(f"Total: {len(artifacts)} artifact(s)\n")
+
+        output.write("\nTip: Use --artifact-name <pattern> to filter artifacts.\n")
+        output.write("     Example: --artifact-name playwright\n")
+
         return 0
-
-    output.write(f"Artifacts for run {run_id}:\n")
-    output.write("-" * 60 + "\n")
-
-    for artifact in artifacts:
-        expired_marker = " [EXPIRED]" if artifact.expired else ""
-        size = format_size(artifact.size_in_bytes)
-        output.write(f"  {artifact.name:<40} {size:>10}{expired_marker}\n")
-
-    output.write("-" * 60 + "\n")
-    output.write(f"Total: {len(artifacts)} artifact(s)\n")
-
-    output.write("\nTip: Use --artifact-name <pattern> to filter artifacts.\n")
-    output.write("     Example: --artifact-name playwright\n")
-
-    return 0
+    except Exception as e:
+        print(f"Error listing artifacts: {e}", file=sys.stderr)
+        return 1
 
 
 async def fetch_and_merge_blobs(
