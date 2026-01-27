@@ -1,4 +1,30 @@
-"""Pytest configuration and fixtures."""
+"""Pytest configuration and fixtures.
+
+Test Directory Structure
+========================
+tests/
+├── conftest.py          # Shared fixtures and pytest configuration
+├── factories.py         # Factory functions for test data
+├── fixtures/            # Static test fixtures (JSON, XML, etc.)
+├── integration/         # Integration tests (require external services)
+│   ├── conftest.py      # Auto-marks all tests as @pytest.mark.integration
+│   └── test_*.py        # Tests requiring API keys, DB, GitHub, etc.
+└── test_*.py            # Unit tests (pure logic, mocks, no external deps)
+
+Running Tests
+=============
+# Unit tests only (fast, no external dependencies)
+pytest tests/ -x
+
+# Include integration tests (requires API keys)
+pytest tests/ --run-integration
+
+# Include fuzz tests (slow, uses schemathesis)
+pytest tests/ --run-fuzz
+
+# Run only integration tests
+pytest tests/integration/ --run-integration
+"""
 
 from __future__ import annotations
 
