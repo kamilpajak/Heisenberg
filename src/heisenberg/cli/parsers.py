@@ -5,6 +5,9 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+# Shared help text constants
+_PROVIDER_HELP = "LLM provider to use (default: anthropic)"
+
 
 def create_parser() -> argparse.ArgumentParser:
     """Create the main argument parser for the CLI."""
@@ -16,6 +19,10 @@ def create_parser() -> argparse.ArgumentParser:
 
     _add_analyze_parser(subparsers)
     _add_fetch_github_parser(subparsers)
+    _add_freeze_parser(subparsers)
+    _add_analyze_scenario_parser(subparsers)
+    _add_generate_manifest_parser(subparsers)
+    _add_validate_scenarios_parser(subparsers)
 
     return parser
 
@@ -70,7 +77,7 @@ def _add_analyze_parser(subparsers) -> None:
         "-p",
         choices=["anthropic", "openai", "google"],
         default="anthropic",
-        help="LLM provider to use (default: anthropic)",
+        help=_PROVIDER_HELP,
     )
     analyze_parser.add_argument(
         "--model",
@@ -148,7 +155,7 @@ def _add_fetch_github_parser(subparsers) -> None:
         "-p",
         choices=["anthropic", "openai", "google"],
         default="anthropic",
-        help="LLM provider to use (default: anthropic)",
+        help=_PROVIDER_HELP,
     )
     fetch_parser.add_argument(
         "--list-artifacts",
@@ -174,4 +181,120 @@ def _add_fetch_github_parser(subparsers) -> None:
         "--include-traces",
         action="store_true",
         help="Extract and analyze Playwright traces (console logs, network, actions)",
+    )
+
+
+def _add_freeze_parser(subparsers) -> None:
+    """Add the freeze subcommand parser."""
+    freeze_parser = subparsers.add_parser(
+        "freeze",
+        help="Freeze GitHub Actions artifacts into local snapshots for demo",
+    )
+    freeze_parser.add_argument(
+        "--repo",
+        "-r",
+        type=str,
+        required=True,
+        help="GitHub repository in owner/repo format",
+    )
+    freeze_parser.add_argument(
+        "--run-id",
+        type=int,
+        default=None,
+        help="Specific workflow run ID (default: latest failed)",
+    )
+    freeze_parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        default=Path("./scenarios"),
+        help="Output directory for frozen scenarios (default: ./scenarios)",
+    )
+    freeze_parser.add_argument(
+        "--token",
+        "-t",
+        type=str,
+        default=None,
+        help="GitHub token (or set GITHUB_TOKEN env var)",
+    )
+
+
+def _add_analyze_scenario_parser(subparsers) -> None:
+    """Add the analyze-scenario subcommand parser."""
+    parser = subparsers.add_parser(
+        "analyze-scenario",
+        help="Run AI analysis on a frozen scenario",
+    )
+    parser.add_argument(
+        "scenario_dir",
+        type=Path,
+        help="Path to the frozen scenario directory",
+    )
+    parser.add_argument(
+        "--provider",
+        "-p",
+        choices=["anthropic", "openai", "google"],
+        default="anthropic",
+        help=_PROVIDER_HELP,
+    )
+    parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        default=None,
+        help="Specific model to use (provider-dependent)",
+    )
+
+
+def _add_generate_manifest_parser(subparsers) -> None:
+    """Add the generate-manifest subcommand parser."""
+    parser = subparsers.add_parser(
+        "generate-manifest",
+        help="Generate manifest.json from frozen scenarios",
+    )
+    parser.add_argument(
+        "scenarios_dir",
+        type=Path,
+        help="Path to the scenarios directory",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        default=None,
+        help="Output path for manifest.json (default: scenarios_dir/manifest.json)",
+    )
+    parser.add_argument(
+        "--include-pending",
+        action="store_true",
+        help="Include scenarios without diagnosis (pending analysis)",
+    )
+
+
+def _add_validate_scenarios_parser(subparsers) -> None:
+    """Add the validate-scenarios subcommand parser."""
+    parser = subparsers.add_parser(
+        "validate-scenarios",
+        help="Validate frozen scenarios for freshness and completeness",
+    )
+    parser.add_argument(
+        "scenarios_dir",
+        type=Path,
+        help="Path to the scenarios directory",
+    )
+    parser.add_argument(
+        "--max-age",
+        type=int,
+        default=90,
+        help="Maximum age in days before scenario is considered stale (default: 90)",
+    )
+    parser.add_argument(
+        "--no-require-diagnosis",
+        action="store_true",
+        help="Don't require diagnosis.json (allow pending scenarios)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output results as JSON",
     )
