@@ -1,4 +1,4 @@
-name: Refresh Demo Scenarios
+name: Refresh Demo Cases
 
 on:
   schedule:
@@ -6,18 +6,18 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
     inputs:
-      max_new_scenarios:
-        description: 'Maximum number of new scenarios to freeze'
+      max_new_cases:
+        description: 'Maximum number of new cases to freeze'
         required: false
         default: '3'
       force_refresh:
-        description: 'Force refresh even if no stale scenarios'
+        description: 'Force refresh even if no stale cases'
         required: false
         type: boolean
         default: false
 
 env:
-  SCENARIOS_DIR: playground/scenarios
+  CASES_DIR: playground/cases
   PYTHON_VERSION: '3.12'
 
 permissions:
@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   validate:
-    name: Validate Existing Scenarios
+    name: Validate Existing Cases
     runs-on: ubuntu-latest
     outputs:
       stale_count: ${{ steps.validate.outputs.stale_count }}
@@ -43,15 +43,15 @@ jobs:
       - name: Install Heisenberg
         run: pip install -e ".[backend]"
 
-      - name: Create scenarios directory if missing
-        run: mkdir -p ${{ env.SCENARIOS_DIR }}
+      - name: Create cases directory if missing
+        run: mkdir -p ${{ env.CASES_DIR }}
 
-      - name: Validate scenarios
+      - name: Validate cases
         id: validate
         run: |
-          # Run validation (may return exit code 1 if invalid scenarios exist)
+          # Run validation (may return exit code 1 if invalid cases exist)
           set +e
-          OUTPUT=$(heisenberg validate-scenarios ${{ env.SCENARIOS_DIR }} --json 2>/dev/null)
+          OUTPUT=$(heisenberg validate-cases ${{ env.CASES_DIR }} --json 2>/dev/null)
           EXIT_CODE=$?
           set -e
 
@@ -67,8 +67,8 @@ jobs:
           echo "invalid_count=$INVALID" >> $GITHUB_OUTPUT
 
           echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
-          echo "- Stale scenarios: $STALE" >> $GITHUB_STEP_SUMMARY
-          echo "- Invalid scenarios: $INVALID" >> $GITHUB_STEP_SUMMARY
+          echo "- Stale cases: $STALE" >> $GITHUB_STEP_SUMMARY
+          echo "- Invalid cases: $INVALID" >> $GITHUB_STEP_SUMMARY
 
       - name: Check if refresh needed
         id: check
@@ -86,12 +86,12 @@ jobs:
           fi
 
   discover:
-    name: Discover New Candidates
+    name: Discover New Sources
     runs-on: ubuntu-latest
     needs: validate
     if: needs.validate.outputs.needs_refresh == 'true'
     outputs:
-      candidates_found: ${{ steps.discover.outputs.count }}
+      sources_found: ${{ steps.discover.outputs.count }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -104,32 +104,32 @@ jobs:
       - name: Install dependencies
         run: pip install -e .
 
-      - name: Discover candidate projects
+      - name: Discover source projects
         id: discover
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          python scripts/discover_projects.py --limit 20 --output /tmp/candidates.json
+          python scripts/discover_projects.py --limit 20 --output /tmp/sources.json
 
-          # Count compatible candidates
-          COUNT=$(jq '[.[] | select(.compatible == true)] | length' /tmp/candidates.json)
+          # Count compatible sources
+          COUNT=$(jq '[.[] | select(.compatible == true)] | length' /tmp/sources.json)
           echo "count=$COUNT" >> $GITHUB_OUTPUT
 
           echo "### Discovery Results" >> $GITHUB_STEP_SUMMARY
           echo "Found $COUNT compatible projects" >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload candidates
+      - name: Upload sources
         uses: actions/upload-artifact@v4
         with:
-          name: candidates
-          path: /tmp/candidates.json
+          name: sources
+          path: /tmp/sources.json
           retention-days: 1
 
   freeze-and-analyze:
-    name: Freeze & Analyze Scenarios
+    name: Freeze & Analyze Cases
     runs-on: ubuntu-latest
     needs: [validate, discover]
-    if: needs.discover.outputs.candidates_found > 0
+    if: needs.discover.outputs.sources_found > 0
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -142,41 +142,41 @@ jobs:
       - name: Install Heisenberg
         run: pip install -e ".[backend]"
 
-      - name: Download candidates
+      - name: Download sources
         uses: actions/download-artifact@v4
         with:
-          name: candidates
+          name: sources
           path: /tmp
 
-      - name: Create scenarios directory
-        run: mkdir -p ${{ env.SCENARIOS_DIR }}
+      - name: Create cases directory
+        run: mkdir -p ${{ env.CASES_DIR }}
 
-      - name: Freeze new scenarios
+      - name: Freeze new cases
         id: freeze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MAX_NEW=${{ inputs.max_new_scenarios || '3' }}
+          MAX_NEW=${{ inputs.max_new_cases || '3' }}
           FROZEN=0
 
-          # Get compatible candidates sorted by stars
-          CANDIDATES=$(jq -r '[.[] | select(.compatible == true)] | sort_by(-.stars) | .[].repo' /tmp/candidates.json)
+          # Get compatible sources sorted by stars
+          SOURCES=$(jq -r '[.[] | select(.compatible == true)] | sort_by(-.stars) | .[].repo' /tmp/sources.json)
 
-          for REPO in $CANDIDATES; do
+          for REPO in $SOURCES; do
             if [[ $FROZEN -ge $MAX_NEW ]]; then
-              echo "Reached max new scenarios ($MAX_NEW)"
+              echo "Reached max new cases ($MAX_NEW)"
               break
             fi
 
             # Check if we already have this repo (any run)
             REPO_SLUG=$(echo "$REPO" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
-            if ls ${{ env.SCENARIOS_DIR }}/${REPO_SLUG}-* 1>/dev/null 2>&1; then
-              echo "Skipping $REPO (already have scenario)"
+            if ls ${{ env.CASES_DIR }}/${REPO_SLUG}-* 1>/dev/null 2>&1; then
+              echo "Skipping $REPO (already have case)"
               continue
             fi
 
-            echo "Freezing scenario for $REPO..."
-            if heisenberg freeze -r "$REPO" --output ${{ env.SCENARIOS_DIR }} 2>/dev/null; then
+            echo "Freezing case for $REPO..."
+            if heisenberg freeze -r "$REPO" --output ${{ env.CASES_DIR }} 2>/dev/null; then
               FROZEN=$((FROZEN + 1))
               echo "Successfully frozen $REPO"
             else
@@ -186,9 +186,9 @@ jobs:
 
           echo "frozen_count=$FROZEN" >> $GITHUB_OUTPUT
           echo "### Freeze Results" >> $GITHUB_STEP_SUMMARY
-          echo "Frozen $FROZEN new scenarios" >> $GITHUB_STEP_SUMMARY
+          echo "Frozen $FROZEN new cases" >> $GITHUB_STEP_SUMMARY
 
-      - name: Analyze new scenarios
+      - name: Analyze new cases
         id: analyze
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
@@ -196,18 +196,18 @@ jobs:
           ANALYZED=0
           FAILED=0
 
-          # Find scenarios without diagnosis.json
-          for SCENARIO_DIR in ${{ env.SCENARIOS_DIR }}/*/; do
-            if [[ ! -f "${SCENARIO_DIR}diagnosis.json" ]] && [[ -f "${SCENARIO_DIR}report.json" ]]; then
-              SCENARIO_ID=$(basename "$SCENARIO_DIR")
-              echo "Analyzing $SCENARIO_ID..."
+          # Find cases without diagnosis.json
+          for CASE_DIR in ${{ env.CASES_DIR }}/*/; do
+            if [[ ! -f "${CASE_DIR}diagnosis.json" ]] && [[ -f "${CASE_DIR}report.json" ]]; then
+              CASE_ID=$(basename "$CASE_DIR")
+              echo "Analyzing $CASE_ID..."
 
-              if heisenberg analyze-scenario "$SCENARIO_DIR" -p google; then
+              if heisenberg analyze-case "$CASE_DIR" -p google; then
                 ANALYZED=$((ANALYZED + 1))
-                echo "Successfully analyzed $SCENARIO_ID"
+                echo "Successfully analyzed $CASE_ID"
               else
                 FAILED=$((FAILED + 1))
-                echo "Failed to analyze $SCENARIO_ID"
+                echo "Failed to analyze $CASE_ID"
               fi
             fi
           done
@@ -221,17 +221,17 @@ jobs:
 
       - name: Generate manifest
         run: |
-          heisenberg generate-manifest ${{ env.SCENARIOS_DIR }} -o ${{ env.SCENARIOS_DIR }}/manifest.json
+          heisenberg generate-manifest ${{ env.CASES_DIR }} -o ${{ env.CASES_DIR }}/manifest.json
 
           # Show manifest stats
           echo "### Manifest Generated" >> $GITHUB_STEP_SUMMARY
-          jq '.stats' ${{ env.SCENARIOS_DIR }}/manifest.json >> $GITHUB_STEP_SUMMARY
+          jq '.stats' ${{ env.CASES_DIR }}/manifest.json >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload scenarios
+      - name: Upload cases
         uses: actions/upload-artifact@v4
         with:
-          name: scenarios
-          path: ${{ env.SCENARIOS_DIR }}
+          name: cases
+          path: ${{ env.CASES_DIR }}
           retention-days: 7
 
   commit:
@@ -242,16 +242,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download scenarios
+      - name: Download cases
         uses: actions/download-artifact@v4
         with:
-          name: scenarios
-          path: ${{ env.SCENARIOS_DIR }}
+          name: cases
+          path: ${{ env.CASES_DIR }}
 
       - name: Check for changes
         id: changes
         run: |
-          git add ${{ env.SCENARIOS_DIR }}
+          git add ${{ env.CASES_DIR }}
           if git diff --staged --quiet; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
           else
@@ -264,8 +264,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add ${{ env.SCENARIOS_DIR }}
-          git commit -m "chore: refresh demo scenarios [skip ci]"
+          git add ${{ env.CASES_DIR }}
+          git commit -m "chore: refresh demo cases [skip ci]"
           git pull --rebase origin main
           git push
 
@@ -279,7 +279,7 @@ jobs:
           fi
 
   cleanup-stale:
-    name: Cleanup Stale Scenarios
+    name: Cleanup Stale Cases
     runs-on: ubuntu-latest
     needs: validate
     if: needs.validate.outputs.stale_count > 0
@@ -295,31 +295,31 @@ jobs:
       - name: Install Heisenberg
         run: pip install -e ".[backend]"
 
-      - name: Remove stale scenarios
+      - name: Remove stale cases
         run: |
-          # Get list of stale scenarios
-          STALE=$(heisenberg validate-scenarios ${{ env.SCENARIOS_DIR }} --json | \
-                  jq -r '.results[] | select(.status == "stale") | .scenario_id')
+          # Get list of stale cases
+          STALE=$(heisenberg validate-cases ${{ env.CASES_DIR }} --json | \
+                  jq -r '.results[] | select(.status == "stale") | .case_id')
 
-          for SCENARIO_ID in $STALE; do
-            SCENARIO_PATH="${{ env.SCENARIOS_DIR }}/$SCENARIO_ID"
-            if [[ -d "$SCENARIO_PATH" ]]; then
-              echo "Removing stale scenario: $SCENARIO_ID"
-              rm -rf "$SCENARIO_PATH"
+          for CASE_ID in $STALE; do
+            CASE_PATH="${{ env.CASES_DIR }}/$CASE_ID"
+            if [[ -d "$CASE_PATH" ]]; then
+              echo "Removing stale case: $CASE_ID"
+              rm -rf "$CASE_PATH"
             fi
           done
 
           echo "### Cleanup Results" >> $GITHUB_STEP_SUMMARY
-          echo "Removed stale scenarios" >> $GITHUB_STEP_SUMMARY
+          echo "Removed stale cases" >> $GITHUB_STEP_SUMMARY
 
       - name: Commit cleanup
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add ${{ env.SCENARIOS_DIR }}
+          git add ${{ env.CASES_DIR }}
           if ! git diff --staged --quiet; then
-            git commit -m "chore: remove stale demo scenarios [skip ci]"
+            git commit -m "chore: remove stale demo cases [skip ci]"
             git pull --rebase origin main
             git push
           fi

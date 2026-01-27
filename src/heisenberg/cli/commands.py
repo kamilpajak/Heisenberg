@@ -10,14 +10,14 @@ import tempfile
 from pathlib import Path
 
 from heisenberg.ai_analyzer import analyze_unified_run, analyze_with_ai
-from heisenberg.analyze_scenario import AnalyzeConfig, ScenarioAnalyzer
+from heisenberg.analyze_case import AnalyzeConfig, ScenarioAnalyzer
 from heisenberg.analyzer import run_analysis
 from heisenberg.cli import formatters, github_fetch
-from heisenberg.freeze_scenario import FreezeConfig, ScenarioFreezer
+from heisenberg.freeze_case import CaseFreezer, FreezeConfig
 from heisenberg.github_client import post_pr_comment
 from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
 from heisenberg.unified_model import PlaywrightTransformer, UnifiedTestRun
-from heisenberg.validate_scenarios import ScenarioValidator, ValidatorConfig
+from heisenberg.validate_cases import CaseValidator, ValidatorConfig
 
 # Mapping of provider names to their required environment variables
 PROVIDER_API_KEY_ENV_VARS = {
@@ -377,12 +377,12 @@ async def run_freeze(args: argparse.Namespace) -> int:
         run_id=args.run_id,
     )
 
-    freezer = ScenarioFreezer(config)
+    freezer = CaseFreezer(config)
 
     try:
         result = await freezer.freeze()
-        print(f"Frozen scenario: {result.id}")
-        print(f"  Directory: {result.scenario_dir}")
+        print(f"Frozen case: {result.id}")
+        print(f"  Directory: {result.case_dir}")
         print(f"  Metadata: {result.metadata_path}")
         print(f"  Report: {result.report_path}")
         if result.trace_path:
@@ -396,8 +396,8 @@ async def run_freeze(args: argparse.Namespace) -> int:
         return 1
 
 
-def run_analyze_scenario(args: argparse.Namespace) -> int:
-    """Run the analyze-scenario command."""
+def run_analyze_case(args: argparse.Namespace) -> int:
+    """Run the analyze-case command."""
     # Validate API key early
     provider = getattr(args, "provider", "anthropic")
     error = validate_api_key_for_provider(provider)
@@ -405,12 +405,12 @@ def run_analyze_scenario(args: argparse.Namespace) -> int:
         print(f"Error: {error}", file=sys.stderr)
         return 1
 
-    if not args.scenario_dir.exists():
-        print(f"Error: Scenario directory not found: {args.scenario_dir}", file=sys.stderr)
+    if not args.case_dir.exists():
+        print(f"Error: Scenario directory not found: {args.case_dir}", file=sys.stderr)
         return 1
 
     config = AnalyzeConfig(
-        scenario_dir=args.scenario_dir,
+        case_dir=args.case_dir,
         provider=provider,
         model=getattr(args, "model", None),
     )
@@ -423,7 +423,7 @@ def run_analyze_scenario(args: argparse.Namespace) -> int:
         print(f"  Root cause: {result.root_cause[:80]}...")
         print(f"  Confidence: {result.confidence}")
         print(f"  Tokens: {result.input_tokens + result.output_tokens}")
-        print(f"  Saved: {args.scenario_dir / 'diagnosis.json'}")
+        print(f"  Saved: {args.case_dir / 'diagnosis.json'}")
         return 0
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -438,12 +438,12 @@ def run_analyze_scenario(args: argparse.Namespace) -> int:
 
 def run_generate_manifest(args: argparse.Namespace) -> int:
     """Run the generate-manifest command."""
-    if not args.scenarios_dir.exists():
-        print(f"Error: Scenarios directory not found: {args.scenarios_dir}", file=sys.stderr)
+    if not args.cases_dir.exists():
+        print(f"Error: Scenarios directory not found: {args.cases_dir}", file=sys.stderr)
         return 1
 
     config = GeneratorConfig(
-        scenarios_dir=args.scenarios_dir,
+        cases_dir=args.cases_dir,
         output_path=args.output,
         include_pending=getattr(args, "include_pending", False),
     )
@@ -466,17 +466,17 @@ def run_generate_manifest(args: argparse.Namespace) -> int:
 
 
 def _print_validation_issues(report) -> None:
-    """Print validation issues for invalid/stale scenarios."""
+    """Print validation issues for invalid/stale cases."""
     for result in report.results:
         if not result.is_valid:
-            print(f"  [{result.status.value.upper()}] {result.scenario_id}")
+            print(f"  [{result.status.value.upper()}] {result.case_id}")
             for issue in result.issues:
                 print(f"    - {issue}")
 
 
-def _print_validation_report(report, scenarios_dir) -> None:
+def _print_validation_report(report, cases_dir) -> None:
     """Print human-readable validation report."""
-    print(f"Validation Report for: {scenarios_dir}")
+    print(f"Validation Report for: {cases_dir}")
     print(f"  Total: {report.total}")
     print(f"  Valid: {report.valid}")
     print(f"  Stale: {report.stale}")
@@ -487,19 +487,19 @@ def _print_validation_report(report, scenarios_dir) -> None:
         _print_validation_issues(report)
 
 
-def run_validate_scenarios(args: argparse.Namespace) -> int:
-    """Run the validate-scenarios command."""
-    if not args.scenarios_dir.exists():
-        print(f"Error: Scenarios directory not found: {args.scenarios_dir}", file=sys.stderr)
+def run_validate_cases(args: argparse.Namespace) -> int:
+    """Run the validate-cases command."""
+    if not args.cases_dir.exists():
+        print(f"Error: Scenarios directory not found: {args.cases_dir}", file=sys.stderr)
         return 1
 
     config = ValidatorConfig(
-        scenarios_dir=args.scenarios_dir,
+        cases_dir=args.cases_dir,
         max_age_days=args.max_age,
         require_diagnosis=not getattr(args, "no_require_diagnosis", False),
     )
 
-    validator = ScenarioValidator(config)
+    validator = CaseValidator(config)
 
     try:
         report = validator.generate_report()
@@ -507,7 +507,7 @@ def run_validate_scenarios(args: argparse.Namespace) -> int:
         if getattr(args, "json", False):
             print(report.to_json())
         else:
-            _print_validation_report(report, args.scenarios_dir)
+            _print_validation_report(report, args.cases_dir)
 
         has_issues = report.invalid > 0 or report.stale > 0
         return 1 if has_issues else 0

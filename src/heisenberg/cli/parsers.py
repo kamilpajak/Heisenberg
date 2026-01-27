@@ -20,9 +20,9 @@ def create_parser() -> argparse.ArgumentParser:
     _add_analyze_parser(subparsers)
     _add_fetch_github_parser(subparsers)
     _add_freeze_parser(subparsers)
-    _add_analyze_scenario_parser(subparsers)
+    _add_analyze_case_parser(subparsers)
     _add_generate_manifest_parser(subparsers)
-    _add_validate_scenarios_parser(subparsers)
+    _add_validate_cases_parser(subparsers)
 
     return parser
 
@@ -208,7 +208,7 @@ def _add_freeze_parser(subparsers) -> None:
         "-o",
         type=Path,
         default=Path("./scenarios"),
-        help="Output directory for frozen scenarios (default: ./scenarios)",
+        help="Output directory for frozen cases (default: ./scenarios)",
     )
     freeze_parser.add_argument(
         "--token",
@@ -219,16 +219,16 @@ def _add_freeze_parser(subparsers) -> None:
     )
 
 
-def _add_analyze_scenario_parser(subparsers) -> None:
-    """Add the analyze-scenario subcommand parser."""
+def _add_analyze_case_parser(subparsers) -> None:
+    """Add the analyze-case subcommand parser."""
     parser = subparsers.add_parser(
-        "analyze-scenario",
-        help="Run AI analysis on a frozen scenario",
+        "analyze-case",
+        help="Run AI analysis on a frozen case",
     )
     parser.add_argument(
-        "scenario_dir",
+        "case_dir",
         type=Path,
-        help="Path to the frozen scenario directory",
+        help="Path to the frozen case directory",
     )
     parser.add_argument(
         "--provider",
@@ -250,10 +250,10 @@ def _add_generate_manifest_parser(subparsers) -> None:
     """Add the generate-manifest subcommand parser."""
     parser = subparsers.add_parser(
         "generate-manifest",
-        help="Generate manifest.json from frozen scenarios",
+        help="Generate manifest.json from frozen cases",
     )
     parser.add_argument(
-        "scenarios_dir",
+        "cases_dir",
         type=Path,
         help="Path to the scenarios directory",
     )
@@ -262,7 +262,7 @@ def _add_generate_manifest_parser(subparsers) -> None:
         "-o",
         type=Path,
         default=None,
-        help="Output path for manifest.json (default: scenarios_dir/manifest.json)",
+        help="Output path for manifest.json (default: cases_dir/manifest.json)",
     )
     parser.add_argument(
         "--include-pending",
@@ -271,14 +271,14 @@ def _add_generate_manifest_parser(subparsers) -> None:
     )
 
 
-def _add_validate_scenarios_parser(subparsers) -> None:
-    """Add the validate-scenarios subcommand parser."""
+def _add_validate_cases_parser(subparsers) -> None:
+    """Add the validate-cases subcommand parser."""
     parser = subparsers.add_parser(
-        "validate-scenarios",
-        help="Validate frozen scenarios for freshness and completeness",
+        "validate-cases",
+        help="Validate frozen cases for freshness and completeness",
     )
     parser.add_argument(
-        "scenarios_dir",
+        "cases_dir",
         type=Path,
         help="Path to the scenarios directory",
     )

@@ -4,11 +4,11 @@ import asyncio
 
 from heisenberg.cli.commands import (
     run_analyze,
-    run_analyze_scenario,
+    run_analyze_case,
     run_fetch_github,
     run_freeze,
     run_generate_manifest,
-    run_validate_scenarios,
+    run_validate_cases,
 )
 from heisenberg.cli.parsers import create_parser
 
@@ -24,12 +24,12 @@ def main() -> int:
         return asyncio.run(run_fetch_github(args))
     elif args.command == "freeze":
         return asyncio.run(run_freeze(args))
-    elif args.command == "analyze-scenario":
-        return run_analyze_scenario(args)
+    elif args.command == "analyze-case":
+        return run_analyze_case(args)
     elif args.command == "generate-manifest":
         return run_generate_manifest(args)
-    elif args.command == "validate-scenarios":
-        return run_validate_scenarios(args)
+    elif args.command == "validate-cases":
+        return run_validate_cases(args)
 
     return 1
 
@@ -37,8 +37,8 @@ def main() -> int:
 __all__ = [
     "create_parser",
     "main",
-    "run_analyze_scenario",
+    "run_analyze_case",
     "run_freeze",
     "run_generate_manifest",
-    "run_validate_scenarios",
+    "run_validate_cases",
 ]

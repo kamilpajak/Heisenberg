@@ -1,4 +1,4 @@
-"""Tests for freeze_scenario module - TDD Red-Green-Refactor.
+"""Tests for freeze_case module - TDD Red-Green-Refactor.
 
 This module freezes GitHub Actions artifacts into local snapshots
 for the Heisenberg playground demo.
@@ -16,21 +16,21 @@ import pytest
 
 # Import will fail until we implement the module
 try:
-    from heisenberg.freeze_scenario import (
+    from heisenberg.freeze_case import (
+        CaseFreezer,
+        CaseMetadata,
         FreezeConfig,
-        FrozenScenario,
-        ScenarioFreezer,
-        ScenarioMetadata,
+        FrozenCase,
     )
 except ImportError:
-    ScenarioFreezer = None
-    FrozenScenario = None
-    ScenarioMetadata = None
+    CaseFreezer = None
+    FrozenCase = None
+    CaseMetadata = None
     FreezeConfig = None
 
 
 pytestmark = pytest.mark.skipif(
-    ScenarioFreezer is None, reason="freeze_scenario module not implemented yet"
+    CaseFreezer is None, reason="freeze_case module not implemented yet"
 )
 
 
@@ -87,16 +87,16 @@ class TestFreezeConfigExists:
         assert config.github_token == "ghp_xxx"
 
 
-class TestScenarioMetadataExists:
-    """Verify ScenarioMetadata dataclass exists."""
+class TestCaseMetadataExists:
+    """Verify CaseMetadata dataclass exists."""
 
     def test_scenario_metadata_exists(self):
-        """ScenarioMetadata should exist."""
-        assert ScenarioMetadata is not None
+        """CaseMetadata should exist."""
+        assert CaseMetadata is not None
 
     def test_scenario_metadata_has_required_fields(self):
-        """ScenarioMetadata should capture source information."""
-        metadata = ScenarioMetadata(
+        """CaseMetadata should capture source information."""
+        metadata = CaseMetadata(
             repo="owner/repo",
             repo_url="https://github.com/owner/repo",
             stars=1000,
@@ -111,39 +111,39 @@ class TestScenarioMetadataExists:
         assert "playwright-report" in metadata.artifact_names
 
 
-class TestFrozenScenarioExists:
-    """Verify FrozenScenario dataclass exists."""
+class TestFrozenCaseExists:
+    """Verify FrozenCase dataclass exists."""
 
     def test_frozen_scenario_exists(self):
-        """FrozenScenario should exist."""
-        assert FrozenScenario is not None
+        """FrozenCase should exist."""
+        assert FrozenCase is not None
 
     def test_frozen_scenario_has_required_fields(self):
-        """FrozenScenario should contain paths to frozen assets."""
-        scenario = FrozenScenario(
+        """FrozenCase should contain paths to frozen assets."""
+        scenario = FrozenCase(
             id="owner-repo-12345",
-            scenario_dir=Path("/tmp/scenarios/owner-repo-12345"),
+            case_dir=Path("/tmp/scenarios/owner-repo-12345"),
             metadata_path=Path("/tmp/scenarios/owner-repo-12345/metadata.json"),
             report_path=Path("/tmp/scenarios/owner-repo-12345/report.json"),
             trace_path=None,  # Optional
             logs_path=None,  # Optional
         )
         assert scenario.id == "owner-repo-12345"
-        assert scenario.scenario_dir.exists is not None  # Path object
+        assert scenario.case_dir.exists is not None  # Path object
         assert scenario.report_path is not None
 
 
-class TestScenarioFreezerExists:
-    """Verify ScenarioFreezer class exists with correct interface."""
+class TestCaseFreezerExists:
+    """Verify CaseFreezer class exists with correct interface."""
 
     def test_freezer_class_exists(self):
-        """ScenarioFreezer class should exist."""
-        assert ScenarioFreezer is not None
+        """CaseFreezer class should exist."""
+        assert CaseFreezer is not None
 
     def test_freezer_requires_config(self):
         """Freezer should require FreezeConfig."""
         with pytest.raises(TypeError):
-            ScenarioFreezer()  # No config provided
+            CaseFreezer()  # No config provided
 
     def test_freezer_accepts_config(self):
         """Freezer should accept FreezeConfig."""
@@ -152,7 +152,7 @@ class TestScenarioFreezerExists:
             output_dir=Path("/tmp/scenarios"),
             github_token="test-token",
         )
-        freezer = ScenarioFreezer(config)
+        freezer = CaseFreezer(config)
         assert freezer is not None
 
     def test_freezer_has_freeze_method(self):
@@ -162,7 +162,7 @@ class TestScenarioFreezerExists:
             output_dir=Path("/tmp/scenarios"),
             github_token="test-token",
         )
-        freezer = ScenarioFreezer(config)
+        freezer = CaseFreezer(config)
         assert hasattr(freezer, "freeze")
         assert callable(freezer.freeze)
 
@@ -178,14 +178,14 @@ class TestScenarioIdGeneration:
             github_token="test-token",
             run_id=12345,
         )
-        freezer = ScenarioFreezer(config)
+        freezer = CaseFreezer(config)
 
-        scenario_id = freezer._generate_scenario_id()
+        case_id = freezer._generate_case_id()
 
-        assert scenario_id is not None
-        assert "/" not in scenario_id  # Filesystem safe
-        assert "ghost" in scenario_id.lower()
-        assert "12345" in scenario_id
+        assert case_id is not None
+        assert "/" not in case_id  # Filesystem safe
+        assert "ghost" in case_id.lower()
+        assert "12345" in case_id
 
     def test_generates_unique_ids_for_different_runs(self):
         """Different runs should produce different IDs."""
@@ -202,10 +202,10 @@ class TestScenarioIdGeneration:
             run_id=222,
         )
 
-        freezer1 = ScenarioFreezer(config1)
-        freezer2 = ScenarioFreezer(config2)
+        freezer1 = CaseFreezer(config1)
+        freezer2 = CaseFreezer(config2)
 
-        assert freezer1._generate_scenario_id() != freezer2._generate_scenario_id()
+        assert freezer1._generate_case_id() != freezer2._generate_case_id()
 
 
 class TestFreezeWorkflow:
@@ -220,7 +220,7 @@ class TestFreezeWorkflow:
     @pytest.fixture
     def mock_github_client(self):
         """Mock GitHubArtifactClient."""
-        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock:
+        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock:
             client_instance = AsyncMock()
             # extract_playwright_report is a sync method, not async
             client_instance.extract_playwright_report = MagicMock()
@@ -258,7 +258,7 @@ class TestFreezeWorkflow:
         return zip_buffer.getvalue()
 
     @pytest.mark.asyncio
-    async def test_freeze_creates_scenario_directory(
+    async def test_freeze_creates_case_directory(
         self, temp_output_dir, mock_github_client, sample_report_zip
     ):
         """freeze() should create scenario directory structure."""
@@ -276,13 +276,13 @@ class TestFreezeWorkflow:
             output_dir=temp_output_dir,
             github_token="test-token",
         )
-        freezer = ScenarioFreezer(config)
+        freezer = CaseFreezer(config)
 
         result = await freezer.freeze()
 
         assert result is not None
-        assert isinstance(result, FrozenScenario)
-        assert result.scenario_dir.exists()
+        assert isinstance(result, FrozenCase)
+        assert result.case_dir.exists()
 
     @pytest.mark.asyncio
     async def test_freeze_saves_metadata_json(
@@ -302,13 +302,13 @@ class TestFreezeWorkflow:
         mock_github_client.download_artifact.return_value = sample_report_zip
 
         # Mock repo info for stars
-        with patch("heisenberg.freeze_scenario.get_repo_stars", return_value=5000):
+        with patch("heisenberg.freeze_case.get_repo_stars", return_value=5000):
             config = FreezeConfig(
                 repo="owner/repo",
                 output_dir=temp_output_dir,
                 github_token="test-token",
             )
-            freezer = ScenarioFreezer(config)
+            freezer = CaseFreezer(config)
 
             result = await freezer.freeze()
 
@@ -336,7 +336,7 @@ class TestFreezeWorkflow:
             output_dir=temp_output_dir,
             github_token="test-token",
         )
-        freezer = ScenarioFreezer(config)
+        freezer = CaseFreezer(config)
 
         result = await freezer.freeze()
 
@@ -360,7 +360,7 @@ class TestFreezeWorkflow:
             github_token="test-token",
             run_id=99999,  # Specific run ID
         )
-        freezer = ScenarioFreezer(config)
+        freezer = CaseFreezer(config)
 
         await freezer.freeze()
 
@@ -384,7 +384,7 @@ class TestFreezeErrorHandling:
     @pytest.mark.asyncio
     async def test_freeze_raises_on_no_failed_runs(self, temp_output_dir):
         """Should raise error when no failed runs found."""
-        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
             mock_client.return_value.list_workflow_runs = AsyncMock(return_value=[])
 
             config = FreezeConfig(
@@ -392,7 +392,7 @@ class TestFreezeErrorHandling:
                 output_dir=temp_output_dir,
                 github_token="test-token",
             )
-            freezer = ScenarioFreezer(config)
+            freezer = CaseFreezer(config)
 
             with pytest.raises(ValueError, match="No failed.*runs"):
                 await freezer.freeze()
@@ -400,7 +400,7 @@ class TestFreezeErrorHandling:
     @pytest.mark.asyncio
     async def test_freeze_raises_on_no_playwright_artifacts(self, temp_output_dir):
         """Should raise error when no Playwright artifacts found."""
-        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -415,7 +415,7 @@ class TestFreezeErrorHandling:
                 output_dir=temp_output_dir,
                 github_token="test-token",
             )
-            freezer = ScenarioFreezer(config)
+            freezer = CaseFreezer(config)
 
             with pytest.raises(ValueError, match="No Playwright.*artifacts"):
                 await freezer.freeze()
@@ -423,7 +423,7 @@ class TestFreezeErrorHandling:
     @pytest.mark.asyncio
     async def test_freeze_raises_on_expired_artifacts(self, temp_output_dir):
         """Should raise error when all Playwright artifacts are expired."""
-        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -438,7 +438,7 @@ class TestFreezeErrorHandling:
                 output_dir=temp_output_dir,
                 github_token="test-token",
             )
-            freezer = ScenarioFreezer(config)
+            freezer = CaseFreezer(config)
 
             with pytest.raises(ValueError, match="expired"):
                 await freezer.freeze()
@@ -454,7 +454,7 @@ class TestArtifactFiltering:
             output_dir=Path("/tmp"),
             github_token="token",
         )
-        freezer = ScenarioFreezer(config)
+        freezer = CaseFreezer(config)
 
         playwright_names = [
             "playwright-report",
@@ -476,7 +476,7 @@ class TestArtifactFiltering:
             output_dir=Path("/tmp"),
             github_token="token",
         )
-        freezer = ScenarioFreezer(config)
+        freezer = CaseFreezer(config)
 
         non_playwright_names = [
             "coverage-report",
@@ -510,7 +510,7 @@ class TestTraceHandling:
             zf.writestr("report.json", json.dumps(report_data))
         report_zip = report_zip_buffer.getvalue()
 
-        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -530,7 +530,7 @@ class TestTraceHandling:
                 output_dir=temp_output_dir,
                 github_token="test-token",
             )
-            freezer = ScenarioFreezer(config)
+            freezer = CaseFreezer(config)
 
             result = await freezer.freeze()
 
@@ -565,7 +565,7 @@ class TestFailureFiltering:
             {"expected": 10, "unexpected": 0, "flaky": 0, "skipped": 0}
         )
 
-        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -581,7 +581,7 @@ class TestFailureFiltering:
                 output_dir=temp_output_dir,
                 github_token="test-token",
             )
-            freezer = ScenarioFreezer(config)
+            freezer = CaseFreezer(config)
 
             with pytest.raises(ValueError, match="no.*failures"):
                 await freezer.freeze()
@@ -594,7 +594,7 @@ class TestFailureFiltering:
             {"expected": 0, "unexpected": 0, "flaky": 0, "skipped": 8}
         )
 
-        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -610,7 +610,7 @@ class TestFailureFiltering:
                 output_dir=temp_output_dir,
                 github_token="test-token",
             )
-            freezer = ScenarioFreezer(config)
+            freezer = CaseFreezer(config)
 
             with pytest.raises(ValueError, match="no.*failures"):
                 await freezer.freeze()
@@ -628,7 +628,7 @@ class TestFailureFiltering:
             zf.writestr("data/abc123.zip", b"binary blob data")
         html_report_zip = zip_buffer.getvalue()
 
-        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -644,7 +644,7 @@ class TestFailureFiltering:
                 output_dir=temp_output_dir,
                 github_token="test-token",
             )
-            freezer = ScenarioFreezer(config)
+            freezer = CaseFreezer(config)
 
             with pytest.raises(ValueError, match="visual.only|not analyzable"):
                 await freezer.freeze()
@@ -657,7 +657,7 @@ class TestFailureFiltering:
             {"expected": 8, "unexpected": 2, "flaky": 0, "skipped": 0}
         )
 
-        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -673,13 +673,13 @@ class TestFailureFiltering:
                 output_dir=temp_output_dir,
                 github_token="test-token",
             )
-            freezer = ScenarioFreezer(config)
+            freezer = CaseFreezer(config)
 
             result = await freezer.freeze()
 
             # Should succeed and create scenario
             assert result is not None
-            assert result.scenario_dir.exists()
+            assert result.case_dir.exists()
 
     @pytest.mark.asyncio
     async def test_freeze_cleans_up_on_no_failures(self, temp_output_dir):
@@ -688,7 +688,7 @@ class TestFailureFiltering:
             {"expected": 10, "unexpected": 0, "flaky": 0, "skipped": 0}
         )
 
-        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+        with patch("heisenberg.freeze_case.GitHubArtifactClient") as mock_client:
             client = AsyncMock()
             mock_client.return_value = client
             client.list_workflow_runs.return_value = [
@@ -704,11 +704,11 @@ class TestFailureFiltering:
                 output_dir=temp_output_dir,
                 github_token="test-token",
             )
-            freezer = ScenarioFreezer(config)
+            freezer = CaseFreezer(config)
 
             with pytest.raises(ValueError):
                 await freezer.freeze()
 
             # Directory should be cleaned up
-            scenario_dirs = list(temp_output_dir.iterdir())
-            assert len(scenario_dirs) == 0
+            case_dirs = list(temp_output_dir.iterdir())
+            assert len(case_dirs) == 0

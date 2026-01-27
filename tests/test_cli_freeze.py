@@ -12,11 +12,11 @@ import pytest
 # --- Test Fixtures ---
 
 
-class MockFrozenScenario(NamedTuple):
-    """Mock for FrozenScenario result."""
+class MockFrozenCase(NamedTuple):
+    """Mock for FrozenCase result."""
 
     id: str
-    scenario_dir: Path
+    case_dir: Path
     metadata_path: Path
     report_path: Path
     trace_path: Path | None = None
@@ -25,8 +25,8 @@ class MockFrozenScenario(NamedTuple):
 
 @pytest.fixture
 def mock_freezer():
-    """Create a mock ScenarioFreezer."""
-    with patch("heisenberg.cli.commands.ScenarioFreezer") as MockFreezer:
+    """Create a mock CaseFreezer."""
+    with patch("heisenberg.cli.commands.CaseFreezer") as MockFreezer:
         instance = MagicMock()
         MockFreezer.return_value = instance
         yield MockFreezer, instance
@@ -35,7 +35,7 @@ def mock_freezer():
 @pytest.fixture
 def mock_gh_token():
     """Mock gh auth token command."""
-    with patch("heisenberg.freeze_scenario.subprocess.run") as mock_run:
+    with patch("heisenberg.freeze_case.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(stdout="ghp_test_token\n", returncode=0)
         yield mock_run
 
@@ -128,9 +128,9 @@ class TestRunFreeze:
 
     @pytest.mark.asyncio
     async def test_run_freeze_creates_freezer_with_config(self, tmp_path):
-        """run_freeze should create ScenarioFreezer with correct config."""
+        """run_freeze should create CaseFreezer with correct config."""
         from heisenberg.cli.commands import run_freeze
-        from heisenberg.freeze_scenario import FreezeConfig
+        from heisenberg.freeze_case import FreezeConfig
 
         args = argparse.Namespace(
             repo="TryGhost/Ghost",
@@ -139,14 +139,14 @@ class TestRunFreeze:
             token="ghp_test",
         )
 
-        frozen = MockFrozenScenario(
+        frozen = MockFrozenCase(
             id="tryghost-ghost-12345",
-            scenario_dir=tmp_path / "tryghost-ghost-12345",
+            case_dir=tmp_path / "tryghost-ghost-12345",
             metadata_path=tmp_path / "tryghost-ghost-12345" / "metadata.json",
             report_path=tmp_path / "tryghost-ghost-12345" / "report.json",
         )
 
-        with patch("heisenberg.cli.commands.ScenarioFreezer") as MockFreezer:
+        with patch("heisenberg.cli.commands.CaseFreezer") as MockFreezer:
             instance = MagicMock()
             instance.freeze = AsyncMock(return_value=frozen)
             MockFreezer.return_value = instance
@@ -173,14 +173,14 @@ class TestRunFreeze:
             token="ghp_test",
         )
 
-        frozen = MockFrozenScenario(
+        frozen = MockFrozenCase(
             id="owner-repo-latest",
-            scenario_dir=tmp_path / "owner-repo-latest",
+            case_dir=tmp_path / "owner-repo-latest",
             metadata_path=tmp_path / "owner-repo-latest" / "metadata.json",
             report_path=tmp_path / "owner-repo-latest" / "report.json",
         )
 
-        with patch("heisenberg.cli.commands.ScenarioFreezer") as MockFreezer:
+        with patch("heisenberg.cli.commands.CaseFreezer") as MockFreezer:
             instance = MagicMock()
             instance.freeze = AsyncMock(return_value=frozen)
             MockFreezer.return_value = instance
@@ -201,14 +201,14 @@ class TestRunFreeze:
             token="ghp_test",
         )
 
-        frozen = MockFrozenScenario(
+        frozen = MockFrozenCase(
             id="owner-repo-12345",
-            scenario_dir=tmp_path / "owner-repo-12345",
+            case_dir=tmp_path / "owner-repo-12345",
             metadata_path=tmp_path / "owner-repo-12345" / "metadata.json",
             report_path=tmp_path / "owner-repo-12345" / "report.json",
         )
 
-        with patch("heisenberg.cli.commands.ScenarioFreezer") as MockFreezer:
+        with patch("heisenberg.cli.commands.CaseFreezer") as MockFreezer:
             instance = MagicMock()
             instance.freeze = AsyncMock(return_value=frozen)
             MockFreezer.return_value = instance
@@ -229,7 +229,7 @@ class TestRunFreeze:
             token="ghp_test",
         )
 
-        with patch("heisenberg.cli.commands.ScenarioFreezer") as MockFreezer:
+        with patch("heisenberg.cli.commands.CaseFreezer") as MockFreezer:
             instance = MagicMock()
             instance.freeze = AsyncMock(side_effect=ValueError("No artifacts found"))
             MockFreezer.return_value = instance
@@ -252,14 +252,14 @@ class TestRunFreeze:
             token="ghp_test",
         )
 
-        frozen = MockFrozenScenario(
+        frozen = MockFrozenCase(
             id="tryghost-ghost-12345",
-            scenario_dir=tmp_path / "tryghost-ghost-12345",
+            case_dir=tmp_path / "tryghost-ghost-12345",
             metadata_path=tmp_path / "tryghost-ghost-12345" / "metadata.json",
             report_path=tmp_path / "tryghost-ghost-12345" / "report.json",
         )
 
-        with patch("heisenberg.cli.commands.ScenarioFreezer") as MockFreezer:
+        with patch("heisenberg.cli.commands.CaseFreezer") as MockFreezer:
             instance = MagicMock()
             instance.freeze = AsyncMock(return_value=frozen)
             MockFreezer.return_value = instance
@@ -271,7 +271,7 @@ class TestRunFreeze:
             assert "frozen successfully" in captured.out.lower() or "Frozen" in captured.out
 
     @pytest.mark.asyncio
-    async def test_run_freeze_prints_scenario_dir_path(self, tmp_path, capsys):
+    async def test_run_freeze_prints_case_dir_path(self, tmp_path, capsys):
         """run_freeze should print the scenario directory path."""
         from heisenberg.cli.commands import run_freeze
 
@@ -282,15 +282,15 @@ class TestRunFreeze:
             token="ghp_test",
         )
 
-        scenario_dir = tmp_path / "owner-repo-999"
-        frozen = MockFrozenScenario(
+        case_dir = tmp_path / "owner-repo-999"
+        frozen = MockFrozenCase(
             id="owner-repo-999",
-            scenario_dir=scenario_dir,
-            metadata_path=scenario_dir / "metadata.json",
-            report_path=scenario_dir / "report.json",
+            case_dir=case_dir,
+            metadata_path=case_dir / "metadata.json",
+            report_path=case_dir / "report.json",
         )
 
-        with patch("heisenberg.cli.commands.ScenarioFreezer") as MockFreezer:
+        with patch("heisenberg.cli.commands.CaseFreezer") as MockFreezer:
             instance = MagicMock()
             instance.freeze = AsyncMock(return_value=frozen)
             MockFreezer.return_value = instance
@@ -298,7 +298,7 @@ class TestRunFreeze:
             await run_freeze(args)
 
             captured = capsys.readouterr()
-            assert str(scenario_dir) in captured.out
+            assert str(case_dir) in captured.out
 
     @pytest.mark.asyncio
     async def test_run_freeze_uses_env_token_when_not_provided(self, tmp_path):
@@ -314,15 +314,15 @@ class TestRunFreeze:
             token=None,
         )
 
-        frozen = MockFrozenScenario(
+        frozen = MockFrozenCase(
             id="owner-repo-12345",
-            scenario_dir=tmp_path / "owner-repo-12345",
+            case_dir=tmp_path / "owner-repo-12345",
             metadata_path=tmp_path / "owner-repo-12345" / "metadata.json",
             report_path=tmp_path / "owner-repo-12345" / "report.json",
         )
 
         with patch.dict(os.environ, {"GITHUB_TOKEN": "env_token"}):
-            with patch("heisenberg.cli.commands.ScenarioFreezer") as MockFreezer:
+            with patch("heisenberg.cli.commands.CaseFreezer") as MockFreezer:
                 instance = MagicMock()
                 instance.freeze = AsyncMock(return_value=frozen)
                 MockFreezer.return_value = instance
@@ -346,15 +346,15 @@ class TestRunFreeze:
             token="flag_token",
         )
 
-        frozen = MockFrozenScenario(
+        frozen = MockFrozenCase(
             id="owner-repo-12345",
-            scenario_dir=tmp_path / "owner-repo-12345",
+            case_dir=tmp_path / "owner-repo-12345",
             metadata_path=tmp_path / "owner-repo-12345" / "metadata.json",
             report_path=tmp_path / "owner-repo-12345" / "report.json",
         )
 
         with patch.dict(os.environ, {"GITHUB_TOKEN": "env_token"}):
-            with patch("heisenberg.cli.commands.ScenarioFreezer") as MockFreezer:
+            with patch("heisenberg.cli.commands.CaseFreezer") as MockFreezer:
                 instance = MagicMock()
                 instance.freeze = AsyncMock(return_value=frozen)
                 MockFreezer.return_value = instance

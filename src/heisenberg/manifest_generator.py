@@ -1,6 +1,6 @@
-"""Generate manifest.json from frozen scenarios.
+"""Generate manifest.json from frozen cases.
 
-This module aggregates all frozen scenarios into a manifest file
+This module aggregates all frozen cases into a manifest file
 for the demo playground frontend.
 """
 
@@ -17,14 +17,14 @@ from typing import Any
 class GeneratorConfig:
     """Configuration for manifest generation."""
 
-    scenarios_dir: Path
+    cases_dir: Path
     output_path: Path | None = None
     include_pending: bool = False
 
     def __post_init__(self):
         """Set default output path if not provided."""
         if self.output_path is None:
-            self.output_path = self.scenarios_dir / "manifest.json"
+            self.output_path = self.cases_dir / "manifest.json"
 
 
 @dataclass
@@ -76,13 +76,13 @@ class Manifest:
 
 
 class ManifestGenerator:
-    """Generates manifest.json from frozen scenarios."""
+    """Generates manifest.json from frozen cases."""
 
     def __init__(self, config: GeneratorConfig):
         """Initialize generator with configuration.
 
         Args:
-            config: GeneratorConfig with scenarios_dir and optional settings.
+            config: GeneratorConfig with cases_dir and optional settings.
         """
         self.config = config
 
@@ -92,24 +92,24 @@ class ManifestGenerator:
         Returns:
             List of paths to scenario directories.
         """
-        if not self.config.scenarios_dir.exists():
+        if not self.config.cases_dir.exists():
             return []
 
-        return [p for p in sorted(self.config.scenarios_dir.iterdir()) if p.is_dir()]
+        return [p for p in sorted(self.config.cases_dir.iterdir()) if p.is_dir()]
 
-    def load_scenario(self, scenario_dir: Path) -> ScenarioEntry:
+    def load_scenario(self, case_dir: Path) -> ScenarioEntry:
         """Load scenario data from directory.
 
         Args:
-            scenario_dir: Path to scenario directory.
+            case_dir: Path to scenario directory.
 
         Returns:
             ScenarioEntry with scenario data.
         """
-        scenario_id = scenario_dir.name
+        case_id = case_dir.name
 
         # Load metadata
-        metadata_path = scenario_dir / "metadata.json"
+        metadata_path = case_dir / "metadata.json"
         metadata = json.loads(metadata_path.read_text())
 
         # Build source info
@@ -123,20 +123,18 @@ class ManifestGenerator:
 
         # Build asset paths (relative to scenarios dir)
         assets: dict[str, str | None] = {
-            "report": f"{scenario_id}/report.json"
-            if (scenario_dir / "report.json").exists()
-            else None,
+            "report": f"{case_id}/report.json" if (case_dir / "report.json").exists() else None,
         }
 
         # Check for trace
-        if (scenario_dir / "trace.zip").exists():
-            assets["trace"] = f"{scenario_id}/trace.zip"
+        if (case_dir / "trace.zip").exists():
+            assets["trace"] = f"{case_id}/trace.zip"
 
         # Load diagnosis if exists
-        diagnosis_path = scenario_dir / "diagnosis.json"
+        diagnosis_path = case_dir / "diagnosis.json"
         if diagnosis_path.exists():
             diagnosis = json.loads(diagnosis_path.read_text())
-            assets["diagnosis"] = f"{scenario_id}/diagnosis.json"
+            assets["diagnosis"] = f"{case_id}/diagnosis.json"
 
             validation = {
                 "status": "analyzed",
@@ -151,7 +149,7 @@ class ManifestGenerator:
             }
 
         return ScenarioEntry(
-            id=scenario_id,
+            id=case_id,
             source=source,
             assets=assets,
             validation=validation,
@@ -163,12 +161,12 @@ class ManifestGenerator:
         Returns:
             Manifest with all scenarios and stats.
         """
-        scenario_dirs = self.discover_scenarios()
+        case_dirs = self.discover_scenarios()
         entries = []
 
-        for scenario_dir in scenario_dirs:
+        for case_dir in case_dirs:
             try:
-                entry = self.load_scenario(scenario_dir)
+                entry = self.load_scenario(case_dir)
 
                 # Skip pending unless include_pending is set
                 if entry.validation.get("status") == "pending" and not self.config.include_pending:
@@ -176,7 +174,7 @@ class ManifestGenerator:
 
                 entries.append(entry)
             except (json.JSONDecodeError, FileNotFoundError):
-                # Skip invalid scenarios
+                # Skip invalid cases
                 continue
 
         stats = self._calculate_stats(entries)

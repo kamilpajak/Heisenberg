@@ -1,6 +1,6 @@
-"""Analyze frozen scenarios with AI-powered diagnosis.
+"""Analyze frozen cases with AI-powered diagnosis.
 
-This module runs Heisenberg AI analysis on frozen scenario data
+This module runs Heisenberg AI analysis on frozen case data
 and saves the diagnosis for use in the demo playground.
 """
 
@@ -18,9 +18,9 @@ from heisenberg.playwright_parser import parse_playwright_report
 
 @dataclass
 class AnalyzeConfig:
-    """Configuration for analyzing a frozen scenario."""
+    """Configuration for analyzing a frozen case."""
 
-    scenario_dir: Path
+    case_dir: Path
     provider: str = "anthropic"
     model: str | None = None
     api_key: str | None = None
@@ -28,7 +28,7 @@ class AnalyzeConfig:
 
 @dataclass
 class AnalysisResult:
-    """Result of analyzing a frozen scenario."""
+    """Result of analyzing a frozen case."""
 
     repo: str
     run_id: int
@@ -71,13 +71,13 @@ class AnalysisResult:
 
 
 class ScenarioAnalyzer:
-    """Analyzes frozen scenarios using Heisenberg AI."""
+    """Analyzes frozen cases using Heisenberg AI."""
 
     def __init__(self, config: AnalyzeConfig):
         """Initialize analyzer with configuration.
 
         Args:
-            config: AnalyzeConfig with scenario_dir and optional settings.
+            config: AnalyzeConfig with case_dir and optional settings.
         """
         self.config = config
 
@@ -90,9 +90,9 @@ class ScenarioAnalyzer:
         Raises:
             FileNotFoundError: If metadata.json doesn't exist.
         """
-        metadata_path = self.config.scenario_dir / "metadata.json"
+        metadata_path = self.config.case_dir / "metadata.json"
         if not metadata_path.exists():
-            raise FileNotFoundError(f"metadata.json not found in {self.config.scenario_dir}")
+            raise FileNotFoundError(f"metadata.json not found in {self.config.case_dir}")
         return json.loads(metadata_path.read_text())
 
     def load_report(self) -> dict[str, Any]:
@@ -104,13 +104,13 @@ class ScenarioAnalyzer:
         Raises:
             FileNotFoundError: If report.json doesn't exist.
         """
-        report_path = self.config.scenario_dir / "report.json"
+        report_path = self.config.case_dir / "report.json"
         if not report_path.exists():
-            raise FileNotFoundError(f"report.json not found in {self.config.scenario_dir}")
+            raise FileNotFoundError(f"report.json not found in {self.config.case_dir}")
         return json.loads(report_path.read_text())
 
     def analyze(self) -> AnalysisResult:
-        """Run AI analysis on the frozen scenario.
+        """Run AI analysis on the frozen case.
 
         Returns:
             AnalysisResult with diagnosis and metadata.
@@ -123,7 +123,7 @@ class ScenarioAnalyzer:
         metadata = self.load_metadata()
 
         # Parse report from file
-        report_path = self.config.scenario_dir / "report.json"
+        report_path = self.config.case_dir / "report.json"
         report = parse_playwright_report(report_path)
 
         # Run AI analysis
@@ -166,6 +166,6 @@ class ScenarioAnalyzer:
         Returns:
             Path to saved diagnosis file.
         """
-        diagnosis_path = self.config.scenario_dir / "diagnosis.json"
+        diagnosis_path = self.config.case_dir / "diagnosis.json"
         diagnosis_path.write_text(result.to_json())
         return diagnosis_path

@@ -1,7 +1,7 @@
 """Freeze GitHub Actions artifacts into local snapshots for demo.
 
 This module downloads Playwright test artifacts from GitHub Actions
-and saves them locally as "frozen scenarios" for the Heisenberg playground.
+and saves them locally as "frozen cases" for the Heisenberg playground.
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ class FreezeConfig:
 
 
 @dataclass
-class ScenarioMetadata:
-    """Metadata about the frozen scenario's source."""
+class CaseMetadata:
+    """Metadata about the frozen case's source."""
 
     repo: str
     repo_url: str
@@ -42,11 +42,11 @@ class ScenarioMetadata:
 
 
 @dataclass
-class FrozenScenario:
+class FrozenCase:
     """Result of freezing a scenario - paths to frozen assets."""
 
     id: str
-    scenario_dir: Path
+    case_dir: Path
     metadata_path: Path
     report_path: Path
     trace_path: Path | None = None
@@ -70,7 +70,7 @@ def get_repo_stars(repo: str) -> int:
         return 0
 
 
-class ScenarioFreezer:
+class CaseFreezer:
     """Freezes GitHub Actions artifacts into local snapshots."""
 
     # Patterns that indicate Playwright-related artifacts
@@ -117,7 +117,7 @@ class ScenarioFreezer:
         except subprocess.CalledProcessError:
             return None
 
-    def _generate_scenario_id(self) -> str:
+    def _generate_case_id(self) -> str:
         """Generate a filesystem-safe scenario ID."""
         # Replace / with - and add run_id
         repo_slug = self.config.repo.replace("/", "-").lower()
@@ -141,11 +141,11 @@ class ScenarioFreezer:
             raise ValueError(f"Invalid repo format: {self.config.repo}. Expected 'owner/repo'.")
         return parts[0], parts[1]
 
-    async def freeze(self) -> FrozenScenario:
+    async def freeze(self) -> FrozenCase:
         """Freeze artifacts from GitHub into local snapshot.
 
         Returns:
-            FrozenScenario with paths to all frozen assets.
+            FrozenCase with paths to all frozen assets.
 
         Raises:
             ValueError: If no suitable artifacts found.
@@ -191,9 +191,9 @@ class ScenarioFreezer:
             )
 
         # Create scenario directory
-        scenario_id = self._generate_scenario_id()
-        scenario_dir = self.config.output_dir / scenario_id
-        scenario_dir.mkdir(parents=True, exist_ok=True)
+        case_id = self._generate_case_id()
+        case_dir = self.config.output_dir / case_id
+        case_dir.mkdir(parents=True, exist_ok=True)
 
         # Download and extract report using framework-agnostic handler
         report_artifact = playwright_artifacts[0]  # Take first Playwright artifact
@@ -207,14 +207,14 @@ class ScenarioFreezer:
             raise ValueError(f"Could not identify report format in {report_artifact.name}")
 
         with ZipFile(io.BytesIO(zip_data)) as zf:
-            extracted = handler.extract(zf, scenario_dir)
+            extracted = handler.extract(zf, case_dir)
 
         # Validate that the report has analyzable failures
         if not extracted.is_analyzable:
             # Clean up the created directory
             import shutil
 
-            shutil.rmtree(scenario_dir, ignore_errors=True)
+            shutil.rmtree(case_dir, ignore_errors=True)
             if extracted.visual_only:
                 raise ValueError(
                     f"Report from {self.config.repo} is visual-only and not analyzable. "
@@ -241,14 +241,14 @@ class ScenarioFreezer:
             trace_data = await self.client.download_artifact(
                 owner, repo, artifact_id=trace_artifacts[0].id
             )
-            trace_path = scenario_dir / "trace.zip"
+            trace_path = case_dir / "trace.zip"
             trace_path.write_bytes(trace_data)
 
         # Get repo stars
         stars = get_repo_stars(self.config.repo)
 
         # Create and save metadata
-        metadata = ScenarioMetadata(
+        metadata = CaseMetadata(
             repo=self.config.repo,
             repo_url=f"https://github.com/{self.config.repo}",
             stars=stars,
@@ -258,7 +258,7 @@ class ScenarioFreezer:
             artifact_names=[a.name for a in playwright_artifacts],
         )
 
-        metadata_path = scenario_dir / "metadata.json"
+        metadata_path = case_dir / "metadata.json"
         metadata_dict = {
             "repo": metadata.repo,
             "repo_url": metadata.repo_url,
@@ -272,9 +272,9 @@ class ScenarioFreezer:
         }
         metadata_path.write_text(json.dumps(metadata_dict, indent=2))
 
-        return FrozenScenario(
-            id=scenario_id,
-            scenario_dir=scenario_dir,
+        return FrozenCase(
+            id=case_id,
+            case_dir=case_dir,
             metadata_path=metadata_path,
             report_path=report_path,
             trace_path=trace_path,
