@@ -17,6 +17,11 @@ from ..models import (
     TestSuite,
 )
 
+# Constants for file names and extensions
+INDEX_HTML = "index.html"
+REPORT_JSON = "report.json"
+JSON_EXT = ".json"
+
 
 class PlaywrightHandler(ReportHandler):
     """Handler for Playwright test reports.
@@ -56,7 +61,7 @@ class PlaywrightHandler(ReportHandler):
 
     def _is_html_report(self, namelist: list[str]) -> bool:
         """Check if ZIP contains Playwright HTML report structure."""
-        has_index = any(name == "index.html" or name.endswith("/index.html") for name in namelist)
+        has_index = any(name == INDEX_HTML or name.endswith(f"/{INDEX_HTML}") for name in namelist)
         has_data = any(name.startswith("data/") or "/data/" in name for name in namelist)
         return has_index and has_data
 
@@ -72,12 +77,12 @@ class PlaywrightHandler(ReportHandler):
         # Must have .zip files at root level
         has_root_zips = any(name.endswith(".zip") and "/" not in name for name in namelist)
         # Must NOT have index.html (that would be HTML report)
-        has_index = any(name == "index.html" or name.endswith("/index.html") for name in namelist)
+        has_index = any(name == INDEX_HTML or name.endswith(f"/{INDEX_HTML}") for name in namelist)
         return has_root_zips and not has_index
 
     def _is_json_report(self, zip_file: ZipFile, namelist: list[str]) -> bool:
         """Check if ZIP contains Playwright JSON report."""
-        json_files = [n for n in namelist if n.endswith(".json")]
+        json_files = [n for n in namelist if n.endswith(JSON_EXT)]
 
         for json_file in json_files:
             try:
@@ -142,7 +147,7 @@ class PlaywrightHandler(ReportHandler):
                                 self._parse_jsonl_events(content, combined_data)
                                 has_data = True
                             # Handle JSON format
-                            elif inner_name.endswith(".json"):
+                            elif inner_name.endswith(JSON_EXT):
                                 content = inner_zip.read(inner_name)
                                 data = json.loads(content)
                                 if "suites" in data:
@@ -158,7 +163,7 @@ class PlaywrightHandler(ReportHandler):
                     continue
 
         # Save combined data
-        report_path = output_dir / "report.json"
+        report_path = output_dir / REPORT_JSON
         report_path.write_text(json.dumps(combined_data, indent=2))
 
         return ExtractedReport(
@@ -252,7 +257,7 @@ class PlaywrightHandler(ReportHandler):
         content = zip_file.read(json_file)
         data = json.loads(content)
 
-        report_path = output_dir / "report.json"
+        report_path = output_dir / REPORT_JSON
         report_path.write_text(json.dumps(data, indent=2))
 
         return ExtractedReport(
@@ -279,10 +284,10 @@ class PlaywrightHandler(ReportHandler):
                 target_path.write_bytes(zip_file.read(name))
 
         # Find the entry point (index.html)
-        entry_point = html_dir / "index.html"
+        entry_point = html_dir / INDEX_HTML
         if not entry_point.exists():
             # Try to find it in subdirectories
-            for html_file in html_dir.rglob("index.html"):
+            for html_file in html_dir.rglob(INDEX_HTML):
                 entry_point = html_file
                 break
 
@@ -323,7 +328,7 @@ class PlaywrightHandler(ReportHandler):
                 try:
                     with zf_module.ZipFile(data_file) as inner_zip:
                         for name in inner_zip.namelist():
-                            if name.endswith(".json"):
+                            if name.endswith(JSON_EXT):
                                 content = inner_zip.read(name)
                                 data = json.loads(content)
                                 # Merge suite data
@@ -341,7 +346,7 @@ class PlaywrightHandler(ReportHandler):
                     continue
 
         # Save combined data
-        report_path = output_dir / "report.json"
+        report_path = output_dir / REPORT_JSON
         report_path.write_text(json.dumps(combined_data, indent=2))
 
         return report_path, has_data
@@ -352,7 +357,7 @@ class PlaywrightHandler(ReportHandler):
 
         # Priority order for finding the report
         candidates = [
-            "report.json",
+            REPORT_JSON,
             "playwright-report.json",
             "results.json",
         ]
@@ -363,7 +368,7 @@ class PlaywrightHandler(ReportHandler):
 
         # Fall back to any JSON file that looks like a Playwright report
         for name in namelist:
-            if name.endswith(".json"):
+            if name.endswith(JSON_EXT):
                 try:
                     content = zip_file.read(name)
                     data = json.loads(content)
