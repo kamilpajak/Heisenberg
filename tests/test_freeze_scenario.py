@@ -503,8 +503,8 @@ class TestTraceHandling:
         import io
         import zipfile
 
-        # Create a valid Playwright report ZIP
-        report_data = {"suites": [], "stats": {"expected": 1, "unexpected": 0}}
+        # Create a valid Playwright report ZIP with at least one failure
+        report_data = {"suites": [], "stats": {"expected": 1, "unexpected": 1}}
         report_zip_buffer = io.BytesIO()
         with zipfile.ZipFile(report_zip_buffer, "w") as zf:
             zf.writestr("report.json", json.dumps(report_data))
@@ -536,3 +536,179 @@ class TestTraceHandling:
 
             assert result.trace_path is not None
             assert result.trace_path.exists()
+
+
+class TestFailureFiltering:
+    """Test filtering scenarios based on failure count."""
+
+    @pytest.fixture
+    def temp_output_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
+
+    def _create_report_zip(self, stats: dict) -> bytes:
+        """Helper to create a Playwright report ZIP with given stats."""
+        import io
+        import zipfile
+
+        report_data = {"suites": [], "stats": stats}
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report.json", json.dumps(report_data))
+        return zip_buffer.getvalue()
+
+    @pytest.mark.asyncio
+    async def test_freeze_raises_on_zero_failures(self, temp_output_dir):
+        """Should raise error when report has no test failures."""
+        # Report with all tests passed (unexpected=0)
+        report_zip = self._create_report_zip(
+            {"expected": 10, "unexpected": 0, "flaky": 0, "skipped": 0}
+        )
+
+        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+            client = AsyncMock()
+            mock_client.return_value = client
+            client.list_workflow_runs.return_value = [
+                MockWorkflowRun(id=12345, conclusion="failure")
+            ]
+            client.get_artifacts.return_value = [
+                MockArtifact(id=1, name="playwright-report", expired=False),
+            ]
+            client.download_artifact.return_value = report_zip
+
+            config = FreezeConfig(
+                repo="owner/repo",
+                output_dir=temp_output_dir,
+                github_token="test-token",
+            )
+            freezer = ScenarioFreezer(config)
+
+            with pytest.raises(ValueError, match="no.*failures"):
+                await freezer.freeze()
+
+    @pytest.mark.asyncio
+    async def test_freeze_raises_on_all_skipped(self, temp_output_dir):
+        """Should raise error when all tests are skipped."""
+        # Report with all tests skipped
+        report_zip = self._create_report_zip(
+            {"expected": 0, "unexpected": 0, "flaky": 0, "skipped": 8}
+        )
+
+        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+            client = AsyncMock()
+            mock_client.return_value = client
+            client.list_workflow_runs.return_value = [
+                MockWorkflowRun(id=12345, conclusion="failure")
+            ]
+            client.get_artifacts.return_value = [
+                MockArtifact(id=1, name="playwright-report", expired=False),
+            ]
+            client.download_artifact.return_value = report_zip
+
+            config = FreezeConfig(
+                repo="owner/repo",
+                output_dir=temp_output_dir,
+                github_token="test-token",
+            )
+            freezer = ScenarioFreezer(config)
+
+            with pytest.raises(ValueError, match="no.*failures"):
+                await freezer.freeze()
+
+    @pytest.mark.asyncio
+    async def test_freeze_raises_on_visual_only_report(self, temp_output_dir):
+        """Should raise error when report is visual-only (not analyzable)."""
+        import io
+        import zipfile
+
+        # Create HTML report structure (visual_only)
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("index.html", "<html>Report</html>")
+            zf.writestr("data/abc123.zip", b"binary blob data")
+        html_report_zip = zip_buffer.getvalue()
+
+        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+            client = AsyncMock()
+            mock_client.return_value = client
+            client.list_workflow_runs.return_value = [
+                MockWorkflowRun(id=12345, conclusion="failure")
+            ]
+            client.get_artifacts.return_value = [
+                MockArtifact(id=1, name="playwright-report", expired=False),
+            ]
+            client.download_artifact.return_value = html_report_zip
+
+            config = FreezeConfig(
+                repo="owner/repo",
+                output_dir=temp_output_dir,
+                github_token="test-token",
+            )
+            freezer = ScenarioFreezer(config)
+
+            with pytest.raises(ValueError, match="visual.only|not analyzable"):
+                await freezer.freeze()
+
+    @pytest.mark.asyncio
+    async def test_freeze_accepts_report_with_failures(self, temp_output_dir):
+        """Should accept report with actual test failures."""
+        # Report with failures (unexpected > 0)
+        report_zip = self._create_report_zip(
+            {"expected": 8, "unexpected": 2, "flaky": 0, "skipped": 0}
+        )
+
+        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+            client = AsyncMock()
+            mock_client.return_value = client
+            client.list_workflow_runs.return_value = [
+                MockWorkflowRun(id=12345, conclusion="failure")
+            ]
+            client.get_artifacts.return_value = [
+                MockArtifact(id=1, name="playwright-report", expired=False),
+            ]
+            client.download_artifact.return_value = report_zip
+
+            config = FreezeConfig(
+                repo="owner/repo",
+                output_dir=temp_output_dir,
+                github_token="test-token",
+            )
+            freezer = ScenarioFreezer(config)
+
+            result = await freezer.freeze()
+
+            # Should succeed and create scenario
+            assert result is not None
+            assert result.scenario_dir.exists()
+
+    @pytest.mark.asyncio
+    async def test_freeze_cleans_up_on_no_failures(self, temp_output_dir):
+        """Should clean up created directory if filtering fails."""
+        report_zip = self._create_report_zip(
+            {"expected": 10, "unexpected": 0, "flaky": 0, "skipped": 0}
+        )
+
+        with patch("heisenberg.freeze_scenario.GitHubArtifactClient") as mock_client:
+            client = AsyncMock()
+            mock_client.return_value = client
+            client.list_workflow_runs.return_value = [
+                MockWorkflowRun(id=12345, conclusion="failure")
+            ]
+            client.get_artifacts.return_value = [
+                MockArtifact(id=1, name="playwright-report", expired=False),
+            ]
+            client.download_artifact.return_value = report_zip
+
+            config = FreezeConfig(
+                repo="owner/repo",
+                output_dir=temp_output_dir,
+                github_token="test-token",
+            )
+            freezer = ScenarioFreezer(config)
+
+            with pytest.raises(ValueError):
+                await freezer.freeze()
+
+            # Directory should be cleaned up
+            scenario_dirs = list(temp_output_dir.iterdir())
+            assert len(scenario_dirs) == 0

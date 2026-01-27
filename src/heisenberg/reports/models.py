@@ -109,3 +109,27 @@ class ExtractedReport:
     entry_point: Path  # Path to main file (report.json or index.html)
     raw_data: dict | None = None  # Parsed JSON data if available
     visual_only: bool = False  # True if report can only be viewed, not analyzed
+
+    @property
+    def failure_count(self) -> int:
+        """Extract the number of test failures from raw_data.
+
+        Supports both Playwright format (unexpected) and normalized format (failed).
+        """
+        if self.raw_data is None:
+            return 0
+        stats = self.raw_data.get("stats", {})
+        # Playwright uses "unexpected" for failures, normalized uses "failed"
+        return stats.get("unexpected", stats.get("failed", 0))
+
+    @property
+    def is_analyzable(self) -> bool:
+        """Check if this report has data that can be analyzed.
+
+        Returns False if:
+        - Report is visual_only (no extractable data)
+        - Report has no test failures
+        """
+        if self.visual_only:
+            return False
+        return self.failure_count > 0

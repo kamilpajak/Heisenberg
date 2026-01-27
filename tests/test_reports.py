@@ -171,6 +171,100 @@ class TestExtractedReport:
         assert report.entry_point.name == "index.html"
         assert report.data_file.name == "normalized.json"
 
+    # Tests for failure_count property
+    def test_failure_count_from_playwright_stats(self, tmp_path: Path):
+        """Should extract failure count from Playwright stats format."""
+        report = ExtractedReport(
+            report_type=ReportType.JSON,
+            root_dir=tmp_path,
+            data_file=tmp_path / "report.json",
+            entry_point=tmp_path / "report.json",
+            raw_data={"stats": {"unexpected": 3, "expected": 10, "flaky": 1}},
+        )
+        assert report.failure_count == 3
+
+    def test_failure_count_from_normalized_stats(self, tmp_path: Path):
+        """Should extract failure count from normalized stats format."""
+        report = ExtractedReport(
+            report_type=ReportType.BLOB,
+            root_dir=tmp_path,
+            data_file=tmp_path / "report.json",
+            entry_point=tmp_path / "report.json",
+            raw_data={"stats": {"failed": 5, "passed": 10, "total": 15}},
+        )
+        assert report.failure_count == 5
+
+    def test_failure_count_zero_when_no_stats(self, tmp_path: Path):
+        """Should return 0 when no stats present."""
+        report = ExtractedReport(
+            report_type=ReportType.JSON,
+            root_dir=tmp_path,
+            data_file=tmp_path / "report.json",
+            entry_point=tmp_path / "report.json",
+            raw_data={"suites": []},
+        )
+        assert report.failure_count == 0
+
+    def test_failure_count_zero_when_no_raw_data(self, tmp_path: Path):
+        """Should return 0 when raw_data is None."""
+        report = ExtractedReport(
+            report_type=ReportType.HTML,
+            root_dir=tmp_path,
+            data_file=tmp_path / "report.json",
+            entry_point=tmp_path / "index.html",
+            raw_data=None,
+        )
+        assert report.failure_count == 0
+
+    # Tests for is_analyzable property
+    def test_is_analyzable_true_with_failures(self, tmp_path: Path):
+        """Report with failures should be analyzable."""
+        report = ExtractedReport(
+            report_type=ReportType.JSON,
+            root_dir=tmp_path,
+            data_file=tmp_path / "report.json",
+            entry_point=tmp_path / "report.json",
+            raw_data={"stats": {"unexpected": 2, "expected": 8}},
+            visual_only=False,
+        )
+        assert report.is_analyzable is True
+
+    def test_is_analyzable_false_when_visual_only(self, tmp_path: Path):
+        """Visual-only reports should not be analyzable."""
+        report = ExtractedReport(
+            report_type=ReportType.HTML,
+            root_dir=tmp_path,
+            data_file=tmp_path / "report.json",
+            entry_point=tmp_path / "index.html",
+            raw_data={"stats": {"unexpected": 2}},
+            visual_only=True,
+        )
+        assert report.is_analyzable is False
+
+    def test_is_analyzable_false_with_zero_failures(self, tmp_path: Path):
+        """Report with no failures should not be analyzable."""
+        report = ExtractedReport(
+            report_type=ReportType.JSON,
+            root_dir=tmp_path,
+            data_file=tmp_path / "report.json",
+            entry_point=tmp_path / "report.json",
+            raw_data={"stats": {"unexpected": 0, "expected": 10}},
+            visual_only=False,
+        )
+        assert report.is_analyzable is False
+
+    def test_is_analyzable_false_with_all_skipped(self, tmp_path: Path):
+        """Report with all tests skipped should not be analyzable."""
+        report = ExtractedReport(
+            report_type=ReportType.JSON,
+            root_dir=tmp_path,
+            data_file=tmp_path / "report.json",
+            entry_point=tmp_path / "report.json",
+            raw_data={"stats": {"unexpected": 0, "expected": 0, "skipped": 8}},
+            visual_only=False,
+        )
+        assert report.is_analyzable is False
+
 
 # =============================================================================
 # REGISTRY TESTS

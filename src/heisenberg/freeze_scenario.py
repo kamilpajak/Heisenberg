@@ -209,6 +209,22 @@ class ScenarioFreezer:
         with ZipFile(io.BytesIO(zip_data)) as zf:
             extracted = handler.extract(zf, scenario_dir)
 
+        # Validate that the report has analyzable failures
+        if not extracted.is_analyzable:
+            # Clean up the created directory
+            import shutil
+
+            shutil.rmtree(scenario_dir, ignore_errors=True)
+            if extracted.visual_only:
+                raise ValueError(
+                    f"Report from {self.config.repo} is visual-only and not analyzable. "
+                    "HTML reports without extractable JSON data cannot be analyzed."
+                )
+            raise ValueError(
+                f"Report from {self.config.repo} has no test failures to analyze. "
+                f"Found {extracted.failure_count} failures."
+            )
+
         report_path = extracted.data_file
         report_type = extracted.report_type
         visual_only = extracted.visual_only
