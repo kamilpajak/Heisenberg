@@ -90,69 +90,66 @@ class TestFeedbackEndpoint:
     @pytest.mark.asyncio
     async def test_feedback_endpoint_exists(self):
         """POST /api/v1/analyses/{id}/feedback should exist."""
-        from unittest.mock import patch
-
         from fastapi import FastAPI
 
+        from heisenberg.backend.database import get_db
         from heisenberg.backend.routers import feedback
 
         app = FastAPI()
         app.include_router(feedback.router, prefix="/api/v1")
 
-        # Mock the get_db_session to avoid database connection
-        with patch.object(feedback, "get_db_session") as mock_get_db:
-            mock_session = AsyncMock()
-            mock_session.get = AsyncMock(return_value=None)  # Analysis not found
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
+        # Override the get_db dependency
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=None)  # Analysis not found
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                # Should not return 404 for missing route (404 for missing analysis is ok)
-                response = await client.post(
-                    f"/api/v1/analyses/{uuid.uuid4()}/feedback",
-                    json={"is_helpful": True},
-                )
-                # 404 for "analysis not found" is expected, not for "route not found"
-                assert response.status_code == 404
-                assert "Analysis" in response.json()["detail"]
+        async def override_get_db():
+            yield mock_session
+
+        app.dependency_overrides[get_db] = override_get_db
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            # Should not return 404 for missing route (404 for missing analysis is ok)
+            response = await client.post(
+                f"/api/v1/analyses/{uuid.uuid4()}/feedback",
+                json={"is_helpful": True},
+            )
+            # 404 for "analysis not found" is expected, not for "route not found"
+            assert response.status_code == 404
+            assert "Analysis" in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_feedback_requires_valid_analysis_id(self):
         """Feedback should return 404 for non-existent analysis."""
-        from unittest.mock import patch
-
         from fastapi import FastAPI
 
+        from heisenberg.backend.database import get_db
         from heisenberg.backend.routers import feedback
 
         app = FastAPI()
         app.include_router(feedback.router, prefix="/api/v1")
 
-        # Mock the database session
-        with patch.object(feedback, "get_db_session") as mock_get_db:
-            mock_session = AsyncMock()
-            mock_session.get = AsyncMock(return_value=None)  # Analysis not found
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
+        # Override the get_db dependency
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=None)  # Analysis not found
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                response = await client.post(
-                    f"/api/v1/analyses/{uuid.uuid4()}/feedback",
-                    json={"is_helpful": True},
-                )
-                assert response.status_code == 404
+        async def override_get_db():
+            yield mock_session
+
+        app.dependency_overrides[get_db] = override_get_db
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                f"/api/v1/analyses/{uuid.uuid4()}/feedback",
+                json={"is_helpful": True},
+            )
+            assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_feedback_creates_record(self):
         """Feedback should create a record in database."""
-        from unittest.mock import patch
-
         from fastapi import FastAPI
 
+        from heisenberg.backend.database import get_db
         from heisenberg.backend.models import Analysis
         from heisenberg.backend.routers import feedback
 
@@ -164,44 +161,36 @@ class TestFeedbackEndpoint:
         mock_analysis = MagicMock(spec=Analysis)
         mock_analysis.id = analysis_id
 
-        with patch.object(feedback, "get_db_session") as mock_get_db:
-            mock_session = AsyncMock()
-            mock_session.get = AsyncMock(return_value=mock_analysis)
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_analysis)
 
-            # Capture added feedback and set ID/created_at on refresh
-            captured_feedback = None
+        async def mock_refresh(fb):
+            fb.id = feedback_id
+            fb.created_at = datetime.now(UTC)
 
-            def capture_add(fb):
-                nonlocal captured_feedback
-                captured_feedback = fb
+        mock_session.add = MagicMock()
+        mock_session.commit = AsyncMock()
+        mock_session.refresh = AsyncMock(side_effect=mock_refresh)
 
-            async def mock_refresh(fb):
-                fb.id = feedback_id
-                fb.created_at = datetime.now(UTC)
+        async def override_get_db():
+            yield mock_session
 
-            mock_session.add = MagicMock(side_effect=capture_add)
-            mock_session.commit = AsyncMock()
-            mock_session.refresh = AsyncMock(side_effect=mock_refresh)
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
+        app.dependency_overrides[get_db] = override_get_db
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                response = await client.post(
-                    f"/api/v1/analyses/{analysis_id}/feedback",
-                    json={"is_helpful": True, "comment": "Very helpful!"},
-                )
-                assert response.status_code == 201
-                mock_session.add.assert_called_once()
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                f"/api/v1/analyses/{analysis_id}/feedback",
+                json={"is_helpful": True, "comment": "Very helpful!"},
+            )
+            assert response.status_code == 201
+            mock_session.add.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_feedback_returns_created_record(self):
         """Feedback endpoint should return the created feedback."""
-        from unittest.mock import patch
-
         from fastapi import FastAPI
 
+        from heisenberg.backend.database import get_db
         from heisenberg.backend.models import Analysis
         from heisenberg.backend.routers import feedback as feedback_router
 
@@ -213,33 +202,33 @@ class TestFeedbackEndpoint:
         mock_analysis = MagicMock(spec=Analysis)
         mock_analysis.id = analysis_id
 
-        with patch.object(feedback_router, "get_db_session") as mock_get_db:
-            mock_session = AsyncMock()
-            mock_session.get = AsyncMock(return_value=mock_analysis)
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_analysis)
 
-            def capture_feedback(fb):
-                fb.id = feedback_id
-                fb.created_at = datetime.now(UTC)
+        def capture_feedback(fb):
+            fb.id = feedback_id
+            fb.created_at = datetime.now(UTC)
 
-            mock_session.add = MagicMock(side_effect=capture_feedback)
-            mock_session.commit = AsyncMock()
-            mock_session.refresh = AsyncMock()
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_session.add = MagicMock(side_effect=capture_feedback)
+        mock_session.commit = AsyncMock()
+        mock_session.refresh = AsyncMock()
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                response = await client.post(
-                    f"/api/v1/analyses/{analysis_id}/feedback",
-                    json={"is_helpful": False, "comment": "Wrong diagnosis"},
-                )
-                assert response.status_code == 201
-                data = response.json()
-                assert not data["is_helpful"]
-                assert data["comment"] == "Wrong diagnosis"
-                assert "id" in data
-                assert "created_at" in data
+        async def override_get_db():
+            yield mock_session
+
+        app.dependency_overrides[get_db] = override_get_db
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                f"/api/v1/analyses/{analysis_id}/feedback",
+                json={"is_helpful": False, "comment": "Wrong diagnosis"},
+            )
+            assert response.status_code == 201
+            data = response.json()
+            assert not data["is_helpful"]
+            assert data["comment"] == "Wrong diagnosis"
+            assert "id" in data
+            assert "created_at" in data
 
 
 class TestFeedbackStats:
@@ -267,33 +256,32 @@ class TestFeedbackStats:
     @pytest.mark.asyncio
     async def test_feedback_stats_endpoint_exists(self):
         """GET /api/v1/feedback/stats should exist."""
-        from unittest.mock import patch
-
         from fastapi import FastAPI
 
+        from heisenberg.backend.database import get_db
         from heisenberg.backend.routers import feedback
 
         app = FastAPI()
         app.include_router(feedback.router, prefix="/api/v1")
 
         # Mock the database session for stats query
-        with patch.object(feedback, "get_db_session") as mock_get_db:
-            mock_result = MagicMock()
-            mock_result.scalar.return_value = 0
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = 0
 
-            mock_session = AsyncMock()
-            mock_session.execute = AsyncMock(return_value=mock_result)
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/feedback/stats")
-                assert response.status_code == 200
-                data = response.json()
-                assert "total_feedback" in data
-                assert "helpful_count" in data
+        async def override_get_db():
+            yield mock_session
+
+        app.dependency_overrides[get_db] = override_get_db
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/feedback/stats")
+            assert response.status_code == 200
+            data = response.json()
+            assert "total_feedback" in data
+            assert "helpful_count" in data
 
 
 class TestAnalysisFeedbackRelation:

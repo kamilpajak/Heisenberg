@@ -130,74 +130,72 @@ class TestUsageEndpoints:
     @pytest.mark.asyncio
     async def test_usage_summary_endpoint_exists(self):
         """GET /api/v1/usage/summary should exist."""
-        from unittest.mock import patch
-
         from fastapi import FastAPI
 
+        from heisenberg.backend.database import get_db
         from heisenberg.backend.routers import usage
 
         app = FastAPI()
         app.include_router(usage.router, prefix="/api/v1")
 
-        with patch.object(usage, "get_db_session") as mock_get_db:
-            # Mock the aggregate result row
-            mock_agg_row = MagicMock()
-            mock_agg_row.total_requests = 0
-            mock_agg_row.total_input_tokens = 0
-            mock_agg_row.total_output_tokens = 0
-            mock_agg_row.total_cost_usd = Decimal("0")
+        # Mock the aggregate result row
+        mock_agg_row = MagicMock()
+        mock_agg_row.total_requests = 0
+        mock_agg_row.total_input_tokens = 0
+        mock_agg_row.total_output_tokens = 0
+        mock_agg_row.total_cost_usd = Decimal("0")
 
-            mock_agg_result = MagicMock()
-            mock_agg_result.one.return_value = mock_agg_row
+        mock_agg_result = MagicMock()
+        mock_agg_result.one.return_value = mock_agg_row
 
-            mock_model_result = MagicMock()
-            mock_model_result.all.return_value = []
+        mock_model_result = MagicMock()
+        mock_model_result.all.return_value = []
 
-            mock_session = AsyncMock()
-            # First call returns aggregate, second returns by-model
-            mock_session.execute = AsyncMock(side_effect=[mock_agg_result, mock_model_result])
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_session = AsyncMock()
+        # First call returns aggregate, second returns by-model
+        mock_session.execute = AsyncMock(side_effect=[mock_agg_result, mock_model_result])
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                response = await client.get(
-                    "/api/v1/usage/summary",
-                    params={"organization_id": str(uuid.uuid4())},
-                )
-                # Should return 200
-                assert response.status_code == 200
+        async def override_get_db():
+            yield mock_session
+
+        app.dependency_overrides[get_db] = override_get_db
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                "/api/v1/usage/summary",
+                params={"organization_id": str(uuid.uuid4())},
+            )
+            # Should return 200
+            assert response.status_code == 200
 
     @pytest.mark.asyncio
     async def test_usage_by_model_endpoint_exists(self):
         """GET /api/v1/usage/by-model should exist."""
-        from unittest.mock import patch
-
         from fastapi import FastAPI
 
+        from heisenberg.backend.database import get_db
         from heisenberg.backend.routers import usage
 
         app = FastAPI()
         app.include_router(usage.router, prefix="/api/v1")
 
-        with patch.object(usage, "get_db_session") as mock_get_db:
-            mock_result = MagicMock()
-            mock_result.all.return_value = []
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
 
-            mock_session = AsyncMock()
-            mock_session.execute = AsyncMock(return_value=mock_result)
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                response = await client.get(
-                    "/api/v1/usage/by-model",
-                    params={"organization_id": str(uuid.uuid4())},
-                )
-                assert response.status_code != 404
+        async def override_get_db():
+            yield mock_session
+
+        app.dependency_overrides[get_db] = override_get_db
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                "/api/v1/usage/by-model",
+                params={"organization_id": str(uuid.uuid4())},
+            )
+            assert response.status_code != 404
 
 
 class TestBudgetAlerts:

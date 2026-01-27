@@ -158,37 +158,38 @@ class TestTaskEndpoints:
         from fastapi import FastAPI
         from httpx import ASGITransport, AsyncClient
 
+        from heisenberg.backend.database import get_db
         from heisenberg.backend.routers import tasks
 
         app = FastAPI()
         app.include_router(tasks.router, prefix="/api/v1")
 
-        with patch.object(tasks, "get_db_session") as mock_get_db:
-            mock_session = AsyncMock()
-            mock_session.add = MagicMock()
-            mock_session.commit = AsyncMock()
+        mock_session = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session.commit = AsyncMock()
 
-            async def mock_refresh(task):
-                task.id = uuid.uuid4()
-                task.created_at = datetime.now(UTC)
-                task.status = "pending"
+        async def mock_refresh(task):
+            task.id = uuid.uuid4()
+            task.created_at = datetime.now(UTC)
+            task.status = "pending"
 
-            mock_session.refresh = AsyncMock(side_effect=mock_refresh)
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_session.refresh = AsyncMock(side_effect=mock_refresh)
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                response = await client.post(
-                    "/api/v1/tasks",
-                    json={
-                        "organization_id": str(uuid.uuid4()),
-                        "task_type": "analyze",
-                        "payload": {"test": "data"},
-                    },
-                )
-                assert response.status_code != 404
+        async def override_get_db():
+            yield mock_session
+
+        app.dependency_overrides[get_db] = override_get_db
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/api/v1/tasks",
+                json={
+                    "organization_id": str(uuid.uuid4()),
+                    "task_type": "analyze",
+                    "payload": {"test": "data"},
+                },
+            )
+            assert response.status_code != 404
 
     @pytest.mark.asyncio
     async def test_get_task_endpoint_exists(self):
@@ -196,6 +197,7 @@ class TestTaskEndpoints:
         from fastapi import FastAPI
         from httpx import ASGITransport, AsyncClient
 
+        from heisenberg.backend.database import get_db
         from heisenberg.backend.models import AsyncTask
         from heisenberg.backend.routers import tasks
 
@@ -214,17 +216,17 @@ class TestTaskEndpoints:
         mock_task.started_at = None
         mock_task.completed_at = None
 
-        with patch.object(tasks, "get_db_session") as mock_get_db:
-            mock_session = AsyncMock()
-            mock_session.get = AsyncMock(return_value=mock_task)
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_task)
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                response = await client.get(f"/api/v1/tasks/{task_id}")
-                assert response.status_code == 200
+        async def override_get_db():
+            yield mock_session
+
+        app.dependency_overrides[get_db] = override_get_db
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"/api/v1/tasks/{task_id}")
+            assert response.status_code == 200
 
 
 class TestWebhookCallback:

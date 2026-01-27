@@ -814,7 +814,7 @@ wheels = [
 
 [[package]]
 name = "heisenberg"
-version = "1.6.0"
+version = "1.6.2"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
