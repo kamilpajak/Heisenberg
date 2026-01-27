@@ -231,13 +231,12 @@ class PlaywrightTransformer:
             # Concatenate multiple errors
             messages = [e.get("message", "") for e in errors]
             stacks = [e.get("stack", "") for e in errors if e.get("stack")]
-            error_message = (
-                "\n---\n".join(messages)
-                if len(messages) > 1
-                else messages[0]
-                if messages
-                else "Unknown error"
-            )
+            if len(messages) > 1:
+                error_message = "\n---\n".join(messages)
+            elif messages:
+                error_message = messages[0]
+            else:
+                error_message = "Unknown error"
             stack_trace = "\n---\n".join(stacks) if stacks else None
         else:
             error_message = "Unknown error"

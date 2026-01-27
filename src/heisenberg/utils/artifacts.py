@@ -30,9 +30,8 @@ def extract_test_name_from_path(path_parts: list[str], file_suffix: str | None =
             continue
 
         # Check for image files
-        if part.endswith((".png", ".jpg", ".jpeg")):
-            if i > 0:
-                return path_parts[i - 1]
+        if part.endswith((".png", ".jpg", ".jpeg")) and i > 0:
+            return path_parts[i - 1]
 
     return "unknown-test"
 
