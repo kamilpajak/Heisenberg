@@ -32,6 +32,11 @@ ENV/
 htmlcov/
 .tox/
 .nox/
+.mutmut-cache
+
+# Linters
+.ruff_cache/
+.mypy_cache/
 
 # IDEs
 .idea/
@@ -44,10 +49,19 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Backup files
+*.bak
+
+# Claude Code
+.claude/
+
 # Project specific
 test-results/
 playwright-report/
 *.zip
+
+# Node.js (validation_tests)
+node_modules/
 
 # Environment variables (API keys)
 .env
