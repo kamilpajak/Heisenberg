@@ -25,7 +25,7 @@ class Diagnosis:
     suggested_fix: str
     confidence: ConfidenceLevel
     raw_response: str
-    confidence_explanation: str | None = None
+    confidence_explanation: str | None = None  # pragma: no mutate
 
 
 def parse_diagnosis(response: str) -> Diagnosis:

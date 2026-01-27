@@ -48,6 +48,7 @@ dev = [
     "schemathesis>=3.38.0",
     "asgi-lifespan>=2.1.0",
     "python-semantic-release>=9.0.0",
+    "mutmut>=2.5,<3.0",  # 3.x has stability issues (SIGSEGV crashes)
 ]
 
 [project.scripts]
@@ -142,3 +143,6 @@ upload_to_vcs_release = true
 dev = [
     "greenlet>=3.3.1",
 ]
+
+# Mutation Testing Configuration (mutmut 2.x)
+# Note: mutmut 2.x uses setup.cfg format, see setup.cfg for config
