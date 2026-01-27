@@ -465,6 +465,28 @@ def run_generate_manifest(args: argparse.Namespace) -> int:
         return 1
 
 
+def _print_validation_issues(report) -> None:
+    """Print validation issues for invalid/stale scenarios."""
+    for result in report.results:
+        if not result.is_valid:
+            print(f"  [{result.status.value.upper()}] {result.scenario_id}")
+            for issue in result.issues:
+                print(f"    - {issue}")
+
+
+def _print_validation_report(report, scenarios_dir) -> None:
+    """Print human-readable validation report."""
+    print(f"Validation Report for: {scenarios_dir}")
+    print(f"  Total: {report.total}")
+    print(f"  Valid: {report.valid}")
+    print(f"  Stale: {report.stale}")
+    print(f"  Invalid: {report.invalid}")
+
+    if report.stale > 0 or report.invalid > 0:
+        print("\nIssues found:")
+        _print_validation_issues(report)
+
+
 def run_validate_scenarios(args: argparse.Namespace) -> int:
     """Run the validate-scenarios command."""
     if not args.scenarios_dir.exists():
@@ -485,22 +507,10 @@ def run_validate_scenarios(args: argparse.Namespace) -> int:
         if getattr(args, "json", False):
             print(report.to_json())
         else:
-            print(f"Validation Report for: {args.scenarios_dir}")
-            print(f"  Total: {report.total}")
-            print(f"  Valid: {report.valid}")
-            print(f"  Stale: {report.stale}")
-            print(f"  Invalid: {report.invalid}")
+            _print_validation_report(report, args.scenarios_dir)
 
-            if report.stale > 0 or report.invalid > 0:
-                print("\nIssues found:")
-                for result in report.results:
-                    if not result.is_valid:
-                        print(f"  [{result.status.value.upper()}] {result.scenario_id}")
-                        for issue in result.issues:
-                            print(f"    - {issue}")
-
-        # Return non-zero if any scenarios are invalid or stale
-        return 0 if report.invalid == 0 and report.stale == 0 else 1
+        has_issues = report.invalid > 0 or report.stale > 0
+        return 1 if has_issues else 0
 
     except Exception as e:
         print(f"Error validating scenarios: {e}", file=sys.stderr)

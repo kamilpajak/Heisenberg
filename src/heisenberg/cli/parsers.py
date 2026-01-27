@@ -5,6 +5,9 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+# Shared help text constants
+_PROVIDER_HELP = "LLM provider to use (default: anthropic)"
+
 
 def create_parser() -> argparse.ArgumentParser:
     """Create the main argument parser for the CLI."""
@@ -74,7 +77,7 @@ def _add_analyze_parser(subparsers) -> None:
         "-p",
         choices=["anthropic", "openai", "google"],
         default="anthropic",
-        help="LLM provider to use (default: anthropic)",
+        help=_PROVIDER_HELP,
     )
     analyze_parser.add_argument(
         "--model",
@@ -152,7 +155,7 @@ def _add_fetch_github_parser(subparsers) -> None:
         "-p",
         choices=["anthropic", "openai", "google"],
         default="anthropic",
-        help="LLM provider to use (default: anthropic)",
+        help=_PROVIDER_HELP,
     )
     fetch_parser.add_argument(
         "--list-artifacts",
@@ -232,7 +235,7 @@ def _add_analyze_scenario_parser(subparsers) -> None:
         "-p",
         choices=["anthropic", "openai", "google"],
         default="anthropic",
-        help="LLM provider to use (default: anthropic)",
+        help=_PROVIDER_HELP,
     )
     parser.add_argument(
         "--model",
