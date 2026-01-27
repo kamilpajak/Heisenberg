@@ -64,6 +64,24 @@ class JobLogsProcessor:
     # Maximum total lines to extract (to prevent prompt bloat)
     max_total_lines: int = 200
 
+    def _find_error_lines(self, lines: list[str]) -> list[tuple[int, str]]:
+        """Find all lines containing error keywords.
+
+        Args:
+            lines: List of log lines.
+
+        Returns:
+            List of (line_index, keyword) tuples.
+        """
+        error_line_indices: list[tuple[int, str]] = []
+        for i, line in enumerate(lines):
+            line_lower = line.lower()
+            for keyword in self.error_keywords:
+                if keyword.lower() in line_lower:
+                    error_line_indices.append((i, keyword))
+                    break
+        return error_line_indices
+
     def extract_snippets(
         self,
         log_content: str,
@@ -80,14 +98,7 @@ class JobLogsProcessor:
             List of LogSnippet objects with error-relevant content.
         """
         lines = log_content.split("\n")
-        error_line_indices: list[tuple[int, str]] = []
-
-        # Find all lines containing error keywords
-        for i, line in enumerate(lines):
-            for keyword in self.error_keywords:
-                if keyword.lower() in line.lower():
-                    error_line_indices.append((i, keyword))
-                    break
+        error_line_indices = self._find_error_lines(lines)
 
         if not error_line_indices:
             return []
@@ -118,9 +129,8 @@ class JobLogsProcessor:
             snippet_content = "\n".join(snippet_lines)
 
             # Apply test name filter if provided
-            if filter_tests:
-                if not any(test in snippet_content for test in filter_tests):
-                    continue
+            if filter_tests and not any(test in snippet_content for test in filter_tests):
+                continue
 
             snippets.append(
                 LogSnippet(

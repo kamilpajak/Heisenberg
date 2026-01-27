@@ -87,6 +87,26 @@ def extract_blob_zips(zip_content: bytes) -> list[tuple[str, bytes]]:
     return blob_zips
 
 
+def _write_blob_files(
+    blob_dir: Path,
+    blob_files: list[bytes] | None,
+    blob_zips: list[tuple[str, bytes]] | None,
+) -> None:
+    """Write blob files to a directory for Playwright merge.
+
+    Args:
+        blob_dir: Directory to write files to.
+        blob_files: Legacy list of blob contents.
+        blob_zips: Preferred list of (filename, content) tuples.
+    """
+    if blob_zips:
+        for filename, content in blob_zips:
+            (blob_dir / filename).write_bytes(content)
+    elif blob_files:
+        for i, content in enumerate(blob_files):
+            (blob_dir / f"report-{i}.jsonl").write_bytes(content)
+
+
 async def merge_blob_reports(
     blob_files: list[bytes] | None = None,
     blob_zips: list[tuple[str, bytes]] | None = None,
@@ -116,16 +136,7 @@ async def merge_blob_reports(
         blob_dir = temp_path / "blobs"
         blob_dir.mkdir()
 
-        # Write blob ZIPs to temp directory (preferred format for Playwright)
-        if blob_zips:
-            for filename, content in blob_zips:
-                blob_file = blob_dir / filename
-                blob_file.write_bytes(content)
-        elif blob_files:
-            # Legacy: write as .jsonl (for backward compatibility with tests)
-            for i, content in enumerate(blob_files):
-                blob_file = blob_dir / f"report-{i}.jsonl"
-                blob_file.write_bytes(content)
+        _write_blob_files(blob_dir, blob_files, blob_zips)
 
         # Output file for JSON (avoids stdout buffer limits)
         output_file = temp_path / "merged-report.json"
