@@ -53,6 +53,7 @@ class FrozenScenario:
     logs_path: Path | None = None
     report_type: ReportType = ReportType.JSON
     html_report_path: Path | None = None  # For HTML reports, path to index.html
+    visual_only: bool = False  # True if report can only be viewed, not analyzed
 
 
 def get_repo_stars(repo: str) -> int:
@@ -210,6 +211,7 @@ class ScenarioFreezer:
 
         report_path = extracted.data_file
         report_type = extracted.report_type
+        visual_only = extracted.visual_only
         html_report_path = (
             extracted.entry_point if extracted.report_type == ReportType.HTML else None
         )
@@ -249,6 +251,8 @@ class ScenarioFreezer:
             "run_url": metadata.run_url,
             "captured_at": metadata.captured_at,
             "artifact_names": metadata.artifact_names,
+            "report_type": report_type.value,
+            "visual_only": visual_only,
         }
         metadata_path.write_text(json.dumps(metadata_dict, indent=2))
 
@@ -260,4 +264,5 @@ class ScenarioFreezer:
             trace_path=trace_path,
             report_type=report_type,
             html_report_path=html_report_path,
+            visual_only=visual_only,
         )

@@ -422,3 +422,220 @@ class TestReportProcessingIntegration:
         assert normalized.framework == "playwright"
         assert normalized.total_tests == 1
         assert normalized.passed_tests == 1
+
+
+# =============================================================================
+# BLOB REPORT TESTS
+# =============================================================================
+
+
+class TestPlaywrightBlobHandler:
+    """Tests for Playwright blob report handling."""
+
+    @pytest.fixture
+    def playwright_blob_zip(self) -> bytes:
+        """Create a minimal Playwright blob report ZIP.
+
+        Blob reports contain .zip files with test data but NO index.html.
+        They are created by `--reporter=blob` and meant for merging.
+        """
+        # Create inner zip with report data
+        inner_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner_zip_buffer, "w") as inner_zf:
+            report_data = {
+                "suites": [
+                    {
+                        "title": "Auth Tests",
+                        "specs": [
+                            {
+                                "title": "should authenticate",
+                                "tests": [
+                                    {"status": "expected", "results": [{"status": "passed"}]}
+                                ],
+                            }
+                        ],
+                    }
+                ],
+                "stats": {"expected": 1, "unexpected": 0, "skipped": 0},
+            }
+            inner_zf.writestr("report.json", json.dumps(report_data))
+        inner_zip_data = inner_zip_buffer.getvalue()
+
+        # Create outer blob report zip
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report-chromium-abc123-1.zip", inner_zip_data)
+        zip_buffer.seek(0)
+        return zip_buffer.read()
+
+    def test_can_handle_blob_report(self, playwright_blob_zip: bytes):
+        """Blob reports should be recognized by PlaywrightHandler."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(playwright_blob_zip)) as zf:
+            assert handler.can_handle(zf) is True
+
+    def test_is_blob_report_detection(self, playwright_blob_zip: bytes):
+        """Blob reports have .zip files but no index.html."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(playwright_blob_zip)) as zf:
+            namelist = zf.namelist()
+            assert handler._is_blob_report(namelist) is True
+            assert handler._is_html_report(namelist) is False
+
+    def test_blob_report_not_confused_with_html(self):
+        """HTML reports with data/*.zip should not be detected as blob."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        # Create HTML report structure (has index.html + data/*.zip)
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("index.html", "<html>Report</html>")
+            zf.writestr("data/test-1.zip", b"data")
+        zip_buffer.seek(0)
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(zip_buffer) as zf:
+            namelist = zf.namelist()
+            assert handler._is_blob_report(namelist) is False
+            assert handler._is_html_report(namelist) is True
+
+    def test_extract_blob_report_type(self, playwright_blob_zip: bytes, tmp_path: Path):
+        """Blob reports should be extracted with ReportType.BLOB."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(playwright_blob_zip)) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        assert result.report_type == ReportType.BLOB
+
+    def test_extract_blob_report_produces_json(self, playwright_blob_zip: bytes, tmp_path: Path):
+        """Blob extraction should produce report.json with test data."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(playwright_blob_zip)) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        assert result.data_file.exists()
+        data = json.loads(result.data_file.read_text())
+        assert "suites" in data
+        assert len(data["suites"]) > 0
+
+    def test_normalize_blob_report(self, playwright_blob_zip: bytes, tmp_path: Path):
+        """Blob reports should normalize to standard format."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(playwright_blob_zip)) as zf:
+            extracted = handler.extract(zf, tmp_path)
+
+        normalized = handler.normalize(extracted)
+        assert normalized.framework == "playwright"
+        assert normalized.total_tests >= 1
+
+
+# =============================================================================
+# VISUAL-ONLY REPORT TESTS
+# =============================================================================
+
+
+class TestVisualOnlyReports:
+    """Tests for HTML reports that cannot be parsed (visual-only)."""
+
+    @pytest.fixture
+    def html_only_report_zip(self) -> bytes:
+        """Create an HTML report with non-parseable data/*.zip files."""
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("index.html", "<html>Playwright Report</html>")
+            # data/*.zip contains binary trace data, not JSON
+            zf.writestr("data/trace-abc123.zip", b"\x00\x01\x02\x03binary data")
+        zip_buffer.seek(0)
+        return zip_buffer.read()
+
+    def test_html_report_with_unparseable_data_is_visual_only(
+        self, html_only_report_zip: bytes, tmp_path: Path
+    ):
+        """HTML reports with binary data should be marked visual_only."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(html_only_report_zip)) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        assert result.visual_only is True
+        assert result.report_type == ReportType.HTML
+
+    def test_visual_only_report_has_empty_data_file(
+        self, html_only_report_zip: bytes, tmp_path: Path
+    ):
+        """Visual-only reports should have minimal report.json structure."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(html_only_report_zip)) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        data = json.loads(result.data_file.read_text())
+        # Should have empty structure, not crash
+        assert "suites" in data
+        assert data["suites"] == []
+
+    def test_visual_only_report_entry_point_exists(
+        self, html_only_report_zip: bytes, tmp_path: Path
+    ):
+        """Visual-only reports should still have viewable index.html."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(html_only_report_zip)) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        assert result.entry_point.exists()
+        assert result.entry_point.name == "index.html"
+
+    def test_extracted_report_visual_only_default_false(self, tmp_path: Path):
+        """ExtractedReport.visual_only should default to False."""
+        from heisenberg.reports.models import ExtractedReport, ReportType
+
+        report = ExtractedReport(
+            report_type=ReportType.JSON,
+            root_dir=tmp_path,
+            data_file=tmp_path / "report.json",
+            entry_point=tmp_path / "report.json",
+        )
+        assert report.visual_only is False
+
+    def test_json_report_not_visual_only(self, tmp_path: Path):
+        """JSON reports should never be visual_only."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        report = {
+            "config": {},
+            "suites": [{"title": "Test", "specs": []}],
+            "stats": {"expected": 0, "unexpected": 0, "skipped": 0},
+        }
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report.json", json.dumps(report))
+        zip_buffer.seek(0)
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(zip_buffer) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        assert result.visual_only is False
+        assert result.report_type == ReportType.JSON
+
+
+class TestReportTypeEnum:
+    """Tests for ReportType enum additions."""
+
+    def test_blob_type_exists(self):
+        """ReportType.BLOB should exist for blob reports."""
+        assert ReportType.BLOB.value == "blob"

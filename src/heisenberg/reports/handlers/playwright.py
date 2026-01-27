@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 from zipfile import ZipFile
@@ -35,11 +36,16 @@ class PlaywrightHandler(ReportHandler):
         Playwright reports can be identified by:
         - JSON: Contains report.json with 'suites' and 'config' keys
         - HTML: Contains index.html and data/ directory
+        - Blob: Contains .zip files (sharded reports for merging)
         """
         namelist = zip_file.namelist()
 
         # Check for HTML report structure
         if self._is_html_report(namelist):
+            return True
+
+        # Check for blob report (must be before JSON check)
+        if self._is_blob_report(namelist):
             return True
 
         # Check for JSON report
@@ -53,6 +59,21 @@ class PlaywrightHandler(ReportHandler):
         has_index = any(name == "index.html" or name.endswith("/index.html") for name in namelist)
         has_data = any(name.startswith("data/") or "/data/" in name for name in namelist)
         return has_index and has_data
+
+    def _is_blob_report(self, namelist: list[str]) -> bool:
+        """Check if ZIP contains Playwright blob report structure.
+
+        Blob reports are created by --reporter=blob and contain:
+        - .zip files (report-*.zip) with shard data
+        - NO index.html (distinguishes from HTML reports)
+
+        These can be merged with `npx playwright merge-reports`.
+        """
+        # Must have .zip files at root level
+        has_root_zips = any(name.endswith(".zip") and "/" not in name for name in namelist)
+        # Must NOT have index.html (that would be HTML report)
+        has_index = any(name == "index.html" or name.endswith("/index.html") for name in namelist)
+        return has_root_zips and not has_index
 
     def _is_json_report(self, zip_file: ZipFile, namelist: list[str]) -> bool:
         """Check if ZIP contains Playwright JSON report."""
@@ -88,8 +109,56 @@ class PlaywrightHandler(ReportHandler):
 
         if self._is_html_report(namelist):
             return self._extract_html_report(zip_file, output_dir)
+        elif self._is_blob_report(namelist):
+            return self._extract_blob_report(zip_file, output_dir)
         else:
             return self._extract_json_report(zip_file, output_dir)
+
+    def _extract_blob_report(self, zip_file: ZipFile, output_dir: Path) -> ExtractedReport:
+        """Extract blob format report.
+
+        Blob reports contain .zip files with test data that can be merged.
+        We extract and combine them into a single report.json.
+        """
+        import zipfile as zf_module
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        combined_data: dict = {"suites": [], "stats": {}}
+
+        # Extract and process each blob .zip file
+        for name in zip_file.namelist():
+            if name.endswith(".zip") and "/" not in name:
+                try:
+                    blob_data = zip_file.read(name)
+                    with zf_module.ZipFile(io.BytesIO(blob_data)) as inner_zip:
+                        for inner_name in inner_zip.namelist():
+                            if inner_name.endswith(".json"):
+                                content = inner_zip.read(inner_name)
+                                data = json.loads(content)
+                                # Merge suite data
+                                if "suites" in data:
+                                    combined_data["suites"].extend(data["suites"])
+                                if "stats" in data:
+                                    for k, v in data["stats"].items():
+                                        if isinstance(v, int | float):
+                                            combined_data["stats"][k] = (
+                                                combined_data["stats"].get(k, 0) + v
+                                            )
+                except (zf_module.BadZipFile, json.JSONDecodeError):
+                    continue
+
+        # Save combined data
+        report_path = output_dir / "report.json"
+        report_path.write_text(json.dumps(combined_data, indent=2))
+
+        return ExtractedReport(
+            report_type=ReportType.BLOB,
+            root_dir=output_dir,
+            data_file=report_path,
+            entry_point=report_path,
+            raw_data=combined_data,
+            visual_only=False,
+        )
 
     def _extract_json_report(self, zip_file: ZipFile, output_dir: Path) -> ExtractedReport:
         """Extract JSON format report."""
@@ -112,6 +181,7 @@ class PlaywrightHandler(ReportHandler):
             data_file=report_path,
             entry_point=report_path,
             raw_data=data,
+            visual_only=False,
         )
 
     def _extract_html_report(self, zip_file: ZipFile, output_dir: Path) -> ExtractedReport:
@@ -138,7 +208,10 @@ class PlaywrightHandler(ReportHandler):
 
         # For HTML reports, we need to extract JSON data from data/ directory
         # The data files contain the actual test results
-        data_file = self._extract_data_from_html_report(html_dir, output_dir)
+        data_file, has_data = self._extract_data_from_html_report(html_dir, output_dir)
+
+        # Mark as visual_only if no test data could be extracted
+        visual_only = not has_data
 
         return ExtractedReport(
             report_type=ReportType.HTML,
@@ -146,23 +219,29 @@ class PlaywrightHandler(ReportHandler):
             data_file=data_file,
             entry_point=entry_point,
             raw_data=None,  # Will be loaded during normalize
+            visual_only=visual_only,
         )
 
-    def _extract_data_from_html_report(self, html_dir: Path, output_dir: Path) -> Path:
+    def _extract_data_from_html_report(self, html_dir: Path, output_dir: Path) -> tuple[Path, bool]:
         """Extract JSON data from HTML report's data directory.
 
         Playwright HTML reports store test data in data/*.zip files.
         We need to extract and combine them.
+
+        Returns:
+            Tuple of (report_path, has_data) where has_data indicates
+            whether any test data was successfully extracted.
         """
+        import zipfile as zf_module
+
         data_dir = html_dir / "data"
         combined_data: dict = {"suites": [], "stats": {}}
+        has_data = False
 
         if data_dir.exists():
-            import zipfile
-
             for data_file in data_dir.glob("*.zip"):
                 try:
-                    with zipfile.ZipFile(data_file) as inner_zip:
+                    with zf_module.ZipFile(data_file) as inner_zip:
                         for name in inner_zip.namelist():
                             if name.endswith(".json"):
                                 content = inner_zip.read(name)
@@ -170,19 +249,22 @@ class PlaywrightHandler(ReportHandler):
                                 # Merge suite data
                                 if "suites" in data:
                                     combined_data["suites"].extend(data["suites"])
+                                    if data["suites"]:
+                                        has_data = True
                                 if "stats" in data:
                                     for k, v in data["stats"].items():
-                                        combined_data["stats"][k] = (
-                                            combined_data["stats"].get(k, 0) + v
-                                        )
-                except (zipfile.BadZipFile, json.JSONDecodeError):
+                                        if isinstance(v, int | float):
+                                            combined_data["stats"][k] = (
+                                                combined_data["stats"].get(k, 0) + v
+                                            )
+                except (zf_module.BadZipFile, json.JSONDecodeError):
                     continue
 
         # Save combined data
         report_path = output_dir / "report.json"
         report_path.write_text(json.dumps(combined_data, indent=2))
 
-        return report_path
+        return report_path, has_data
 
     def _find_json_report_file(self, zip_file: ZipFile) -> str | None:
         """Find the main JSON report file in the ZIP."""

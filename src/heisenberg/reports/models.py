@@ -12,6 +12,7 @@ class ReportType(Enum):
 
     JSON = "json"
     HTML = "html"
+    BLOB = "blob"  # Playwright blob reports (mergeable)
 
 
 class TestStatus(Enum):
@@ -107,3 +108,4 @@ class ExtractedReport:
     data_file: Path  # Path to JSON data file (for AI analysis)
     entry_point: Path  # Path to main file (report.json or index.html)
     raw_data: dict | None = None  # Parsed JSON data if available
+    visual_only: bool = False  # True if report can only be viewed, not analyzed
