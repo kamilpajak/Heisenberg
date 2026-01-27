@@ -1,6 +1,6 @@
 """Heisenberg - AI Root Cause Analysis for Flaky Tests."""
 
-__version__ = "1.6.8"
+__version__ = "1.6.9"
 
 from heisenberg.core.models import (
     Attachments,
