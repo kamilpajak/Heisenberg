@@ -41,7 +41,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install Heisenberg
-        run: pip install -e .
+        run: pip install -e ".[backend]"
 
       - name: Create scenarios directory if missing
         run: mkdir -p ${{ env.SCENARIOS_DIR }}
@@ -140,7 +140,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install Heisenberg
-        run: pip install -e .
+        run: pip install -e ".[backend]"
 
       - name: Download candidates
         uses: actions/download-artifact@v4
@@ -293,7 +293,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install Heisenberg
-        run: pip install -e .
+        run: pip install -e ".[backend]"
 
       - name: Remove stale scenarios
         run: |
