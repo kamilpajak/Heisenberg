@@ -10,10 +10,14 @@ import tempfile
 from pathlib import Path
 
 from heisenberg.ai_analyzer import analyze_unified_run, analyze_with_ai
+from heisenberg.analyze_scenario import AnalyzeConfig, ScenarioAnalyzer
 from heisenberg.analyzer import run_analysis
 from heisenberg.cli import formatters, github_fetch
+from heisenberg.freeze_scenario import FreezeConfig, ScenarioFreezer
 from heisenberg.github_client import post_pr_comment
+from heisenberg.manifest_generator import GeneratorConfig, ManifestGenerator
 from heisenberg.unified_model import PlaywrightTransformer, UnifiedTestRun
+from heisenberg.validate_scenarios import ScenarioValidator, ValidatorConfig
 
 # Mapping of provider names to their required environment variables
 PROVIDER_API_KEY_ENV_VARS = {
@@ -359,4 +363,145 @@ async def run_fetch_github(args: argparse.Namespace) -> int:
             )
         else:
             print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+async def run_freeze(args: argparse.Namespace) -> int:
+    """Run the freeze command to create local artifact snapshots."""
+    token = args.token or os.environ.get("GITHUB_TOKEN")
+
+    config = FreezeConfig(
+        repo=args.repo,
+        output_dir=args.output,
+        github_token=token,
+        run_id=args.run_id,
+    )
+
+    freezer = ScenarioFreezer(config)
+
+    try:
+        result = await freezer.freeze()
+        print(f"Frozen scenario: {result.id}")
+        print(f"  Directory: {result.scenario_dir}")
+        print(f"  Metadata: {result.metadata_path}")
+        print(f"  Report: {result.report_path}")
+        if result.trace_path:
+            print(f"  Trace: {result.trace_path}")
+        return 0
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Error freezing scenario: {e}", file=sys.stderr)
+        return 1
+
+
+def run_analyze_scenario(args: argparse.Namespace) -> int:
+    """Run the analyze-scenario command."""
+    # Validate API key early
+    provider = getattr(args, "provider", "anthropic")
+    error = validate_api_key_for_provider(provider)
+    if error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    if not args.scenario_dir.exists():
+        print(f"Error: Scenario directory not found: {args.scenario_dir}", file=sys.stderr)
+        return 1
+
+    config = AnalyzeConfig(
+        scenario_dir=args.scenario_dir,
+        provider=provider,
+        model=getattr(args, "model", None),
+    )
+
+    analyzer = ScenarioAnalyzer(config)
+
+    try:
+        result = analyzer.analyze()
+        print(f"Analysis complete for: {result.repo}")
+        print(f"  Root cause: {result.root_cause[:80]}...")
+        print(f"  Confidence: {result.confidence}")
+        print(f"  Tokens: {result.input_tokens + result.output_tokens}")
+        print(f"  Saved: {args.scenario_dir / 'diagnosis.json'}")
+        return 0
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Error analyzing scenario: {e}", file=sys.stderr)
+        return 1
+
+
+def run_generate_manifest(args: argparse.Namespace) -> int:
+    """Run the generate-manifest command."""
+    if not args.scenarios_dir.exists():
+        print(f"Error: Scenarios directory not found: {args.scenarios_dir}", file=sys.stderr)
+        return 1
+
+    config = GeneratorConfig(
+        scenarios_dir=args.scenarios_dir,
+        output_path=args.output,
+        include_pending=getattr(args, "include_pending", False),
+    )
+
+    generator = ManifestGenerator(config)
+
+    try:
+        manifest = generator.generate_and_save()
+        print(f"Manifest generated: {config.output_path}")
+        print(f"  Total scenarios: {manifest.stats['total_scenarios']}")
+        print(f"  HIGH confidence: {manifest.stats['high_confidence']}")
+        print(f"  MEDIUM confidence: {manifest.stats['medium_confidence']}")
+        print(f"  LOW confidence: {manifest.stats['low_confidence']}")
+        if manifest.stats.get("pending", 0) > 0:
+            print(f"  Pending: {manifest.stats['pending']}")
+        return 0
+    except Exception as e:
+        print(f"Error generating manifest: {e}", file=sys.stderr)
+        return 1
+
+
+def run_validate_scenarios(args: argparse.Namespace) -> int:
+    """Run the validate-scenarios command."""
+    if not args.scenarios_dir.exists():
+        print(f"Error: Scenarios directory not found: {args.scenarios_dir}", file=sys.stderr)
+        return 1
+
+    config = ValidatorConfig(
+        scenarios_dir=args.scenarios_dir,
+        max_age_days=args.max_age,
+        require_diagnosis=not getattr(args, "no_require_diagnosis", False),
+    )
+
+    validator = ScenarioValidator(config)
+
+    try:
+        report = validator.generate_report()
+
+        if getattr(args, "json", False):
+            print(report.to_json())
+        else:
+            print(f"Validation Report for: {args.scenarios_dir}")
+            print(f"  Total: {report.total}")
+            print(f"  Valid: {report.valid}")
+            print(f"  Stale: {report.stale}")
+            print(f"  Invalid: {report.invalid}")
+
+            if report.stale > 0 or report.invalid > 0:
+                print("\nIssues found:")
+                for result in report.results:
+                    if not result.is_valid:
+                        print(f"  [{result.status.value.upper()}] {result.scenario_id}")
+                        for issue in result.issues:
+                            print(f"    - {issue}")
+
+        # Return non-zero if any scenarios are invalid or stale
+        return 0 if report.invalid == 0 and report.stale == 0 else 1
+
+    except Exception as e:
+        print(f"Error validating scenarios: {e}", file=sys.stderr)
         return 1
