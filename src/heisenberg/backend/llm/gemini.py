@@ -1,54 +1,32 @@
-"""Google Gemini LLM provider."""
+"""Google Gemini LLM provider.
+
+.. deprecated::
+    This module is deprecated. Use :mod:`heisenberg.llm.providers.gemini` instead.
+"""
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
-from google import genai
-from google.genai import types
-
-from heisenberg.backend.llm.base import LLMProvider
-from heisenberg.backend.logging import get_logger
 from heisenberg.llm.models import LLMAnalysis
+from heisenberg.llm.providers.gemini import GeminiProvider as UnifiedGeminiProvider
 
-logger = get_logger(__name__)
+__all__ = ["GeminiProvider"]
+
+warnings.warn(
+    "heisenberg.backend.llm.gemini is deprecated. Use heisenberg.llm.providers.gemini instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
-class GeminiProvider(LLMProvider):
-    """LLM provider for Google's Gemini models."""
+class GeminiProvider(UnifiedGeminiProvider):
+    """LLM provider for Google's Gemini models.
 
-    def __init__(
-        self,
-        api_key: str,
-        model: str = "gemini-3-pro-preview",
-        max_tokens: int = 4096,
-    ) -> None:
-        """
-        Initialize Gemini provider.
-
-        Args:
-            api_key: Google API key.
-            model: Model name to use.
-            max_tokens: Maximum tokens in response.
-        """
-        self._api_key = api_key
-        self._model = model
-        self._max_tokens = max_tokens
-        self._client = genai.Client(api_key=api_key)
-
-    @property
-    def name(self) -> str:
-        """Return the provider name."""
-        return "google"
-
-    @property
-    def model(self) -> str:
-        """Return the model name."""
-        return self._model
-
-    def is_available(self) -> bool:
-        """Check if the provider is available."""
-        return bool(self._api_key)
+    .. deprecated::
+        Use :class:`heisenberg.llm.providers.gemini.GeminiProvider` instead.
+    """
 
     async def analyze(
         self,
@@ -59,6 +37,9 @@ class GeminiProvider(LLMProvider):
         """
         Analyze test failure using Gemini.
 
+        This method maintains backwards compatibility with the old interface
+        where system_prompt was the first positional argument.
+
         Args:
             system_prompt: System prompt for Gemini.
             user_prompt: User prompt containing test failure details.
@@ -67,48 +48,7 @@ class GeminiProvider(LLMProvider):
         Returns:
             LLMAnalysis with response content and token usage.
         """
-        model_name = kwargs.get("model", self._model)
-        max_tokens = kwargs.get("max_tokens", self._max_tokens)
-
-        logger.debug(
-            "gemini_analyze_request",
-            model=model_name,
-            max_tokens=max_tokens,
-        )
-
-        config = types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            max_output_tokens=max_tokens,
-        )
-
-        response = await self._client.aio.models.generate_content(
-            model=model_name,
-            contents=user_prompt,
-            config=config,
-        )
-
-        # Extract token counts from usage metadata
-        input_tokens = 0
-        output_tokens = 0
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0) or 0
-            output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0) or 0
-
-        result = LLMAnalysis(
-            content=response.text,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            model=model_name,
-            provider=self.name,
-        )
-
-        logger.debug(
-            "gemini_analyze_response",
-            input_tokens=result.input_tokens,
-            output_tokens=result.output_tokens,
-        )
-
-        return result
+        return await self.analyze_async(user_prompt, system_prompt=system_prompt)
 
     async def _call_api(
         self,

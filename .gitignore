@@ -60,7 +60,7 @@ test-results/
 playwright-report/
 *.zip
 
-# Node.js (validation_tests)
+# Node.js
 node_modules/
 
 # Environment variables (API keys)

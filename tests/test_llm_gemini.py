@@ -110,7 +110,7 @@ class TestGeminiProviderAnalyze:
         mock_client = mocker.MagicMock()
         mock_client.aio = mock_aio
 
-        mocker.patch("heisenberg.backend.llm.gemini.genai.Client", return_value=mock_client)
+        mocker.patch("google.genai.Client", return_value=mock_client)
 
         provider = GeminiProvider(api_key="test-key")
 
@@ -144,7 +144,7 @@ class TestGeminiProviderAnalyze:
         mock_client = mocker.MagicMock()
         mock_client.aio = mock_aio
 
-        mocker.patch("heisenberg.backend.llm.gemini.genai.Client", return_value=mock_client)
+        mocker.patch("google.genai.Client", return_value=mock_client)
 
         provider = GeminiProvider(api_key="test-key")
 
@@ -178,7 +178,7 @@ class TestGeminiProviderAnalyze:
         mock_client = mocker.MagicMock()
         mock_client.aio = mock_aio
 
-        mocker.patch("heisenberg.backend.llm.gemini.genai.Client", return_value=mock_client)
+        mocker.patch("google.genai.Client", return_value=mock_client)
 
         provider = GeminiProvider(api_key="test-key")
 

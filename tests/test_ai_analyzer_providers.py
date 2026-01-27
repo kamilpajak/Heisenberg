@@ -6,26 +6,25 @@ import pytest
 
 from heisenberg.core.analyzer import (
     AIAnalysisResult,
-    GeminiCompatibleClient,
-    OpenAICompatibleClient,
     _get_llm_client_for_provider,
     analyze_unified_run,
 )
 from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
+from heisenberg.llm.providers import GeminiProvider, OpenAIProvider
 
 
-class TestOpenAICompatibleClient:
-    """Tests for OpenAI-compatible client."""
+class TestOpenAIProvider:
+    """Tests for OpenAI provider."""
 
     def test_init_default_model(self):
         """Should use gpt-5 as default model."""
-        client = OpenAICompatibleClient(api_key="test-key")
-        assert client.model == "gpt-5"
+        provider = OpenAIProvider(api_key="test-key")
+        assert provider.model == "gpt-5"
 
     def test_init_custom_model(self):
         """Should accept custom model."""
-        client = OpenAICompatibleClient(api_key="test-key", model="gpt-4-turbo")
-        assert client.model == "gpt-4-turbo"
+        provider = OpenAIProvider(api_key="test-key", model="gpt-4-turbo")
+        assert provider.model == "gpt-4-turbo"
 
     def test_analyze_calls_openai(self, mocker):
         """Should call OpenAI API correctly."""
@@ -42,8 +41,8 @@ class TestOpenAICompatibleClient:
         mock_client.chat.completions.create.return_value = mock_response
         mock_client_class.return_value = mock_client
 
-        client = OpenAICompatibleClient(api_key="test-key")
-        result = client.analyze("Test prompt", system_prompt="System prompt")
+        provider = OpenAIProvider(api_key="test-key")
+        result = provider.analyze("Test prompt", system_prompt="System prompt")
 
         assert result.content == "Test response"
         assert result.input_tokens == 100
@@ -64,8 +63,8 @@ class TestOpenAICompatibleClient:
         mock_client.chat.completions.create.return_value = mock_response
         mock_client_class.return_value = mock_client
 
-        client = OpenAICompatibleClient(api_key="test-key")
-        result = client.analyze("Test prompt")
+        provider = OpenAIProvider(api_key="test-key")
+        result = provider.analyze("Test prompt")
 
         assert result.content == "Response"
 
@@ -81,25 +80,25 @@ class TestOpenAICompatibleClient:
         mock_client.chat.completions.create.return_value = mock_response
         mock_client_class.return_value = mock_client
 
-        client = OpenAICompatibleClient(api_key="test-key")
-        result = client.analyze("Test prompt")
+        provider = OpenAIProvider(api_key="test-key")
+        result = provider.analyze("Test prompt")
 
         assert result.input_tokens == 0
         assert result.output_tokens == 0
 
 
-class TestGeminiCompatibleClient:
-    """Tests for Gemini-compatible client."""
+class TestGeminiProvider:
+    """Tests for Gemini provider."""
 
     def test_init_default_model(self):
         """Should use gemini-3-pro-preview as default model."""
-        client = GeminiCompatibleClient(api_key="test-key")
-        assert client.model == "gemini-3-pro-preview"
+        provider = GeminiProvider(api_key="test-key")
+        assert provider.model == "gemini-3-pro-preview"
 
     def test_init_custom_model(self):
         """Should accept custom model."""
-        client = GeminiCompatibleClient(api_key="test-key", model="gemini-2.0-flash")
-        assert client.model == "gemini-2.0-flash"
+        provider = GeminiProvider(api_key="test-key", model="gemini-2.0-flash")
+        assert provider.model == "gemini-2.0-flash"
 
     def test_analyze_calls_gemini(self, mocker):
         """Should call Gemini API correctly."""
@@ -115,8 +114,8 @@ class TestGeminiCompatibleClient:
         mock_client.models.generate_content.return_value = mock_response
         mock_client_class.return_value = mock_client
 
-        client = GeminiCompatibleClient(api_key="test-key")
-        result = client.analyze("Test prompt", system_prompt="System prompt")
+        provider = GeminiProvider(api_key="test-key")
+        result = provider.analyze("Test prompt", system_prompt="System prompt")
 
         assert result.content == "Test response"
         assert result.input_tokens == 100
@@ -134,8 +133,8 @@ class TestGeminiCompatibleClient:
         mock_client.models.generate_content.return_value = mock_response
         mock_client_class.return_value = mock_client
 
-        client = GeminiCompatibleClient(api_key="test-key")
-        result = client.analyze("Test prompt")
+        provider = GeminiProvider(api_key="test-key")
+        result = provider.analyze("Test prompt")
 
         assert result.input_tokens == 0
         assert result.output_tokens == 0
@@ -145,36 +144,38 @@ class TestGetLLMClientForProvider:
     """Tests for _get_llm_client_for_provider function."""
 
     def test_claude_provider_with_api_key(self, mocker):
-        """Should create Claude client with API key."""
-        # Patch where it's imported inside the function
-        mock_llm_client = mocker.patch("heisenberg.llm.client.LLMClient")
+        """Should create Claude provider with API key."""
+        mocker.patch("heisenberg.llm.providers.anthropic.AnthropicProvider")
 
-        _get_llm_client_for_provider("anthropic", api_key="test-key")
+        provider = _get_llm_client_for_provider("anthropic", api_key="test-key")
 
-        mock_llm_client.assert_called_once()
+        from heisenberg.llm.providers import AnthropicProvider
+
+        assert isinstance(provider, AnthropicProvider)
 
     def test_claude_provider_from_environment(self, mocker, monkeypatch):
-        """Should create Claude client from environment."""
+        """Should create Claude provider from environment."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "env-key")
-        mock_llm_client = mocker.patch("heisenberg.llm.client.LLMClient")
 
-        _get_llm_client_for_provider("anthropic")
+        provider = _get_llm_client_for_provider("anthropic")
 
-        mock_llm_client.from_environment.assert_called_once()
+        from heisenberg.llm.providers import AnthropicProvider
+
+        assert isinstance(provider, AnthropicProvider)
 
     def test_openai_provider_with_api_key(self):
-        """Should create OpenAI client with API key."""
-        client = _get_llm_client_for_provider("openai", api_key="test-key")
+        """Should create OpenAI provider with API key."""
+        provider = _get_llm_client_for_provider("openai", api_key="test-key")
 
-        assert isinstance(client, OpenAICompatibleClient)
+        assert isinstance(provider, OpenAIProvider)
 
     def test_openai_provider_from_environment(self, monkeypatch):
-        """Should create OpenAI client from environment."""
+        """Should create OpenAI provider from environment."""
         monkeypatch.setenv("OPENAI_API_KEY", "env-key")
 
-        client = _get_llm_client_for_provider("openai")
+        provider = _get_llm_client_for_provider("openai")
 
-        assert isinstance(client, OpenAICompatibleClient)
+        assert isinstance(provider, OpenAIProvider)
 
     def test_openai_provider_missing_key(self, monkeypatch):
         """Should raise error when OpenAI key is missing."""
@@ -184,18 +185,18 @@ class TestGetLLMClientForProvider:
             _get_llm_client_for_provider("openai")
 
     def test_gemini_provider_with_api_key(self):
-        """Should create Gemini client with API key."""
-        client = _get_llm_client_for_provider("google", api_key="test-key")
+        """Should create Gemini provider with API key."""
+        provider = _get_llm_client_for_provider("google", api_key="test-key")
 
-        assert isinstance(client, GeminiCompatibleClient)
+        assert isinstance(provider, GeminiProvider)
 
     def test_gemini_provider_from_environment(self, monkeypatch):
-        """Should create Gemini client from environment."""
+        """Should create Gemini provider from environment."""
         monkeypatch.setenv("GOOGLE_API_KEY", "env-key")
 
-        client = _get_llm_client_for_provider("google")
+        provider = _get_llm_client_for_provider("google")
 
-        assert isinstance(client, GeminiCompatibleClient)
+        assert isinstance(provider, GeminiProvider)
 
     def test_gemini_provider_missing_key(self, monkeypatch):
         """Should raise error when Gemini key is missing."""
@@ -210,18 +211,18 @@ class TestGetLLMClientForProvider:
             _get_llm_client_for_provider("unknown_provider")
 
     def test_custom_model_openai(self):
-        """Should pass custom model to OpenAI client."""
-        client = _get_llm_client_for_provider("openai", api_key="test-key", model="gpt-4-turbo")
+        """Should pass custom model to OpenAI provider."""
+        provider = _get_llm_client_for_provider("openai", api_key="test-key", model="gpt-4-turbo")
 
-        assert client.model == "gpt-4-turbo"
+        assert provider.model == "gpt-4-turbo"
 
     def test_custom_model_gemini(self):
-        """Should pass custom model to Gemini client."""
-        client = _get_llm_client_for_provider(
+        """Should pass custom model to Gemini provider."""
+        provider = _get_llm_client_for_provider(
             "google", api_key="test-key", model="gemini-2.0-flash"
         )
 
-        assert client.model == "gemini-2.0-flash"
+        assert provider.model == "gemini-2.0-flash"
 
 
 class TestAnalyzeUnifiedRun:
