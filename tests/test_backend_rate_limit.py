@@ -247,3 +247,145 @@ class TestRateLimitConfig:
             rate_limit_per_minute=100,
         )
         assert settings.rate_limit_per_minute == 100
+
+
+class TestRateLimiterAsync:
+    """Test suite for async rate limiter implementation."""
+
+    def test_is_allowed_is_coroutine(self):
+        """is_allowed() should be a coroutine function."""
+        import inspect
+
+        from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
+
+        limiter = SlidingWindowRateLimiter(requests_per_minute=10)
+        assert inspect.iscoroutinefunction(limiter.is_allowed)
+
+    @pytest.mark.asyncio
+    async def test_is_allowed_can_be_awaited(self):
+        """is_allowed() should be awaitable and return correct tuple."""
+        from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
+
+        limiter = SlidingWindowRateLimiter(requests_per_minute=10)
+        result = await limiter.is_allowed("test-key")
+
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        allowed, headers = result
+        assert isinstance(allowed, bool)
+        assert isinstance(headers, dict)
+
+
+class TestRateLimiterConcurrency:
+    """Test suite for rate limiter concurrency safety."""
+
+    def test_rate_limiter_has_locks(self):
+        """Rate limiter should have internal locks dictionary."""
+        from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
+
+        limiter = SlidingWindowRateLimiter(requests_per_minute=10)
+        assert hasattr(limiter, "_locks")
+
+    @pytest.mark.asyncio
+    async def test_concurrent_requests_respect_limit(self):
+        """Concurrent requests should not exceed rate limit due to race conditions."""
+        import asyncio
+
+        from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
+
+        limiter = SlidingWindowRateLimiter(requests_per_minute=5)
+
+        async def make_request():
+            allowed, _ = await limiter.is_allowed("concurrent-key")
+            return allowed
+
+        tasks = [make_request() for _ in range(20)]
+        results = await asyncio.gather(*tasks)
+
+        allowed_count = sum(1 for r in results if r)
+        assert allowed_count == 5, f"Expected 5 allowed, got {allowed_count}"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_requests_different_keys_independent(self):
+        """Concurrent requests with different keys should be independent."""
+        from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
+
+        limiter = SlidingWindowRateLimiter(requests_per_minute=3)
+
+        async def make_requests_for_key(key: str, count: int) -> list[bool]:
+            results = []
+            for _ in range(count):
+                allowed, _ = await limiter.is_allowed(key)
+                results.append(allowed)
+            return results
+
+        import asyncio
+
+        tasks = [
+            make_requests_for_key("key-a", 5),
+            make_requests_for_key("key-b", 5),
+            make_requests_for_key("key-c", 5),
+        ]
+        results = await asyncio.gather(*tasks)
+
+        for key_results in results:
+            allowed_count = sum(1 for r in key_results if r)
+            assert allowed_count == 3
+
+    @pytest.mark.asyncio
+    async def test_lock_is_per_key(self):
+        """Each key should have its own lock (not blocking other keys)."""
+        from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
+
+        limiter = SlidingWindowRateLimiter(requests_per_minute=100)
+
+        await limiter.is_allowed("key-1")
+        await limiter.is_allowed("key-2")
+        await limiter.is_allowed("key-3")
+
+        assert "key-1" in limiter._locks
+        assert "key-2" in limiter._locks
+        assert "key-3" in limiter._locks
+
+    @pytest.mark.asyncio
+    async def test_lock_type_is_asyncio_lock(self):
+        """Locks should be asyncio.Lock instances."""
+        import asyncio
+
+        from heisenberg.backend.rate_limit import SlidingWindowRateLimiter
+
+        limiter = SlidingWindowRateLimiter(requests_per_minute=10)
+        await limiter.is_allowed("test-key")
+
+        assert isinstance(limiter._locks["test-key"], asyncio.Lock)
+
+
+class TestMiddlewareConcurrency:
+    """Test suite for middleware with concurrent requests."""
+
+    @pytest.mark.asyncio
+    async def test_middleware_concurrent_requests(self):
+        """Middleware should handle concurrent requests correctly."""
+        import asyncio
+
+        from fastapi import FastAPI
+        from httpx import ASGITransport, AsyncClient
+
+        from heisenberg.backend.middleware import RateLimitMiddleware
+
+        app = FastAPI()
+        app.add_middleware(RateLimitMiddleware, requests_per_minute=5)
+
+        @app.get("/test")
+        async def test_endpoint():
+            return {"status": "ok"}
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            tasks = [client.get("/test") for _ in range(10)]
+            responses = await asyncio.gather(*tasks)
+
+        success_count = sum(1 for r in responses if r.status_code == 200)
+        rate_limited_count = sum(1 for r in responses if r.status_code == 429)
+
+        assert success_count == 5, f"Expected 5 successes, got {success_count}"
+        assert rate_limited_count == 5, f"Expected 5 rate-limited, got {rate_limited_count}"

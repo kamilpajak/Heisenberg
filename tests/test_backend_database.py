@@ -207,3 +207,147 @@ class TestGetDb:
                 pass
 
         mock_session.rollback.assert_called_once()
+
+
+class TestAppStateStoresDatabase:
+    """Test that app.state stores database instances during lifespan."""
+
+    @pytest.mark.asyncio
+    async def test_app_state_has_engine_after_startup(self, monkeypatch):
+        """app.state should have engine after startup."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from asgi_lifespan import LifespanManager
+        from fastapi import FastAPI
+        from httpx import ASGITransport, AsyncClient
+
+        from heisenberg.backend.app import lifespan
+        from heisenberg.backend.config import get_settings
+
+        get_settings.cache_clear()
+        monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
+        monkeypatch.setenv("SECRET_KEY", "test-secret-key-for-testing")
+
+        with patch("heisenberg.backend.database.create_async_engine") as mock_create:
+            mock_engine = MagicMock()
+            mock_engine.dispose = AsyncMock()
+            mock_create.return_value = mock_engine
+
+            test_app = FastAPI(lifespan=lifespan)
+
+            async with LifespanManager(test_app):
+                async with AsyncClient(
+                    transport=ASGITransport(app=test_app), base_url="http://test"
+                ):
+                    assert hasattr(test_app.state, "engine")
+                    assert test_app.state.engine is mock_engine
+
+        get_settings.cache_clear()
+
+    @pytest.mark.asyncio
+    async def test_app_state_has_session_maker_after_startup(self, monkeypatch):
+        """app.state should have session_maker after startup."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from asgi_lifespan import LifespanManager
+        from fastapi import FastAPI
+        from httpx import ASGITransport, AsyncClient
+
+        from heisenberg.backend.app import lifespan
+        from heisenberg.backend.config import get_settings
+
+        get_settings.cache_clear()
+        monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
+        monkeypatch.setenv("SECRET_KEY", "test-secret-key-for-testing")
+
+        with patch("heisenberg.backend.database.create_async_engine") as mock_create:
+            mock_engine = MagicMock()
+            mock_engine.dispose = AsyncMock()
+            mock_create.return_value = mock_engine
+
+            test_app = FastAPI(lifespan=lifespan)
+
+            async with LifespanManager(test_app):
+                async with AsyncClient(
+                    transport=ASGITransport(app=test_app), base_url="http://test"
+                ):
+                    assert hasattr(test_app.state, "session_maker")
+                    assert test_app.state.session_maker is not None
+
+        get_settings.cache_clear()
+
+    @pytest.mark.asyncio
+    async def test_engine_disposed_on_shutdown(self, monkeypatch):
+        """Engine should be disposed on app shutdown."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from asgi_lifespan import LifespanManager
+        from fastapi import FastAPI
+        from httpx import ASGITransport, AsyncClient
+
+        from heisenberg.backend.app import lifespan
+        from heisenberg.backend.config import get_settings
+
+        get_settings.cache_clear()
+        monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
+        monkeypatch.setenv("SECRET_KEY", "test-secret-key-for-testing")
+
+        with patch("heisenberg.backend.database.create_async_engine") as mock_create:
+            mock_engine = MagicMock()
+            mock_engine.dispose = AsyncMock()
+            mock_create.return_value = mock_engine
+
+            test_app = FastAPI(lifespan=lifespan)
+
+            async with LifespanManager(test_app):
+                async with AsyncClient(
+                    transport=ASGITransport(app=test_app), base_url="http://test"
+                ):
+                    pass
+
+            mock_engine.dispose.assert_called_once()
+
+        get_settings.cache_clear()
+
+
+class TestNoGlobalDatabaseState:
+    """Test that global database state is removed.
+
+    Note: These tests verify the module design rather than runtime state.
+    We check source code structure instead of using importlib.reload()
+    which can cause test pollution.
+    """
+
+    def test_no_global_engine_variable(self):
+        """database.py should not have global _engine variable."""
+        import ast
+        from pathlib import Path
+
+        # Read the source file
+        db_module_path = Path(__file__).parent.parent / "src/heisenberg/backend/database.py"
+        source = db_module_path.read_text()
+        tree = ast.parse(source)
+
+        # Check for module-level _engine assignment
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == "_engine":
+                        pytest.fail("_engine global should not exist at module level")
+
+    def test_no_global_session_maker_variable(self):
+        """database.py should not have global _session_maker variable."""
+        import ast
+        from pathlib import Path
+
+        # Read the source file
+        db_module_path = Path(__file__).parent.parent / "src/heisenberg/backend/database.py"
+        source = db_module_path.read_text()
+        tree = ast.parse(source)
+
+        # Check for module-level _session_maker assignment
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == "_session_maker":
+                        pytest.fail("_session_maker global should not exist at module level")

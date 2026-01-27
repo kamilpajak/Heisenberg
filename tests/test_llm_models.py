@@ -1,9 +1,10 @@
-"""Tests for Phase 3 refactoring - TDD approach.
+"""Tests for LLM models and pricing configuration.
 
-Phase 3: LLM client consolidation
-- Create shared LLMAnalysis dataclass
-- Update backend providers to return LLMAnalysis
-- Update CLI client to use LLMAnalysis
+Tests cover:
+- LLMAnalysis dataclass structure and properties
+- Token cost calculation
+- Model pricing configuration
+- Provider return type contracts
 """
 
 from __future__ import annotations

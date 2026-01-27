@@ -247,6 +247,60 @@ class TestLLMSettings:
         assert settings.openai_api_key is None  # default
 
 
+class TestSettingsCaching:
+    """Test suite for settings caching with @lru_cache."""
+
+    @pytest.fixture
+    def settings_env(self, monkeypatch):
+        """Set required environment variables for Settings."""
+        monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
+        monkeypatch.setenv("SECRET_KEY", "test-secret-key-for-testing")
+        yield
+        from heisenberg.backend.config import get_settings
+
+        if hasattr(get_settings, "cache_clear"):
+            get_settings.cache_clear()
+
+    def test_get_settings_returns_same_instance(self, settings_env):
+        """get_settings() should return the same cached instance."""
+        from heisenberg.backend.config import get_settings
+
+        if hasattr(get_settings, "cache_clear"):
+            get_settings.cache_clear()
+
+        settings1 = get_settings()
+        settings2 = get_settings()
+
+        assert settings1 is settings2
+
+    def test_get_settings_has_cache_clear(self):
+        """get_settings() should have cache_clear method from lru_cache."""
+        from heisenberg.backend.config import get_settings
+
+        assert hasattr(get_settings, "cache_clear")
+        assert callable(get_settings.cache_clear)
+
+    def test_get_settings_has_cache_info(self):
+        """get_settings() should have cache_info method from lru_cache."""
+        from heisenberg.backend.config import get_settings
+
+        assert hasattr(get_settings, "cache_info")
+        assert callable(get_settings.cache_info)
+
+    def test_cache_clear_creates_new_instance(self, settings_env):
+        """cache_clear() should allow creating a new Settings instance."""
+        from heisenberg.backend.config import get_settings
+
+        if hasattr(get_settings, "cache_clear"):
+            get_settings.cache_clear()
+
+        settings1 = get_settings()
+        get_settings.cache_clear()
+        settings2 = get_settings()
+
+        assert settings1 is not settings2
+
+
 class TestProviderFactory:
     """Test suite for LLM provider factory."""
 
@@ -280,3 +334,170 @@ class TestProviderFactory:
 
         with pytest.raises(ValueError, match="Unknown provider"):
             create_provider("unknown", api_key="test-key")
+
+
+class TestLLMRouterExceptionHandling:
+    """Test suite for narrowed exception handling in LLMRouter.
+
+    Tests that the router correctly catches recoverable API errors (rate limits,
+    network issues) and falls back, while propagating programming errors.
+    """
+
+    @pytest.mark.asyncio
+    async def test_router_catches_anthropic_api_error(self):
+        """LLMRouter should catch and handle Anthropic API errors."""
+        from anthropic import APIError as AnthropicAPIError
+
+        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.backend.llm.router import LLMRouter
+
+        mock_primary = MagicMock(spec=LLMProvider)
+        mock_primary.name = "primary"
+        mock_request = MagicMock()
+        mock_primary.analyze_async = AsyncMock(
+            side_effect=AnthropicAPIError(
+                message="Rate limit exceeded",
+                request=mock_request,
+                body=None,
+            )
+        )
+
+        mock_fallback = MagicMock(spec=LLMProvider)
+        mock_fallback.name = "fallback"
+        mock_fallback.analyze_async = AsyncMock(
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
+        )
+
+        router = LLMRouter(providers=[mock_primary, mock_fallback])
+        result = await router.analyze(system_prompt="test", user_prompt="test")
+
+        assert result.content == "fallback response"
+        mock_primary.analyze_async.assert_called_once()
+        mock_fallback.analyze_async.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_router_catches_openai_api_error(self):
+        """LLMRouter should catch and handle OpenAI API errors."""
+        from openai import APIError as OpenAIAPIError
+
+        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.backend.llm.router import LLMRouter
+
+        mock_primary = MagicMock(spec=LLMProvider)
+        mock_primary.name = "primary"
+        mock_request = MagicMock()
+        mock_primary.analyze_async = AsyncMock(
+            side_effect=OpenAIAPIError(
+                message="Rate limit exceeded",
+                request=mock_request,
+                body=None,
+            )
+        )
+
+        mock_fallback = MagicMock(spec=LLMProvider)
+        mock_fallback.name = "fallback"
+        mock_fallback.analyze_async = AsyncMock(
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
+        )
+
+        router = LLMRouter(providers=[mock_primary, mock_fallback])
+        result = await router.analyze(system_prompt="test", user_prompt="test")
+
+        assert result.content == "fallback response"
+
+    @pytest.mark.asyncio
+    async def test_router_catches_httpx_errors(self):
+        """LLMRouter should catch and handle httpx network errors."""
+        import httpx
+
+        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.backend.llm.router import LLMRouter
+
+        mock_primary = MagicMock(spec=LLMProvider)
+        mock_primary.name = "primary"
+        mock_primary.analyze_async = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
+
+        mock_fallback = MagicMock(spec=LLMProvider)
+        mock_fallback.name = "fallback"
+        mock_fallback.analyze_async = AsyncMock(
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
+        )
+
+        router = LLMRouter(providers=[mock_primary, mock_fallback])
+        result = await router.analyze(system_prompt="test", user_prompt="test")
+
+        assert result.content == "fallback response"
+
+    @pytest.mark.asyncio
+    async def test_router_catches_google_api_error(self):
+        """LLMRouter should catch and handle Google API errors."""
+        pytest.importorskip("google.api_core")
+        from google.api_core.exceptions import GoogleAPIError
+
+        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.backend.llm.router import LLMRouter
+
+        mock_primary = MagicMock(spec=LLMProvider)
+        mock_primary.name = "primary"
+        mock_primary.analyze_async = AsyncMock(side_effect=GoogleAPIError("Quota exceeded"))
+
+        mock_fallback = MagicMock(spec=LLMProvider)
+        mock_fallback.name = "fallback"
+        mock_fallback.analyze_async = AsyncMock(
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
+        )
+
+        router = LLMRouter(providers=[mock_primary, mock_fallback])
+        result = await router.analyze(system_prompt="test", user_prompt="test")
+
+        assert result.content == "fallback response"
+
+    @pytest.mark.asyncio
+    async def test_router_propagates_programming_errors(self):
+        """LLMRouter should NOT catch programming errors like TypeError."""
+        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.backend.llm.router import LLMRouter
+
+        mock_primary = MagicMock(spec=LLMProvider)
+        mock_primary.name = "primary"
+        mock_primary.analyze_async = AsyncMock(
+            side_effect=TypeError("'NoneType' object is not subscriptable")
+        )
+
+        mock_fallback = MagicMock(spec=LLMProvider)
+        mock_fallback.name = "fallback"
+        mock_fallback.analyze_async = AsyncMock(
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
+        )
+
+        router = LLMRouter(providers=[mock_primary, mock_fallback])
+
+        with pytest.raises(TypeError, match="NoneType"):
+            await router.analyze(system_prompt="test", user_prompt="test")
+
+        mock_fallback.analyze_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_router_propagates_attribute_errors(self):
+        """LLMRouter should NOT catch programming errors like AttributeError."""
+        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.backend.llm.router import LLMRouter
+
+        mock_primary = MagicMock(spec=LLMProvider)
+        mock_primary.name = "primary"
+        mock_primary.analyze_async = AsyncMock(
+            side_effect=AttributeError("'NoneType' object has no attribute 'text'")
+        )
+
+        mock_fallback = MagicMock(spec=LLMProvider)
+        mock_fallback.name = "fallback"
+        mock_fallback.analyze_async = AsyncMock(
+            return_value=make_llm_analysis(content="fallback response", provider="fallback")
+        )
+
+        router = LLMRouter(providers=[mock_primary, mock_fallback])
+
+        with pytest.raises(AttributeError, match="NoneType"):
+            await router.analyze(system_prompt="test", user_prompt="test")
+
+        mock_fallback.analyze_async.assert_not_called()
