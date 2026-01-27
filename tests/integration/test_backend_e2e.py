@@ -178,9 +178,9 @@ class TestAPIIntegrationFlow:
     async def test_analyze_to_cost_tracking_flow(self):
         """Full flow: analyze request → LLM call → cost recorded."""
         from heisenberg.backend.llm.adapter import LLMRouterAdapter
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.schemas import AnalyzeRequest, FailedTest
         from heisenberg.backend.services.analyze import AnalyzeService
+        from heisenberg.llm.router import LLMRouter
 
         # LLM response in expected markdown format
         llm_response = """## Root Cause Analysis
@@ -238,9 +238,9 @@ Clear error pattern indicates database connectivity issue.
     async def test_llm_fallback_flow(self):
         """Test fallback when primary LLM fails."""
         from heisenberg.backend.llm.adapter import LLMRouterAdapter
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.schemas import AnalyzeRequest, FailedTest
         from heisenberg.backend.services.analyze import AnalyzeService
+        from heisenberg.llm.router import LLMRouter
 
         # LLM response in expected markdown format
         llm_response = """## Root Cause Analysis

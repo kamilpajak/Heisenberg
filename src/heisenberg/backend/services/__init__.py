@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from heisenberg.backend.cost_tracking import CostCalculator
-from heisenberg.backend.llm import create_provider
-from heisenberg.backend.llm.router import LLMRouter
 from heisenberg.backend.models import UsageRecord
+from heisenberg.llm.providers import create_provider
+from heisenberg.llm.router import LLMRouter
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession

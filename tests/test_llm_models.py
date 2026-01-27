@@ -159,14 +159,14 @@ class TestBackendProvidersReturnLLMAnalysis:
     """Test suite for backend providers returning LLMAnalysis."""
 
     def test_claude_provider_returns_llm_analysis(self):
-        """ClaudeProvider.analyze() should return LLMAnalysis."""
+        """AnthropicProvider.analyze() should return LLMAnalysis."""
         import inspect
 
-        from heisenberg.backend.llm.claude import ClaudeProvider
         from heisenberg.llm.models import LLMAnalysis
+        from heisenberg.llm.providers import AnthropicProvider
 
         # Check return type annotation
-        sig = inspect.signature(ClaudeProvider.analyze)
+        sig = inspect.signature(AnthropicProvider.analyze)
         return_annotation = sig.return_annotation
 
         # Should be LLMAnalysis (not dict)
@@ -176,8 +176,8 @@ class TestBackendProvidersReturnLLMAnalysis:
         """OpenAIProvider.analyze() should return LLMAnalysis."""
         import inspect
 
-        from heisenberg.backend.llm.openai import OpenAIProvider
         from heisenberg.llm.models import LLMAnalysis
+        from heisenberg.llm.providers import OpenAIProvider
 
         # Check return type annotation
         sig = inspect.signature(OpenAIProvider.analyze)
@@ -190,8 +190,8 @@ class TestBackendProvidersReturnLLMAnalysis:
         """LLMRouter.analyze() should return LLMAnalysis."""
         import inspect
 
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.llm.models import LLMAnalysis
+        from heisenberg.llm.router import LLMRouter
 
         # Check return type annotation
         sig = inspect.signature(LLMRouter.analyze)
@@ -204,8 +204,8 @@ class TestBackendProvidersReturnLLMAnalysis:
         """LLMProvider.analyze() should return LLMAnalysis in signature."""
         import inspect
 
-        from heisenberg.backend.llm.base import LLMProvider
         from heisenberg.llm.models import LLMAnalysis
+        from heisenberg.llm.providers.base import LLMProvider
 
         # Check return type annotation
         sig = inspect.signature(LLMProvider.analyze)

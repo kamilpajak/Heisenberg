@@ -18,25 +18,25 @@ class TestLLMProviderBase:
 
     def test_llm_provider_base_exists(self):
         """LLMProvider base class should be importable."""
-        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.llm.providers.base import LLMProvider
 
         assert LLMProvider is not None
 
     def test_llm_provider_has_analyze_method(self):
         """LLMProvider should define analyze method."""
-        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.llm.providers.base import LLMProvider
 
         assert hasattr(LLMProvider, "analyze")
 
     def test_llm_provider_has_analyze_async_method(self):
         """LLMProvider should define analyze_async method."""
-        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.llm.providers.base import LLMProvider
 
         assert hasattr(LLMProvider, "analyze_async")
 
     def test_llm_provider_has_name_property(self):
         """LLMProvider should have name property."""
-        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.llm.providers.base import LLMProvider
 
         assert hasattr(LLMProvider, "name")
 
@@ -45,47 +45,47 @@ class TestAnthropicProvider:
     """Test suite for Anthropic/Claude provider."""
 
     def test_claude_provider_exists(self):
-        """ClaudeProvider should be importable."""
-        from heisenberg.backend.llm.claude import ClaudeProvider
+        """AnthropicProvider should be importable."""
+        from heisenberg.llm.providers import AnthropicProvider
 
-        assert ClaudeProvider is not None
+        assert AnthropicProvider is not None
 
     def test_claude_provider_is_llm_provider(self):
-        """ClaudeProvider should implement LLMProvider protocol."""
-        from heisenberg.backend.llm.claude import ClaudeProvider
+        """AnthropicProvider should implement LLMProvider protocol."""
+        from heisenberg.llm.providers import AnthropicProvider
         from heisenberg.llm.providers.base import LLMProvider
 
-        provider = ClaudeProvider(api_key="test-key")
+        provider = AnthropicProvider(api_key="test-key")
         assert isinstance(provider, LLMProvider)
 
     def test_claude_provider_name(self):
-        """ClaudeProvider should have correct name."""
-        from heisenberg.backend.llm.claude import ClaudeProvider
+        """AnthropicProvider should have correct name."""
+        from heisenberg.llm.providers import AnthropicProvider
 
-        provider = ClaudeProvider(api_key="test-key")
+        provider = AnthropicProvider(api_key="test-key")
         assert provider.name == "anthropic"
 
     def test_claude_provider_default_model(self):
-        """ClaudeProvider should have default model."""
-        from heisenberg.backend.llm.claude import ClaudeProvider
+        """AnthropicProvider should have default model."""
+        from heisenberg.llm.providers import AnthropicProvider
 
-        provider = ClaudeProvider(api_key="test-key")
+        provider = AnthropicProvider(api_key="test-key")
         assert provider.model is not None
         assert "claude" in provider.model.lower()
 
     def test_claude_provider_custom_model(self):
-        """ClaudeProvider should accept custom model."""
-        from heisenberg.backend.llm.claude import ClaudeProvider
+        """AnthropicProvider should accept custom model."""
+        from heisenberg.llm.providers import AnthropicProvider
 
-        provider = ClaudeProvider(api_key="test-key", model="claude-3-opus-20240229")
+        provider = AnthropicProvider(api_key="test-key", model="claude-3-opus-20240229")
         assert provider.model == "claude-3-opus-20240229"
 
     @pytest.mark.asyncio
     async def test_claude_provider_analyze_async(self):
-        """ClaudeProvider.analyze should call Anthropic API."""
-        from heisenberg.backend.llm.claude import ClaudeProvider
+        """AnthropicProvider.analyze_async should call Anthropic API."""
+        from heisenberg.llm.providers import AnthropicProvider
 
-        provider = ClaudeProvider(api_key="test-key")
+        provider = AnthropicProvider(api_key="test-key")
 
         with patch.object(provider, "_get_async_client") as mock_get_client:
             mock_client = MagicMock()
@@ -96,7 +96,7 @@ class TestAnthropicProvider:
             mock_client.messages.create = AsyncMock(return_value=mock_response)
             mock_get_client.return_value = mock_client
 
-            result = await provider.analyze(
+            result = await provider.analyze_async(
                 system_prompt="You are a test analyzer",
                 user_prompt="Analyze this test failure",
             )
@@ -110,13 +110,13 @@ class TestOpenAIProvider:
 
     def test_openai_provider_exists(self):
         """OpenAIProvider should be importable."""
-        from heisenberg.backend.llm.openai import OpenAIProvider
+        from heisenberg.llm.providers import OpenAIProvider
 
         assert OpenAIProvider is not None
 
     def test_openai_provider_is_llm_provider(self):
         """OpenAIProvider should implement LLMProvider protocol."""
-        from heisenberg.backend.llm.openai import OpenAIProvider
+        from heisenberg.llm.providers import OpenAIProvider
         from heisenberg.llm.providers.base import LLMProvider
 
         provider = OpenAIProvider(api_key="test-key")
@@ -124,7 +124,7 @@ class TestOpenAIProvider:
 
     def test_openai_provider_name(self):
         """OpenAIProvider should have correct name."""
-        from heisenberg.backend.llm.openai import OpenAIProvider
+        from heisenberg.llm.providers import OpenAIProvider
 
         provider = OpenAIProvider(api_key="test-key")
         assert provider.name == "openai"
@@ -214,7 +214,7 @@ class TestGeminiProvider:
 
     def test_gemini_provider_importable(self):
         """GeminiProvider should be importable from llm module."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         assert GeminiProvider is not None
 
@@ -226,21 +226,21 @@ class TestGeminiProvider:
 
     def test_gemini_provider_requires_api_key(self):
         """GeminiProvider should require api_key."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         with pytest.raises(TypeError):
             GeminiProvider()  # type: ignore
 
     def test_gemini_provider_accepts_api_key(self):
         """GeminiProvider should accept api_key parameter."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         provider = GeminiProvider(api_key="test-key")
         assert provider is not None
 
     def test_gemini_provider_name(self):
         """GeminiProvider should have name 'google'."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         provider = GeminiProvider(api_key="test-key")
         assert provider.name == "google"
@@ -254,22 +254,22 @@ class TestGeminiProvider:
 
     def test_gemini_provider_custom_model(self):
         """GeminiProvider should accept custom model."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         provider = GeminiProvider(api_key="test-key", model="gemini-2.0-flash")
         assert provider.model == "gemini-2.0-flash"
 
     def test_gemini_is_llm_provider(self):
         """GeminiProvider should inherit from LLMProvider."""
-        from heisenberg.backend.llm import GeminiProvider
-        from heisenberg.backend.llm.base import LLMProvider
+        from heisenberg.llm.providers import GeminiProvider
+        from heisenberg.llm.providers.base import LLMProvider
 
         provider = GeminiProvider(api_key="test-key")
         assert isinstance(provider, LLMProvider)
 
     def test_gemini_has_analyze_method(self):
         """GeminiProvider should have analyze method."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         provider = GeminiProvider(api_key="test-key")
         assert hasattr(provider, "analyze")
@@ -277,7 +277,7 @@ class TestGeminiProvider:
 
     def test_gemini_has_is_available_method(self):
         """GeminiProvider should have is_available method."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         provider = GeminiProvider(api_key="test-key")
         assert hasattr(provider, "is_available")
@@ -285,7 +285,7 @@ class TestGeminiProvider:
     @pytest.mark.asyncio
     async def test_gemini_analyze_async_returns_llm_analysis(self, mocker):
         """analyze() should return LLMAnalysis."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         mock_response = mocker.MagicMock()
         mock_response.text = "Test analysis result"
@@ -306,7 +306,7 @@ class TestGeminiProvider:
 
         provider = GeminiProvider(api_key="test-key")
 
-        result = await provider.analyze(
+        result = await provider.analyze_async(
             system_prompt="You are a test analyst.",
             user_prompt="Analyze this test failure.",
         )
@@ -319,7 +319,7 @@ class TestGeminiProvider:
     @pytest.mark.asyncio
     async def test_gemini_analyze_async_returns_token_counts(self, mocker):
         """analyze() should return token counts."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         mock_response = mocker.MagicMock()
         mock_response.text = "Analysis"
@@ -340,7 +340,7 @@ class TestGeminiProvider:
 
         provider = GeminiProvider(api_key="test-key")
 
-        result = await provider.analyze(
+        result = await provider.analyze_async(
             system_prompt="System",
             user_prompt="User",
         )
@@ -353,7 +353,7 @@ class TestGeminiProvider:
     @pytest.mark.asyncio
     async def test_gemini_analyze_async_returns_model_info(self, mocker):
         """analyze() should return model information."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         mock_response = mocker.MagicMock()
         mock_response.text = "Analysis"
@@ -374,7 +374,7 @@ class TestGeminiProvider:
 
         provider = GeminiProvider(api_key="test-key")
 
-        result = await provider.analyze(
+        result = await provider.analyze_async(
             system_prompt="System",
             user_prompt="User",
         )
@@ -429,23 +429,21 @@ class TestProviderFactory:
 
     def test_factory_exists(self):
         """create_provider function should exist."""
-        from heisenberg.backend.llm import create_provider
+        from heisenberg.llm.providers import create_provider
 
         assert create_provider is not None
 
     def test_factory_creates_anthropic(self):
-        """Factory should create ClaudeProvider for 'anthropic'."""
-        from heisenberg.backend.llm import create_provider
-        from heisenberg.backend.llm.claude import ClaudeProvider
+        """Factory should create AnthropicProvider for 'anthropic'."""
+        from heisenberg.llm.providers import AnthropicProvider, create_provider
 
         provider = create_provider("anthropic", api_key="test-key")
 
-        assert isinstance(provider, ClaudeProvider)
+        assert isinstance(provider, AnthropicProvider)
 
     def test_factory_creates_openai(self):
         """Factory should create OpenAIProvider for 'openai'."""
-        from heisenberg.backend.llm import create_provider
-        from heisenberg.backend.llm.openai import OpenAIProvider
+        from heisenberg.llm.providers import OpenAIProvider, create_provider
 
         provider = create_provider("openai", api_key="test-key")
 
@@ -453,21 +451,21 @@ class TestProviderFactory:
 
     def test_factory_creates_gemini(self):
         """create_provider should support 'google'."""
-        from heisenberg.backend.llm import GeminiProvider, create_provider
+        from heisenberg.llm.providers import GeminiProvider, create_provider
 
         provider = create_provider("google", "test-key")
         assert isinstance(provider, GeminiProvider)
 
     def test_factory_raises_for_unknown(self):
         """Factory should raise for unknown provider."""
-        from heisenberg.backend.llm import create_provider
+        from heisenberg.llm.providers import create_provider
 
         with pytest.raises(ValueError, match="Unknown provider"):
             create_provider("unknown", api_key="test-key")
 
     def test_factory_gemini_has_correct_name(self):
         """Created Gemini provider should have correct name."""
-        from heisenberg.backend.llm import create_provider
+        from heisenberg.llm.providers import create_provider
 
         provider = create_provider("google", "test-key")
         assert provider.name == "google"

@@ -19,14 +19,14 @@ class TestLLMRouter:
 
     def test_llm_router_exists(self):
         """LLMRouter should be importable."""
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.router import LLMRouter
 
         assert LLMRouter is not None
 
     def test_llm_router_accepts_providers(self):
         """LLMRouter should accept multiple providers."""
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_provider1 = MagicMock(spec=LLMProvider)
         mock_provider1.name = "provider1"
@@ -40,8 +40,8 @@ class TestLLMRouter:
     @pytest.mark.asyncio
     async def test_llm_router_uses_primary_provider(self):
         """LLMRouter should use primary provider first."""
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
@@ -55,7 +55,7 @@ class TestLLMRouter:
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
 
-        result = await router.analyze(
+        result = await router.analyze_async(
             system_prompt="test",
             user_prompt="test",
         )
@@ -70,8 +70,8 @@ class TestLLMRouter:
         """LLMRouter should fall back to next provider on API error."""
         import httpx
 
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
@@ -85,7 +85,7 @@ class TestLLMRouter:
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
 
-        result = await router.analyze(
+        result = await router.analyze_async(
             system_prompt="test",
             user_prompt="test",
         )
@@ -99,8 +99,8 @@ class TestLLMRouter:
     @pytest.mark.asyncio
     async def test_llm_router_records_provider_used(self):
         """LLMRouter should record which provider was used."""
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "anthropic"
@@ -110,7 +110,7 @@ class TestLLMRouter:
 
         router = LLMRouter(providers=[mock_primary])
 
-        result = await router.analyze(
+        result = await router.analyze_async(
             system_prompt="test",
             user_prompt="test",
         )
@@ -131,8 +131,8 @@ class TestLLMRouterExceptionHandling:
         """LLMRouter should catch and handle Anthropic API errors."""
         from anthropic import APIError as AnthropicAPIError
 
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
@@ -152,7 +152,7 @@ class TestLLMRouterExceptionHandling:
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
-        result = await router.analyze(system_prompt="test", user_prompt="test")
+        result = await router.analyze_async(system_prompt="test", user_prompt="test")
 
         assert result.content == "fallback response"
         mock_primary.analyze_async.assert_called_once()
@@ -163,8 +163,8 @@ class TestLLMRouterExceptionHandling:
         """LLMRouter should catch and handle OpenAI API errors."""
         from openai import APIError as OpenAIAPIError
 
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
@@ -184,7 +184,7 @@ class TestLLMRouterExceptionHandling:
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
-        result = await router.analyze(system_prompt="test", user_prompt="test")
+        result = await router.analyze_async(system_prompt="test", user_prompt="test")
 
         assert result.content == "fallback response"
 
@@ -193,8 +193,8 @@ class TestLLMRouterExceptionHandling:
         """LLMRouter should catch and handle httpx network errors."""
         import httpx
 
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
@@ -207,7 +207,7 @@ class TestLLMRouterExceptionHandling:
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
-        result = await router.analyze(system_prompt="test", user_prompt="test")
+        result = await router.analyze_async(system_prompt="test", user_prompt="test")
 
         assert result.content == "fallback response"
 
@@ -217,8 +217,8 @@ class TestLLMRouterExceptionHandling:
         pytest.importorskip("google.api_core")
         from google.api_core.exceptions import GoogleAPIError
 
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
@@ -231,15 +231,15 @@ class TestLLMRouterExceptionHandling:
         )
 
         router = LLMRouter(providers=[mock_primary, mock_fallback])
-        result = await router.analyze(system_prompt="test", user_prompt="test")
+        result = await router.analyze_async(system_prompt="test", user_prompt="test")
 
         assert result.content == "fallback response"
 
     @pytest.mark.asyncio
     async def test_router_propagates_programming_errors(self):
         """LLMRouter should NOT catch programming errors like TypeError."""
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
@@ -256,15 +256,15 @@ class TestLLMRouterExceptionHandling:
         router = LLMRouter(providers=[mock_primary, mock_fallback])
 
         with pytest.raises(TypeError, match="NoneType"):
-            await router.analyze(system_prompt="test", user_prompt="test")
+            await router.analyze_async(system_prompt="test", user_prompt="test")
 
         mock_fallback.analyze_async.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_router_propagates_attribute_errors(self):
         """LLMRouter should NOT catch programming errors like AttributeError."""
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
@@ -281,7 +281,7 @@ class TestLLMRouterExceptionHandling:
         router = LLMRouter(providers=[mock_primary, mock_fallback])
 
         with pytest.raises(AttributeError, match="NoneType"):
-            await router.analyze(system_prompt="test", user_prompt="test")
+            await router.analyze_async(system_prompt="test", user_prompt="test")
 
         mock_fallback.analyze_async.assert_not_called()
 
@@ -294,8 +294,8 @@ class TestLLMRouterAllFail:
         """LLMRouter should raise the last error when all providers fail."""
         import httpx
 
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_primary = MagicMock(spec=LLMProvider)
         mock_primary.name = "primary"
@@ -308,7 +308,7 @@ class TestLLMRouterAllFail:
         router = LLMRouter(providers=[mock_primary, mock_fallback])
 
         with pytest.raises(httpx.ConnectError, match="Fallback failed"):
-            await router.analyze(system_prompt="test", user_prompt="test")
+            await router.analyze_async(system_prompt="test", user_prompt="test")
 
         mock_primary.analyze_async.assert_called_once()
         mock_fallback.analyze_async.assert_called_once()
@@ -318,8 +318,8 @@ class TestLLMRouterAllFail:
         """LLMRouter with single provider should raise on failure."""
         import httpx
 
-        from heisenberg.backend.llm.base import LLMProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers.base import LLMProvider
+        from heisenberg.llm.router import LLMRouter
 
         mock_provider = MagicMock(spec=LLMProvider)
         mock_provider.name = "single"
@@ -328,4 +328,4 @@ class TestLLMRouterAllFail:
         router = LLMRouter(providers=[mock_provider])
 
         with pytest.raises(httpx.ConnectError, match="API down"):
-            await router.analyze(system_prompt="test", user_prompt="test")
+            await router.analyze_async(system_prompt="test", user_prompt="test")

@@ -6,9 +6,9 @@ from functools import lru_cache
 
 from heisenberg.backend.config import get_settings
 from heisenberg.backend.llm.adapter import LLMRouterAdapter
-from heisenberg.backend.llm.router import LLMRouter
 from heisenberg.backend.services import create_llm_service
 from heisenberg.backend.services.analyze import AnalyzeService
+from heisenberg.llm.router import LLMRouter
 
 
 @lru_cache

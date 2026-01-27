@@ -47,7 +47,7 @@ class TestAnthropicIntegration:
     @pytest.mark.asyncio
     async def test_claude_provider_initializes(self):
         """Claude provider should initialize with API key."""
-        from heisenberg.backend.llm.providers import ClaudeProvider
+        from heisenberg.llm.providers import AnthropicProvider as ClaudeProvider
 
         provider = ClaudeProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
         assert provider is not None
@@ -57,10 +57,10 @@ class TestAnthropicIntegration:
     @pytest.mark.asyncio
     async def test_claude_provider_analyzes_prompt(self):
         """Claude provider should return analysis for a prompt."""
-        from heisenberg.backend.llm.providers import ClaudeProvider
+        from heisenberg.llm.providers import AnthropicProvider as ClaudeProvider
 
         provider = ClaudeProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
-        result = await provider.analyze(
+        result = await provider.analyze_async(
             system_prompt="You are a test failure analyst.",
             user_prompt="Why might a login button timeout occur?",
         )
@@ -76,10 +76,10 @@ class TestAnthropicIntegration:
     @pytest.mark.asyncio
     async def test_claude_provider_returns_model_info(self):
         """Claude provider should return model information."""
-        from heisenberg.backend.llm.providers import ClaudeProvider
+        from heisenberg.llm.providers import AnthropicProvider as ClaudeProvider
 
         provider = ClaudeProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
-        result = await provider.analyze(
+        result = await provider.analyze_async(
             system_prompt="Respond briefly.",
             user_prompt="Say hello.",
         )
@@ -91,7 +91,7 @@ class TestAnthropicIntegration:
     @pytest.mark.asyncio
     async def test_claude_handles_test_failure_context(self):
         """Claude should analyze test failure context meaningfully."""
-        from heisenberg.backend.llm.providers import ClaudeProvider
+        from heisenberg.llm.providers import AnthropicProvider as ClaudeProvider
 
         provider = ClaudeProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -104,7 +104,7 @@ class TestAnthropicIntegration:
         Provide a brief root cause analysis.
         """
 
-        result = await provider.analyze(
+        result = await provider.analyze_async(
             system_prompt="You are a test failure analyst. Be concise.",
             user_prompt=prompt,
         )
@@ -124,7 +124,7 @@ class TestGeminiIntegration:
     @pytest.mark.asyncio
     async def test_gemini_provider_initializes(self):
         """Gemini provider should initialize with API key."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         provider = GeminiProvider(api_key=os.environ["GOOGLE_API_KEY"])
         assert provider is not None
@@ -134,10 +134,10 @@ class TestGeminiIntegration:
     @pytest.mark.asyncio
     async def test_gemini_provider_analyzes_prompt(self):
         """Gemini provider should return analysis for a prompt."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         provider = GeminiProvider(api_key=os.environ["GOOGLE_API_KEY"])
-        result = await provider.analyze(
+        result = await provider.analyze_async(
             system_prompt="You are a test failure analyst.",
             user_prompt="Why might a login button timeout occur?",
         )
@@ -151,10 +151,10 @@ class TestGeminiIntegration:
     @pytest.mark.asyncio
     async def test_gemini_provider_returns_model_info(self):
         """Gemini provider should return model information."""
-        from heisenberg.backend.llm import GeminiProvider
+        from heisenberg.llm.providers import GeminiProvider
 
         provider = GeminiProvider(api_key=os.environ["GOOGLE_API_KEY"])
-        result = await provider.analyze(
+        result = await provider.analyze_async(
             system_prompt="Respond briefly.",
             user_prompt="Say hello.",
         )
@@ -170,7 +170,7 @@ class TestOpenAIIntegration:
     @pytest.mark.asyncio
     async def test_openai_provider_initializes(self):
         """OpenAI provider should initialize with API key."""
-        from heisenberg.backend.llm.providers import OpenAIProvider
+        from heisenberg.llm.providers import OpenAIProvider
 
         provider = OpenAIProvider(api_key=os.environ["OPENAI_API_KEY"])
         assert provider is not None
@@ -180,10 +180,10 @@ class TestOpenAIIntegration:
     @pytest.mark.asyncio
     async def test_openai_provider_analyzes_prompt(self):
         """OpenAI provider should return analysis for a prompt."""
-        from heisenberg.backend.llm.providers import OpenAIProvider
+        from heisenberg.llm.providers import OpenAIProvider
 
         provider = OpenAIProvider(api_key=os.environ["OPENAI_API_KEY"])
-        result = await provider.analyze(
+        result = await provider.analyze_async(
             system_prompt="You are a test failure analyst.",
             user_prompt="Why might a login button timeout occur?",
         )
@@ -197,10 +197,10 @@ class TestOpenAIIntegration:
     @pytest.mark.asyncio
     async def test_openai_provider_returns_model_info(self):
         """OpenAI provider should return model information."""
-        from heisenberg.backend.llm.providers import OpenAIProvider
+        from heisenberg.llm.providers import OpenAIProvider
 
         provider = OpenAIProvider(api_key=os.environ["OPENAI_API_KEY"])
-        result = await provider.analyze(
+        result = await provider.analyze_async(
             system_prompt="Respond briefly.",
             user_prompt="Say hello.",
         )
@@ -216,13 +216,13 @@ class TestLLMRouterIntegration:
     @pytest.mark.asyncio
     async def test_router_with_claude_provider(self):
         """Router should work with Claude as primary provider."""
-        from heisenberg.backend.llm.providers import ClaudeProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers import AnthropicProvider as ClaudeProvider
+        from heisenberg.llm.router import LLMRouter
 
         provider = ClaudeProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
         router = LLMRouter(providers=[provider])
 
-        result = await router.analyze(
+        result = await router.analyze_async(
             system_prompt="Be brief.",
             user_prompt="What is 2+2?",
         )
@@ -234,13 +234,13 @@ class TestLLMRouterIntegration:
     @pytest.mark.asyncio
     async def test_router_with_openai_provider(self):
         """Router should work with OpenAI as primary provider."""
-        from heisenberg.backend.llm.providers import OpenAIProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers import OpenAIProvider
+        from heisenberg.llm.router import LLMRouter
 
         provider = OpenAIProvider(api_key=os.environ["OPENAI_API_KEY"])
         router = LLMRouter(providers=[provider])
 
-        result = await router.analyze(
+        result = await router.analyze_async(
             system_prompt="Be brief.",
             user_prompt="What is 2+2?",
         )
@@ -252,13 +252,13 @@ class TestLLMRouterIntegration:
     @pytest.mark.asyncio
     async def test_router_with_gemini_provider(self):
         """Router should work with Gemini as primary provider."""
-        from heisenberg.backend.llm import GeminiProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers import GeminiProvider
+        from heisenberg.llm.router import LLMRouter
 
         provider = GeminiProvider(api_key=os.environ["GOOGLE_API_KEY"])
         router = LLMRouter(providers=[provider])
 
-        result = await router.analyze(
+        result = await router.analyze_async(
             system_prompt="Be brief.",
             user_prompt="What is 2+2?",
         )
@@ -273,14 +273,15 @@ class TestLLMRouterIntegration:
     @pytest.mark.asyncio
     async def test_router_with_fallback(self):
         """Router should support fallback between providers."""
-        from heisenberg.backend.llm.providers import ClaudeProvider, OpenAIProvider
-        from heisenberg.backend.llm.router import LLMRouter
+        from heisenberg.llm.providers import AnthropicProvider as ClaudeProvider
+        from heisenberg.llm.providers import OpenAIProvider
+        from heisenberg.llm.router import LLMRouter
 
         claude = ClaudeProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
         openai = OpenAIProvider(api_key=os.environ["OPENAI_API_KEY"])
         router = LLMRouter(providers=[claude, openai])
 
-        result = await router.analyze(
+        result = await router.analyze_async(
             system_prompt="Be brief.",
             user_prompt="Say hello.",
         )
@@ -297,10 +298,10 @@ class TestAnalyzeServiceIntegration:
     async def test_analyze_service_with_real_llm(self):
         """AnalyzeService should produce diagnosis with real LLM."""
         from heisenberg.backend.llm.adapter import LLMRouterAdapter
-        from heisenberg.backend.llm.providers import ClaudeProvider
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.schemas import FailedTest
         from heisenberg.backend.services.analyze import AnalyzeService
+        from heisenberg.llm.providers import AnthropicProvider as ClaudeProvider
+        from heisenberg.llm.router import LLMRouter
 
         provider = ClaudeProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
         router = LLMRouter(providers=[provider])
@@ -328,10 +329,10 @@ class TestAnalyzeServiceIntegration:
     async def test_analyze_service_returns_confidence(self):
         """AnalyzeService should return confidence score."""
         from heisenberg.backend.llm.adapter import LLMRouterAdapter
-        from heisenberg.backend.llm.providers import ClaudeProvider
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.schemas import FailedTest
         from heisenberg.backend.services.analyze import AnalyzeService
+        from heisenberg.llm.providers import AnthropicProvider as ClaudeProvider
+        from heisenberg.llm.router import LLMRouter
 
         provider = ClaudeProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
         router = LLMRouter(providers=[provider])
@@ -357,10 +358,10 @@ class TestAnalyzeServiceIntegration:
     async def test_analyze_service_detects_flaky_pattern(self):
         """AnalyzeService should detect flaky test patterns."""
         from heisenberg.backend.llm.adapter import LLMRouterAdapter
-        from heisenberg.backend.llm.providers import ClaudeProvider
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.schemas import FailedTest
         from heisenberg.backend.services.analyze import AnalyzeService
+        from heisenberg.llm.providers import AnthropicProvider as ClaudeProvider
+        from heisenberg.llm.router import LLMRouter
 
         provider = ClaudeProvider(api_key=os.environ["ANTHROPIC_API_KEY"])
         router = LLMRouter(providers=[provider])
@@ -440,9 +441,9 @@ class TestReportParsingIntegration:
         import json
 
         from heisenberg.backend.llm.adapter import LLMRouterAdapter
-        from heisenberg.backend.llm.providers import ClaudeProvider
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.services.analyze import AnalyzeService
+        from heisenberg.llm.providers import AnthropicProvider as ClaudeProvider
+        from heisenberg.llm.router import LLMRouter
         from heisenberg.parser.playwright import PlaywrightReportParser
 
         # Create sample report

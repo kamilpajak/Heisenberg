@@ -53,8 +53,8 @@ class TestLLMServiceFactory:
 
     def test_create_llm_service_returns_router(self):
         """create_llm_service should return an LLMRouter."""
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.services import create_llm_service
+        from heisenberg.llm.router import LLMRouter
 
         with patch.dict(
             "os.environ",
@@ -66,8 +66,8 @@ class TestLLMServiceFactory:
 
     def test_create_llm_service_with_fallback(self):
         """create_llm_service should support fallback provider."""
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.services import create_llm_service
+        from heisenberg.llm.router import LLMRouter
 
         with patch.dict(
             "os.environ",
@@ -94,8 +94,8 @@ class TestLLMServiceFactory:
 
     def test_create_llm_service_with_google_provider(self):
         """create_llm_service should support Google provider."""
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.services import create_llm_service
+        from heisenberg.llm.router import LLMRouter
 
         with patch.dict(
             "os.environ",
@@ -108,8 +108,8 @@ class TestLLMServiceFactory:
 
     def test_create_llm_service_with_google_api_key_argument(self):
         """create_llm_service should accept google_api_key argument."""
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.services import create_llm_service
+        from heisenberg.llm.router import LLMRouter
 
         service = create_llm_service(
             primary_provider="google",
@@ -121,8 +121,8 @@ class TestLLMServiceFactory:
 
     def test_create_llm_service_with_google_fallback(self):
         """create_llm_service should support Google as fallback provider."""
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.services import create_llm_service
+        from heisenberg.llm.router import LLMRouter
 
         with patch.dict(
             "os.environ",
@@ -146,8 +146,8 @@ class TestAnalyzeServiceWithLLMRouter:
 
     def test_analyze_service_accepts_llm_router(self):
         """AnalyzeService should work with LLMRouter."""
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.services.analyze import AnalyzeService
+        from heisenberg.llm.router import LLMRouter
 
         mock_provider = MagicMock()
         mock_provider.name = "mock"
@@ -161,9 +161,9 @@ class TestAnalyzeServiceWithLLMRouter:
     async def test_analyze_service_calls_llm_router(self):
         """AnalyzeService.analyze should call LLMRouter.analyze via adapter."""
         from heisenberg.backend.llm.adapter import LLMRouterAdapter
-        from heisenberg.backend.llm.router import LLMRouter
         from heisenberg.backend.schemas import AnalyzeRequest, FailedTest
         from heisenberg.backend.services.analyze import AnalyzeService
+        from heisenberg.llm.router import LLMRouter
 
         mock_provider = MagicMock()
         mock_provider.name = "mock"

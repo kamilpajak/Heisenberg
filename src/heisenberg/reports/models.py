@@ -18,6 +18,8 @@ class ReportType(Enum):
 class TestStatus(Enum):
     """Status of a test case."""
 
+    __test__ = False  # Prevent pytest collection
+
     PASSED = "passed"
     FAILED = "failed"
     SKIPPED = "skipped"
@@ -26,6 +28,8 @@ class TestStatus(Enum):
 @dataclass
 class TestCase:
     """A single test case result."""
+
+    __test__ = False  # Prevent pytest collection
 
     name: str
     status: TestStatus
@@ -51,6 +55,8 @@ class TestCase:
 @dataclass
 class TestSuite:
     """A collection of test cases, potentially nested."""
+
+    __test__ = False  # Prevent pytest collection
 
     name: str
     tests: list[TestCase] = field(default_factory=list)
