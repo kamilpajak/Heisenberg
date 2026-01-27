@@ -1,6 +1,6 @@
 [project]
 name = "heisenberg"
-version = "1.6.2"
+version = "1.6.3"
 description = "AI Root Cause Analysis for Flaky Tests"
 readme = "README.md"
 requires-python = ">=3.11"
