@@ -1,12 +1,12 @@
 # Heisenberg Demo Playground - Implementation Plan
 
-> **Status:** In Progress
+> **Status:** Complete (Backend Pipeline)
 > **Created:** 2026-01-27
-> **Last Updated:** 2026-01-27
+> **Last Updated:** 2026-01-28
 
 ## Executive Summary
 
-Build an interactive web playground that demonstrates Heisenberg's AI-powered test failure diagnosis using **real examples from GitHub projects** - not synthetic/curated scenarios. The key innovation is the **"Frozen Snapshots"** architecture that downloads and hosts artifacts locally, avoiding GitHub's 90-day artifact expiration.
+Build an interactive web playground that demonstrates Heisenberg's AI-powered test failure diagnosis using **real examples from GitHub projects** - not synthetic/curated cases. The key innovation is the **"Frozen Snapshots"** architecture that downloads and hosts artifacts locally, avoiding GitHub's 90-day artifact expiration.
 
 ## Problem Statement
 
@@ -21,23 +21,23 @@ Build an interactive web playground that demonstrates Heisenberg's AI-powered te
 │                    FROZEN SNAPSHOTS PIPELINE                    │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  1. discover_projects.py          [DONE]                        │
+│  1. playground/discover.py        [DONE]                        │
 │     └── Finds GitHub repos with failed Playwright runs          │
 │                                                                 │
-│  2. freeze_scenario.py            [DONE - TDD]                  │
+│  2. playground/freeze.py          [DONE]                        │
 │     └── Downloads artifacts, saves locally                      │
 │     └── Creates metadata.json with source info                  │
 │                                                                 │
-│  3. analyze_scenario.py           [TODO]                        │
+│  3. playground/analyze.py         [DONE]                        │
 │     └── Runs Heisenberg on frozen data                          │
 │     └── Saves diagnosis.json                                    │
 │                                                                 │
-│  4. manifest_generator.py         [TODO]                        │
-│     └── Aggregates scenarios into manifest.json                 │
+│  4. playground/manifest.py        [DONE]                        │
+│     └── Aggregates cases into manifest.json                     │
 │     └── Calculates accuracy stats                               │
 │                                                                 │
-│  5. validate_scenarios.py         [TODO]                        │
-│     └── Checks if scenarios are still valid                     │
+│  5. playground/validate.py        [DONE]                        │
+│     └── Checks if cases are still valid                         │
 │     └── Flags stale/outdated entries                            │
 │                                                                 │
 │  6. SvelteKit Playground          [TODO]                        │
@@ -83,11 +83,11 @@ Accuracy on real GitHub issues: 68% root cause found
 
 ## Data Structures
 
-### Scenario Directory Structure
+### Case Directory Structure
 
 ```
-playground/scenarios/
-├── manifest.json                    # Index of all scenarios
+playground/cases/
+├── manifest.json                    # Index of all cases
 └── tryghost-ghost-21395156769/
     ├── metadata.json                # Source info, stars, dates
     ├── report.json                  # Playwright report (LOCAL COPY)
@@ -135,7 +135,7 @@ playground/scenarios/
 }
 ```
 
-### metadata.json Schema (per scenario)
+### metadata.json Schema (per case)
 
 ```json
 {
@@ -153,22 +153,20 @@ playground/scenarios/
 
 ### Completed
 
-- [x] `scripts/discover_projects.py` - Finds GitHub repos with Playwright artifacts
-- [x] `src/heisenberg/freeze_scenario.py` - Downloads and saves artifacts locally (TDD, 24 tests)
-- [x] `src/heisenberg/github_artifacts.py` - GitHub API client for artifacts
-
-### In Progress
-
-- [x] CLI wrapper for freeze_scenario (`heisenberg freeze <repo>`) - **Done, 18 tests**
-- [x] `analyze_scenario.py` - Run Heisenberg analysis on frozen data - **Done, 24 tests**
-- [x] CLI wrapper for analyze_scenario (`heisenberg analyze-scenario <dir>`)
+- [x] `src/heisenberg/playground/discover.py` - Finds GitHub repos with Playwright artifacts
+- [x] `src/heisenberg/playground/freeze.py` - Downloads and saves artifacts locally
+- [x] `src/heisenberg/playground/analyze.py` - Runs AI analysis on frozen data
+- [x] `src/heisenberg/playground/manifest.py` - Generates manifest.json from cases
+- [x] `src/heisenberg/playground/validate.py` - Checks case freshness
+- [x] `src/heisenberg/integrations/github_artifacts.py` - GitHub API client for artifacts
+- [x] CLI wrapper `heisenberg freeze`
+- [x] CLI wrapper `heisenberg analyze-case`
+- [x] CLI wrapper `heisenberg generate-manifest`
+- [x] CLI wrapper `heisenberg validate-cases`
+- [x] GitHub Action `.github/workflows/refresh-demo-cases.yml`
 
 ### TODO
-- [x] `manifest_generator.py` - Generate manifest.json from scenarios - **Done, 27 tests**
-- [x] CLI wrapper for manifest generator (`heisenberg generate-manifest <dir>`)
-- [x] `validate_scenarios.py` - Check scenario freshness - **Done, 28 tests**
-- [x] CLI wrapper for validator (`heisenberg validate-scenarios <dir>`)
-- [x] GitHub Action for periodic refresh - `.github/workflows/refresh-demo-scenarios.yml`
+
 - [ ] SvelteKit playground frontend
 
 ## CLI Commands
@@ -176,23 +174,20 @@ playground/scenarios/
 ### Implemented
 
 ```bash
-# Discover candidate projects
-python scripts/discover_projects.py --limit 30 --output candidates.json
-
-# Freeze a specific scenario (downloads artifacts locally)
-heisenberg freeze -r TryGhost/Ghost --run-id 21395156769 --output ./scenarios
+# Freeze a specific case (downloads artifacts locally)
+heisenberg freeze -r TryGhost/Ghost --run-id 21395156769 --output ./playground/cases
 
 # Freeze latest failed run
-heisenberg freeze -r formkit/auto-animate --output ./scenarios
+heisenberg freeze -r formkit/auto-animate --output ./playground/cases
 
-# Analyze frozen scenario (runs AI diagnosis, saves diagnosis.json)
-heisenberg analyze-scenario ./scenarios/tryghost-ghost-21395156769 -p google
+# Analyze frozen case (runs AI diagnosis, saves diagnosis.json)
+heisenberg analyze-case ./playground/cases/tryghost-ghost-21395156769 -p google
 
-# Generate manifest from all analyzed scenarios
-heisenberg generate-manifest ./scenarios -o manifest.json
+# Generate manifest from all analyzed cases
+heisenberg generate-manifest ./playground/cases -o manifest.json
 
-# Validate all scenarios (check freshness and completeness)
-heisenberg validate-scenarios ./scenarios --max-age 90 --json
+# Validate all cases (check freshness and completeness)
+heisenberg validate-cases ./playground/cases --max-age 90 --json
 ```
 
 ### Planned
@@ -201,7 +196,7 @@ heisenberg validate-scenarios ./scenarios --max-age 90 --json
 # GitHub Action will automate: validate → discover → freeze → analyze → manifest
 ```
 
-## Candidate Projects (from discover_projects.py)
+## Candidate Projects (from discover)
 
 Last scan: 2026-01-27
 
@@ -224,22 +219,22 @@ heisenberg-playground/
 │   │   └── +layout.svelte            # Shell with nav
 │   ├── lib/
 │   │   ├── components/
-│   │   │   ├── ScenarioPicker.svelte # Scenario selection
+│   │   │   ├── CasePicker.svelte     # Case selection
 │   │   │   ├── Terminal.svelte       # xterm.js wrapper
 │   │   │   ├── TraceViewer.svelte    # Playwright trace embed
 │   │   │   ├── DiagnosisCard.svelte  # AI analysis display
 │   │   │   └── SourceBadge.svelte    # GitHub link + stars
 │   │   └── stores/
-│   │       └── scenario.ts           # Active scenario state
+│   │       └── case.ts               # Active case state
 ├── static/
-│   ├── scenarios/                    # Frozen snapshots
-│   └── manifest.json                 # Scenario index
+│   ├── cases/                        # Frozen snapshots
+│   └── manifest.json                 # Case index
 └── package.json
 ```
 
 ### Key UI Elements
 
-1. **Scenario Picker** - List of real GitHub projects with stars, dates
+1. **Case Picker** - List of real GitHub projects with stars, dates
 2. **Terminal View** (xterm.js) - Typewriter effect for CLI output
 3. **Trace Viewer** - Embedded Playwright trace (if available)
 4. **Diagnosis Card** - AI analysis with confidence score
@@ -258,51 +253,51 @@ From Perplexity deep research (2026-01-27):
 
 ## Refresh Strategy
 
-### Implemented: `.github/workflows/refresh-demo-scenarios.yml`
+### Implemented: `.github/workflows/refresh-demo-cases.yml`
 
 **Schedule:** Every Monday at 6 AM UTC (with manual trigger option)
 
 **Jobs:**
 
-1. **validate** - Check existing scenarios for staleness/completeness
+1. **validate** - Check existing cases for staleness/completeness
 2. **discover** - Find new GitHub projects with Playwright artifacts
 3. **freeze-and-analyze** - Download artifacts, run AI diagnosis, generate manifest
 4. **commit** - Push changes to repository
-5. **cleanup-stale** - Remove scenarios older than 90 days
+5. **cleanup-stale** - Remove cases older than 90 days
 
 **Required Secrets:**
 - `GITHUB_TOKEN` - For GitHub API access (automatic)
 - `GOOGLE_API_KEY` - For AI analysis (Gemini)
 
 **Manual Trigger Options:**
-- `max_new_scenarios` - Limit new scenarios per run (default: 3)
-- `force_refresh` - Force refresh even if no stale scenarios
+- `max_new_cases` - Limit new cases per run (default: 3)
+- `force_refresh` - Force refresh even if no stale cases
 
 ## Success Metrics
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
 | Time to first "aha" | < 30 seconds | User testing |
-| Scenario load time | < 100ms | Performance monitoring |
+| Case load time | < 100ms | Performance monitoring |
 | Accuracy display | Visible above fold | UI review |
 | GitHub verification | 1 click away | UX review |
 | CLI install clicks | Track conversions | Analytics |
 
 ## Related Files
 
-- `scripts/discover_projects.py` - Project discovery script
-- `src/heisenberg/freeze_scenario.py` - Artifact freezer (24 tests)
-- `src/heisenberg/analyze_scenario.py` - Scenario analyzer (24 tests)
-- `src/heisenberg/manifest_generator.py` - Manifest generator (27 tests)
-- `src/heisenberg/validate_scenarios.py` - Scenario validator (28 tests)
-- `src/heisenberg/github_artifacts.py` - GitHub API client
+- `src/heisenberg/playground/discover.py` - Project discovery
+- `src/heisenberg/playground/freeze.py` - Artifact freezer
+- `src/heisenberg/playground/analyze.py` - Case analyzer
+- `src/heisenberg/playground/manifest.py` - Manifest generator
+- `src/heisenberg/playground/validate.py` - Case validator
+- `src/heisenberg/integrations/github_artifacts.py` - GitHub API client
 - `src/heisenberg/cli/commands.py` - CLI command handlers
-- `tests/test_freeze_scenario.py` - Freezer tests
-- `tests/test_analyze_scenario.py` - Analyzer tests
+- `tests/test_freeze_case.py` - Freezer tests
+- `tests/test_analyze_case.py` - Analyzer tests
 - `tests/test_manifest_generator.py` - Manifest generator tests
-- `tests/test_validate_scenarios.py` - Validator tests
-- `tests/test_cli_freeze.py` - CLI freeze tests (18 tests)
-- `.github/workflows/refresh-demo-scenarios.yml` - Automated refresh workflow
+- `tests/test_validate_cases.py` - Validator tests
+- `tests/test_cli_freeze.py` - CLI freeze tests
+- `.github/workflows/refresh-demo-cases.yml` - Automated refresh workflow
 
 ## Related Obsidian Notes
 
@@ -314,16 +309,16 @@ From Perplexity deep research (2026-01-27):
 
 ## Changelog
 
+### 2026-01-28
+- Updated plan to reflect actual implementation
+- Changed terminology from "scenarios" to "cases" throughout
+- Updated file paths to match actual structure (`src/heisenberg/playground/`)
+- Updated CLI command names (`analyze-case`, `validate-cases`)
+- Updated workflow name (`refresh-demo-cases.yml`)
+- Marked all pipeline components as DONE
+
 ### 2026-01-27
 - Initial plan created
-- `freeze_scenario.py` implemented with TDD (24 tests passing)
-- Discovered 7 compatible GitHub projects for demo
-- CLI wrapper `heisenberg freeze` implemented with TDD (18 tests passing)
-- `analyze_scenario.py` implemented with TDD (24 tests passing)
-- CLI wrapper `heisenberg analyze-scenario` implemented
-- `manifest_generator.py` implemented with TDD (27 tests passing)
-- CLI wrapper `heisenberg generate-manifest` implemented
-- `validate_scenarios.py` implemented with TDD (28 tests passing)
-- CLI wrapper `heisenberg validate-scenarios` implemented
-- GitHub Action `refresh-demo-scenarios.yml` created for automated weekly refresh
+- All pipeline components implemented
+- GitHub Action created for automated weekly refresh
 - **Known limitation**: Blob reports require `--merge-blobs` (not yet supported in freeze)
