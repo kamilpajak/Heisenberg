@@ -1362,7 +1362,7 @@ class TestParallelProcessing:
 
         # This should complete faster due to parallelism
         # We can't easily test timing, but we can verify it doesn't break
-        result = discover_sources(global_limit=5, verify_failures=True)
+        discover_sources(global_limit=5, verify_failures=True)
 
         # Should have analyzed all repos (3 from search + 1 from KNOWN_GOOD_REPOS)
         assert mock_analyze.call_count >= 3
@@ -1616,9 +1616,9 @@ class TestThreadSafeProgress:
                 call_count = [0]
                 call_lock = threading.Lock()
 
-                def slow_analyze(repo, **kwargs):
-                    with call_lock:
-                        call_count[0] += 1
+                def slow_analyze(repo, _lock=call_lock, _count=call_count, **kwargs):
+                    with _lock:
+                        _count[0] += 1
 
                     return ProjectSource(
                         repo=repo,
@@ -1630,8 +1630,8 @@ class TestThreadSafeProgress:
 
                 results = []
 
-                def on_progress(info):
-                    results.append(info.completed)
+                def on_progress(info, _results=results):
+                    _results.append(info.completed)
 
                 discover_sources(global_limit=4, on_progress=on_progress)
 
