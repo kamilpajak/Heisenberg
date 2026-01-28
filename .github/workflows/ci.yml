@@ -90,6 +90,56 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
+  package-integrity:
+    name: Package Integrity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Build package
+        run: uv build
+
+      - name: Verify wheel excludes playground
+        run: |
+          if unzip -l dist/*.whl | grep -q "playground/"; then
+            echo "::error::playground/ found in wheel - check pyproject.toml exclusions"
+            exit 1
+          fi
+          echo "✓ Wheel does not contain playground/"
+
+      - name: Verify sdist excludes playground
+        run: |
+          if tar -tzf dist/*.tar.gz | grep -q "playground/"; then
+            echo "::error::playground/ found in sdist - check pyproject.toml exclusions"
+            exit 1
+          fi
+          echo "✓ Sdist does not contain playground/"
+
+      - name: Check package size
+        run: |
+          WHEEL_SIZE=$(stat -c%s dist/*.whl 2>/dev/null || stat -f%z dist/*.whl)
+          SDIST_SIZE=$(stat -c%s dist/*.tar.gz 2>/dev/null || stat -f%z dist/*.tar.gz)
+          MAX_SIZE=$((1024 * 1024))  # 1MB limit
+
+          echo "Wheel size: $((WHEEL_SIZE / 1024))KB"
+          echo "Sdist size: $((SDIST_SIZE / 1024))KB"
+
+          if [ "$WHEEL_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "::error::Wheel exceeds 1MB - likely contains unwanted files"
+            exit 1
+          fi
+          echo "✓ Package sizes within limits"
+
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest

@@ -1,0 +1,5 @@
+{
+  "name": "Heisenberg Playground",
+  "description": "Interactive playground for Heisenberg - an AI-powered CLI tool for diagnosing Playwright test failures.",
+  "requestFramePermissions": []
+}
