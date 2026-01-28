@@ -17,7 +17,7 @@ on:
         default: false
 
 env:
-  CASES_DIR: playground/cases
+  CASES_DIR: playground/public/demo-cases
   PYTHON_VERSION: '3.12'
 
 permissions:
