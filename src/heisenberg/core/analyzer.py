@@ -31,7 +31,7 @@ class AIAnalysisResult:
     model: str | None = None
 
     # Cost rates per 1M tokens by provider
-    _COST_RATES: dict[str, dict[str, float]] = None  # type: ignore[assignment]
+    _COST_RATES: dict[str, dict[str, float]] | None = None
 
     def __post_init__(self) -> None:
         """Initialize cost rates."""

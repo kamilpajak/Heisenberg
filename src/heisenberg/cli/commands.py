@@ -258,10 +258,8 @@ def _analyze_report_data(
         temp_path.unlink()
 
 
-async def run_fetch_github(args: argparse.Namespace) -> int:
-    """Run the fetch-github command."""
-    from heisenberg.integrations.github_artifacts import GitHubAPIError, GitHubArtifactClient
-
+def _validate_fetch_github_args(args: argparse.Namespace) -> tuple[str, str, str] | None:
+    """Validate fetch-github args, returning (token, owner, repo) or None on error."""
     token = args.token or os.environ.get("GITHUB_TOKEN")
     if not token:
         print("Error: GitHub token required. Use --token or set GITHUB_TOKEN", file=sys.stderr)
@@ -269,22 +267,56 @@ async def run_fetch_github(args: argparse.Namespace) -> int:
             "\nTip: For local reports, use: heisenberg analyze --report <path-to-json>",
             file=sys.stderr,
         )
-        return 1
+        return None
 
-    # Validate API key early if AI analysis is requested (fail fast)
     if getattr(args, "ai_analysis", False):
         provider = getattr(args, "provider", "anthropic")
         error = validate_api_key_for_provider(provider)
         if error:
             print(f"Error: {error}", file=sys.stderr)
-            return 1
+            return None
 
     repo_parts = args.repo.split("/")
     if len(repo_parts) != 2:
         print("Error: Invalid repo format. Use owner/repo", file=sys.stderr)
+        return None
+
+    return token, repo_parts[0], repo_parts[1]
+
+
+async def _fetch_optional_context(
+    args: argparse.Namespace, token: str, owner: str, repo: str
+) -> tuple[str | None, str | None, str | None]:
+    """Fetch optional context (logs, screenshots, traces) if requested."""
+    job_logs_context = None
+    screenshot_context = None
+    trace_context = None
+
+    if getattr(args, "include_logs", False):
+        job_logs_context = await github_fetch.fetch_and_process_job_logs(
+            token, owner, repo, args.run_id
+        )
+    if getattr(args, "include_screenshots", False):
+        screenshot_context = await github_fetch.fetch_and_analyze_screenshots(
+            token, owner, repo, args.run_id, args.artifact_name
+        )
+    if getattr(args, "include_traces", False):
+        trace_context = await github_fetch.fetch_and_analyze_traces(
+            token, owner, repo, args.run_id, args.artifact_name
+        )
+
+    return job_logs_context, screenshot_context, trace_context
+
+
+async def run_fetch_github(args: argparse.Namespace) -> int:
+    """Run the fetch-github command."""
+    from heisenberg.integrations.github_artifacts import GitHubAPIError, GitHubArtifactClient
+
+    validated = _validate_fetch_github_args(args)
+    if validated is None:
         return 1
 
-    owner, repo = repo_parts
+    token, owner, repo = validated
 
     try:
         if args.list_artifacts:
@@ -324,23 +356,9 @@ async def run_fetch_github(args: argparse.Namespace) -> int:
             print(f"Report saved to {args.output}")
             return 0
 
-        job_logs_context = None
-        if getattr(args, "include_logs", False):
-            job_logs_context = await github_fetch.fetch_and_process_job_logs(
-                token, owner, repo, args.run_id
-            )
-
-        screenshot_context = None
-        if getattr(args, "include_screenshots", False):
-            screenshot_context = await github_fetch.fetch_and_analyze_screenshots(
-                token, owner, repo, args.run_id, args.artifact_name
-            )
-
-        trace_context = None
-        if getattr(args, "include_traces", False):
-            trace_context = await github_fetch.fetch_and_analyze_traces(
-                token, owner, repo, args.run_id, args.artifact_name
-            )
+        job_logs_context, screenshot_context, trace_context = await _fetch_optional_context(
+            args, token, owner, repo
+        )
 
         return _analyze_report_data(
             report_data, args, job_logs_context, screenshot_context, trace_context

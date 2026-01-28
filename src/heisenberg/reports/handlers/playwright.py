@@ -17,6 +17,11 @@ from ..models import (
     TestSuite,
 )
 
+# Constants for file names and extensions
+INDEX_HTML = "index.html"
+REPORT_JSON = "report.json"
+JSON_EXT = ".json"
+
 
 class PlaywrightHandler(ReportHandler):
     """Handler for Playwright test reports.
@@ -56,7 +61,7 @@ class PlaywrightHandler(ReportHandler):
 
     def _is_html_report(self, namelist: list[str]) -> bool:
         """Check if ZIP contains Playwright HTML report structure."""
-        has_index = any(name == "index.html" or name.endswith("/index.html") for name in namelist)
+        has_index = any(name == INDEX_HTML or name.endswith(f"/{INDEX_HTML}") for name in namelist)
         has_data = any(name.startswith("data/") or "/data/" in name for name in namelist)
         return has_index and has_data
 
@@ -72,12 +77,12 @@ class PlaywrightHandler(ReportHandler):
         # Must have .zip files at root level
         has_root_zips = any(name.endswith(".zip") and "/" not in name for name in namelist)
         # Must NOT have index.html (that would be HTML report)
-        has_index = any(name == "index.html" or name.endswith("/index.html") for name in namelist)
+        has_index = any(name == INDEX_HTML or name.endswith(f"/{INDEX_HTML}") for name in namelist)
         return has_root_zips and not has_index
 
     def _is_json_report(self, zip_file: ZipFile, namelist: list[str]) -> bool:
         """Check if ZIP contains Playwright JSON report."""
-        json_files = [n for n in namelist if n.endswith(".json")]
+        json_files = [n for n in namelist if n.endswith(JSON_EXT)]
 
         for json_file in json_files:
             try:
@@ -114,6 +119,30 @@ class PlaywrightHandler(ReportHandler):
         else:
             return self._extract_json_report(zip_file, output_dir)
 
+    def _merge_stats(self, combined_stats: dict, new_stats: dict) -> None:
+        """Merge new stats into combined stats."""
+        for k, v in new_stats.items():
+            if isinstance(v, int | float):
+                combined_stats[k] = combined_stats.get(k, 0) + v
+
+    def _process_inner_zip(self, inner_zip: ZipFile, combined_data: dict) -> bool:
+        """Process contents of an inner zip file, returning True if data found."""
+        has_data = False
+        for inner_name in inner_zip.namelist():
+            if inner_name.endswith(".jsonl"):
+                content = inner_zip.read(inner_name).decode("utf-8")
+                self._parse_jsonl_events(content, combined_data)
+                has_data = True
+            elif inner_name.endswith(JSON_EXT):
+                content = inner_zip.read(inner_name)
+                data = json.loads(content)
+                if "suites" in data:
+                    combined_data["suites"].extend(data["suites"])
+                    has_data = True
+                if "stats" in data:
+                    self._merge_stats(combined_data["stats"], data["stats"])
+        return has_data
+
     def _extract_blob_report(self, zip_file: ZipFile, output_dir: Path) -> ExtractedReport:
         """Extract blob format report.
 
@@ -129,36 +158,18 @@ class PlaywrightHandler(ReportHandler):
         }
         has_data = False
 
-        # Extract and process each blob .zip file
         for name in zip_file.namelist():
-            if name.endswith(".zip") and "/" not in name:
-                try:
-                    blob_data = zip_file.read(name)
-                    with zf_module.ZipFile(io.BytesIO(blob_data)) as inner_zip:
-                        for inner_name in inner_zip.namelist():
-                            # Handle JSONL format (Playwright event stream)
-                            if inner_name.endswith(".jsonl"):
-                                content = inner_zip.read(inner_name).decode("utf-8")
-                                self._parse_jsonl_events(content, combined_data)
-                                has_data = True
-                            # Handle JSON format
-                            elif inner_name.endswith(".json"):
-                                content = inner_zip.read(inner_name)
-                                data = json.loads(content)
-                                if "suites" in data:
-                                    combined_data["suites"].extend(data["suites"])
-                                    has_data = True
-                                if "stats" in data:
-                                    for k, v in data["stats"].items():
-                                        if isinstance(v, int | float):
-                                            combined_data["stats"][k] = (
-                                                combined_data["stats"].get(k, 0) + v
-                                            )
-                except (zf_module.BadZipFile, json.JSONDecodeError, UnicodeDecodeError):
-                    continue
+            if not (name.endswith(".zip") and "/" not in name):
+                continue
+            try:
+                blob_data = zip_file.read(name)
+                with zf_module.ZipFile(io.BytesIO(blob_data)) as inner_zip:
+                    if self._process_inner_zip(inner_zip, combined_data):
+                        has_data = True
+            except (zf_module.BadZipFile, json.JSONDecodeError, UnicodeDecodeError):
+                continue
 
-        # Save combined data
-        report_path = output_dir / "report.json"
+        report_path = output_dir / REPORT_JSON
         report_path.write_text(json.dumps(combined_data, indent=2))
 
         return ExtractedReport(
@@ -169,6 +180,41 @@ class PlaywrightHandler(ReportHandler):
             raw_data=combined_data,
             visual_only=not has_data,
         )
+
+    def _update_stats_for_status(self, stats: dict, status: str) -> None:
+        """Update stats counters based on test status."""
+        stats["total"] += 1
+        if status == "passed":
+            stats["passed"] += 1
+        elif status in ("failed", "timedOut", "interrupted"):
+            stats["failed"] += 1
+        elif status == "skipped":
+            stats["skipped"] += 1
+
+    def _build_specs_from_tests(self, tests_by_id: dict) -> list[dict]:
+        """Build Playwright spec format from tests dictionary."""
+        specs = []
+        for test_data in tests_by_id.values():
+            specs.append(
+                {
+                    "title": test_data["title"],
+                    "tests": [
+                        {
+                            "status": "expected"
+                            if test_data["status"] == "passed"
+                            else "unexpected",
+                            "results": [
+                                {
+                                    "status": test_data["status"],
+                                    "duration": test_data["duration"],
+                                    "errors": test_data["errors"],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            )
+        return specs
 
     def _parse_jsonl_events(self, content: str, combined_data: dict) -> None:
         """Parse JSONL event stream from Playwright blob reporter.
@@ -182,62 +228,28 @@ class PlaywrightHandler(ReportHandler):
                 continue
             try:
                 event = json.loads(line)
-                method = event.get("method")
+                if event.get("method") != "onTestEnd":
+                    continue
+
                 params = event.get("params", {})
+                test_info = params.get("test", {})
+                result_info = params.get("result", {})
 
-                if method == "onTestEnd":
-                    test_info = params.get("test", {})
-                    result_info = params.get("result", {})
-                    test_id = test_info.get("testId", "")
-
-                    status = result_info.get("status", "passed")
-                    tests_by_id[test_id] = {
-                        "title": test_info.get("title", "Unknown"),
-                        "status": status,
-                        "duration": result_info.get("duration", 0),
-                        "errors": result_info.get("errors", []),
-                    }
-
-                    # Update stats
-                    combined_data["stats"]["total"] += 1
-                    if status == "passed":
-                        combined_data["stats"]["passed"] += 1
-                    elif status in ("failed", "timedOut", "interrupted"):
-                        combined_data["stats"]["failed"] += 1
-                    elif status == "skipped":
-                        combined_data["stats"]["skipped"] += 1
+                status = result_info.get("status", "passed")
+                tests_by_id[test_info.get("testId", "")] = {
+                    "title": test_info.get("title", "Unknown"),
+                    "status": status,
+                    "duration": result_info.get("duration", 0),
+                    "errors": result_info.get("errors", []),
+                }
+                self._update_stats_for_status(combined_data["stats"], status)
 
             except json.JSONDecodeError:
                 continue
 
-        # Build suites from tests (simplified - single suite)
         if tests_by_id:
-            specs = []
-            for _test_id, test_data in tests_by_id.items():
-                specs.append(
-                    {
-                        "title": test_data["title"],
-                        "tests": [
-                            {
-                                "status": "expected"
-                                if test_data["status"] == "passed"
-                                else "unexpected",
-                                "results": [
-                                    {
-                                        "status": test_data["status"],
-                                        "duration": test_data["duration"],
-                                        "errors": test_data["errors"],
-                                    }
-                                ],
-                            }
-                        ],
-                    }
-                )
             combined_data["suites"].append(
-                {
-                    "title": "Blob Report Tests",
-                    "specs": specs,
-                }
+                {"title": "Blob Report Tests", "specs": self._build_specs_from_tests(tests_by_id)}
             )
 
     def _extract_json_report(self, zip_file: ZipFile, output_dir: Path) -> ExtractedReport:
@@ -252,7 +264,7 @@ class PlaywrightHandler(ReportHandler):
         content = zip_file.read(json_file)
         data = json.loads(content)
 
-        report_path = output_dir / "report.json"
+        report_path = output_dir / REPORT_JSON
         report_path.write_text(json.dumps(data, indent=2))
 
         return ExtractedReport(
@@ -279,10 +291,10 @@ class PlaywrightHandler(ReportHandler):
                 target_path.write_bytes(zip_file.read(name))
 
         # Find the entry point (index.html)
-        entry_point = html_dir / "index.html"
+        entry_point = html_dir / INDEX_HTML
         if not entry_point.exists():
             # Try to find it in subdirectories
-            for html_file in html_dir.rglob("index.html"):
+            for html_file in html_dir.rglob(INDEX_HTML):
                 entry_point = html_file
                 break
 
@@ -301,6 +313,22 @@ class PlaywrightHandler(ReportHandler):
             raw_data=None,  # Will be loaded during normalize
             visual_only=visual_only,
         )
+
+    def _process_html_data_zip(self, inner_zip: ZipFile, combined_data: dict) -> bool:
+        """Process a single data zip from HTML report, returning True if suites found."""
+        has_data = False
+        for name in inner_zip.namelist():
+            if not name.endswith(JSON_EXT):
+                continue
+            content = inner_zip.read(name)
+            data = json.loads(content)
+            if "suites" in data:
+                combined_data["suites"].extend(data["suites"])
+                if data["suites"]:
+                    has_data = True
+            if "stats" in data:
+                self._merge_stats(combined_data["stats"], data["stats"])
+        return has_data
 
     def _extract_data_from_html_report(self, html_dir: Path, output_dir: Path) -> tuple[Path, bool]:
         """Extract JSON data from HTML report's data directory.
@@ -322,26 +350,12 @@ class PlaywrightHandler(ReportHandler):
             for data_file in data_dir.glob("*.zip"):
                 try:
                     with zf_module.ZipFile(data_file) as inner_zip:
-                        for name in inner_zip.namelist():
-                            if name.endswith(".json"):
-                                content = inner_zip.read(name)
-                                data = json.loads(content)
-                                # Merge suite data
-                                if "suites" in data:
-                                    combined_data["suites"].extend(data["suites"])
-                                    if data["suites"]:
-                                        has_data = True
-                                if "stats" in data:
-                                    for k, v in data["stats"].items():
-                                        if isinstance(v, int | float):
-                                            combined_data["stats"][k] = (
-                                                combined_data["stats"].get(k, 0) + v
-                                            )
+                        if self._process_html_data_zip(inner_zip, combined_data):
+                            has_data = True
                 except (zf_module.BadZipFile, json.JSONDecodeError):
                     continue
 
-        # Save combined data
-        report_path = output_dir / "report.json"
+        report_path = output_dir / REPORT_JSON
         report_path.write_text(json.dumps(combined_data, indent=2))
 
         return report_path, has_data
@@ -352,7 +366,7 @@ class PlaywrightHandler(ReportHandler):
 
         # Priority order for finding the report
         candidates = [
-            "report.json",
+            REPORT_JSON,
             "playwright-report.json",
             "results.json",
         ]
@@ -363,7 +377,7 @@ class PlaywrightHandler(ReportHandler):
 
         # Fall back to any JSON file that looks like a Playwright report
         for name in namelist:
-            if name.endswith(".json"):
+            if name.endswith(JSON_EXT):
                 try:
                     content = zip_file.read(name)
                     data = json.loads(content)

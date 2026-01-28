@@ -9,7 +9,14 @@ from heisenberg.core.models import (
     UnifiedFailure,
     UnifiedTestRun,
 )
-from heisenberg.llm.prompts import _build_unified_user_prompt, build_unified_prompt
+from heisenberg.integrations.docker import ContainerLogs, LogEntry
+from heisenberg.llm.prompts import (
+    _build_container_logs_section,
+    _build_prompt_header,
+    _build_unified_user_prompt,
+    _format_failure_for_prompt,
+    build_unified_prompt,
+)
 
 
 @pytest.fixture
@@ -179,3 +186,156 @@ class TestBuildUnifiedUserPrompt:
         # Should not have empty sections
         assert prompt is not None
         assert len(prompt) > 100  # Has meaningful content
+
+
+class TestBuildPromptHeader:
+    """Tests for _build_prompt_header helper."""
+
+    def test_includes_summary_section(self, sample_unified_run):
+        """Should include summary section with test counts."""
+        header = _build_prompt_header(sample_unified_run)
+
+        assert "Summary" in header
+        assert "10" in header  # total tests
+        assert "8" in header  # passed
+        assert "2" in header  # failed
+
+    def test_includes_repository_when_present(self, sample_unified_run):
+        """Should include repository when set."""
+        header = _build_prompt_header(sample_unified_run)
+
+        assert "owner/repo" in header
+
+    def test_includes_branch_when_present(self, sample_unified_run):
+        """Should include branch when set."""
+        header = _build_prompt_header(sample_unified_run)
+
+        assert "main" in header
+
+    def test_includes_run_id_when_present(self, sample_unified_run):
+        """Should include run ID when set."""
+        header = _build_prompt_header(sample_unified_run)
+
+        assert "run-123" in header
+
+    def test_handles_missing_optional_fields(self):
+        """Should handle missing optional fields."""
+        run = UnifiedTestRun(
+            run_id=None,
+            repository=None,
+            branch=None,
+            commit_sha=None,
+            workflow_name=None,
+            run_url=None,
+            total_tests=5,
+            passed_tests=5,
+            failed_tests=0,
+            skipped_tests=0,
+            failures=[],
+        )
+        header = _build_prompt_header(run)
+
+        assert "5" in header
+        assert "Repository" not in header
+
+
+class TestFormatFailureForPrompt:
+    """Tests for _format_failure_for_prompt helper."""
+
+    def test_includes_test_index_and_title(self, sample_unified_run):
+        """Should include test index and title."""
+        failure = sample_unified_run.failures[0]
+        lines = _format_failure_for_prompt(failure, 1)
+
+        joined = "\n".join(lines)
+        assert "Test 1:" in joined
+        assert "should work correctly" in joined
+
+    def test_includes_file_path(self, sample_unified_run):
+        """Should include file path."""
+        failure = sample_unified_run.failures[0]
+        lines = _format_failure_for_prompt(failure, 1)
+
+        joined = "\n".join(lines)
+        assert "tests/example.spec.ts" in joined
+
+    def test_includes_suite_path(self, sample_unified_run):
+        """Should include suite path when present."""
+        failure = sample_unified_run.failures[0]
+        lines = _format_failure_for_prompt(failure, 1)
+
+        joined = "\n".join(lines)
+        assert "Suite" in joined
+
+    def test_includes_framework(self, sample_unified_run):
+        """Should include framework."""
+        failure = sample_unified_run.failures[0]
+        lines = _format_failure_for_prompt(failure, 1)
+
+        joined = "\n".join(lines)
+        assert "playwright" in joined.lower()
+
+    def test_includes_browser_when_present(self, sample_unified_run):
+        """Should include browser when set."""
+        failure = sample_unified_run.failures[0]
+        lines = _format_failure_for_prompt(failure, 1)
+
+        joined = "\n".join(lines)
+        assert "chromium" in joined.lower()
+
+    def test_includes_error_message(self, sample_unified_run):
+        """Should include error message."""
+        failure = sample_unified_run.failures[0]
+        lines = _format_failure_for_prompt(failure, 1)
+
+        joined = "\n".join(lines)
+        assert "Expected true but got false" in joined
+
+
+class TestBuildContainerLogsSection:
+    """Tests for _build_container_logs_section helper."""
+
+    def test_includes_header(self):
+        """Should include section header."""
+        logs = {
+            "api": ContainerLogs(container_name="api", entries=[]),
+        }
+        result = _build_container_logs_section(logs)
+
+        assert "Backend Container Logs" in result
+
+    def test_includes_container_names(self):
+        """Should include container names."""
+        logs = {
+            "api": ContainerLogs(container_name="api", entries=[]),
+            "db": ContainerLogs(container_name="db", entries=[]),
+        }
+        result = _build_container_logs_section(logs)
+
+        assert "api" in result
+        assert "db" in result
+
+    def test_shows_no_logs_message_for_empty_entries(self):
+        """Should show no logs message for empty entries."""
+        logs = {
+            "api": ContainerLogs(container_name="api", entries=[]),
+        }
+        result = _build_container_logs_section(logs)
+
+        assert "No logs available" in result
+
+    def test_includes_log_entries(self):
+        """Should include log entries."""
+        from datetime import datetime
+
+        entry = LogEntry(
+            timestamp=datetime.now(),
+            message="Database connection failed",
+            stream="stderr",
+        )
+        logs = {
+            "api": ContainerLogs(container_name="api", entries=[entry]),
+        }
+        result = _build_container_logs_section(logs)
+
+        assert "Database connection failed" in result

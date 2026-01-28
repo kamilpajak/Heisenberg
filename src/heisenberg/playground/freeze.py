@@ -141,6 +141,37 @@ class CaseFreezer:
             raise ValueError(f"Invalid repo format: {self.config.repo}. Expected 'owner/repo'.")
         return parts[0], parts[1]
 
+    async def _resolve_run_id(self, owner: str, repo: str) -> tuple[int, str]:
+        """Resolve run_id and run_url from config or latest failed run."""
+        if self.config.run_id is not None:
+            run_url = f"https://github.com/{self.config.repo}/actions/runs/{self.config.run_id}"
+            return self.config.run_id, run_url
+
+        runs = await self.client.list_workflow_runs(owner, repo)
+        failed_runs = [r for r in runs if r.conclusion == "failure"]
+        if not failed_runs:
+            raise ValueError(f"No failed workflow runs found for {self.config.repo}")
+        return failed_runs[0].id, failed_runs[0].html_url
+
+    def _find_playwright_artifacts(self, artifacts: list, run_id: int) -> list:
+        """Find valid Playwright artifacts, raising if none available."""
+        playwright_artifacts = [
+            a for a in artifacts if self._is_playwright_artifact(a.name) and not a.expired
+        ]
+        if playwright_artifacts:
+            return playwright_artifacts
+
+        expired = [a for a in artifacts if self._is_playwright_artifact(a.name) and a.expired]
+        if expired:
+            raise ValueError(
+                f"All Playwright artifacts are expired for run {run_id}. "
+                "GitHub artifacts expire after 90 days."
+            )
+        raise ValueError(
+            f"No Playwright artifacts found for run {run_id}. "
+            f"Available artifacts: {[a.name for a in artifacts]}"
+        )
+
     async def freeze(self) -> FrozenCase:
         """Freeze artifacts from GitHub into local snapshot.
 
@@ -152,43 +183,15 @@ class CaseFreezer:
         """
         owner, repo = self._parse_owner_repo()
 
-        # Get run_id - either from config or find latest failed
-        run_id = self.config.run_id
-        run_url = ""
-
-        if run_id is None:
-            runs = await self.client.list_workflow_runs(owner, repo)
-            failed_runs = [r for r in runs if r.conclusion == "failure"]
-            if not failed_runs:
-                raise ValueError(f"No failed workflow runs found for {self.config.repo}")
-            run_id = failed_runs[0].id
-            run_url = failed_runs[0].html_url
-        else:
-            run_url = f"https://github.com/{self.config.repo}/actions/runs/{run_id}"
-
-        # Update config with resolved run_id for ID generation
+        # Resolve run_id and run_url
+        run_id, run_url = await self._resolve_run_id(owner, repo)
         self.config.run_id = run_id
 
         # Get artifacts for this run
         artifacts = await self.client.get_artifacts(owner, repo, run_id=run_id)
 
-        # Filter for Playwright artifacts
-        playwright_artifacts = [
-            a for a in artifacts if self._is_playwright_artifact(a.name) and not a.expired
-        ]
-
-        if not playwright_artifacts:
-            # Check if there were expired artifacts
-            expired = [a for a in artifacts if self._is_playwright_artifact(a.name) and a.expired]
-            if expired:
-                raise ValueError(
-                    f"All Playwright artifacts are expired for run {run_id}. "
-                    "GitHub artifacts expire after 90 days."
-                )
-            raise ValueError(
-                f"No Playwright artifacts found for run {run_id}. "
-                f"Available artifacts: {[a.name for a in artifacts]}"
-            )
+        # Filter for Playwright artifacts (raises if none found)
+        playwright_artifacts = self._find_playwright_artifacts(artifacts, run_id)
 
         # Create scenario directory
         case_id = self._generate_case_id()

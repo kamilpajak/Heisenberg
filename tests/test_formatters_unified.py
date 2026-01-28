@@ -12,6 +12,10 @@ from heisenberg.core.models import (
     UnifiedTestRun,
 )
 from heisenberg.utils.formatting import (
+    _format_github_failure,
+    _format_github_run_details,
+    _format_md_failure,
+    _format_stack_trace,
     format_unified_as_json,
     format_unified_as_markdown,
 )
@@ -210,3 +214,109 @@ class TestFormatUnifiedAsMarkdown:
         result = format_unified_as_markdown(run)
 
         assert "10" in result or "passed" in result.lower()
+
+
+class TestFormatStackTrace:
+    """Tests for _format_stack_trace helper."""
+
+    def test_returns_empty_list_for_none(self):
+        """Should return empty list when stack_trace is None."""
+        result = _format_stack_trace(None)
+        assert result == []
+
+    def test_formats_short_stack_trace(self):
+        """Should format short stack traces without truncation."""
+        stack = "at test.ts:10\nat run():5"
+        result = _format_stack_trace(stack)
+
+        assert "**Stack trace:**" in result
+        assert "```" in result
+        assert "at test.ts:10" in "\n".join(result)
+
+    def test_truncates_long_stack_trace(self):
+        """Should truncate stack traces longer than max_lines."""
+        long_stack = "\n".join([f"line {i}" for i in range(30)])
+        result = _format_stack_trace(long_stack, max_lines=10)
+
+        assert "... (truncated)" in "\n".join(result)
+
+
+class TestFormatMdFailure:
+    """Tests for _format_md_failure helper."""
+
+    def test_includes_test_title(self, sample_unified_run):
+        """Should include test title with index."""
+        failure = sample_unified_run.failures[0]
+        result = _format_md_failure(failure, 1)
+
+        assert "### 1." in result[0]
+        assert "should validate user input" in result[0]
+
+    def test_includes_file_path(self, sample_unified_run):
+        """Should include file path."""
+        failure = sample_unified_run.failures[0]
+        result = _format_md_failure(failure, 1)
+
+        joined = "\n".join(result)
+        assert "tests/example.spec.ts" in joined
+
+    def test_includes_error_message(self, sample_unified_run):
+        """Should include error message."""
+        failure = sample_unified_run.failures[0]
+        result = _format_md_failure(failure, 1)
+
+        joined = "\n".join(result)
+        assert "Expected element to be visible" in joined
+
+
+class TestFormatGithubRunDetails:
+    """Tests for _format_github_run_details helper."""
+
+    def test_returns_empty_for_no_details(self, sample_unified_run):
+        """Should return empty list when no repository or branch."""
+        sample_unified_run.repository = None
+        sample_unified_run.branch = None
+
+        result = _format_github_run_details(sample_unified_run)
+
+        assert result == []
+
+    def test_includes_collapsible_section(self, sample_unified_run):
+        """Should include collapsible details section."""
+        result = _format_github_run_details(sample_unified_run)
+
+        joined = "\n".join(result)
+        assert "<details>" in joined
+        assert "</details>" in joined
+        assert "Run Details" in joined
+
+    def test_includes_repository(self, sample_unified_run):
+        """Should include repository when present."""
+        result = _format_github_run_details(sample_unified_run)
+
+        joined = "\n".join(result)
+        assert "user/project" in joined
+
+
+class TestFormatGithubFailure:
+    """Tests for _format_github_failure helper."""
+
+    def test_includes_test_title(self, sample_unified_run):
+        """Should include test title."""
+        failure = sample_unified_run.failures[0]
+        result = _format_github_failure(failure)
+
+        joined = "\n".join(result)
+        assert "should validate user input" in joined
+
+    def test_truncates_long_error_message(self, sample_unified_run):
+        """Should truncate error messages longer than max_error_len."""
+        failure = sample_unified_run.failures[0]
+        failure.error.message = "x" * 600  # Longer than default 500
+
+        result = _format_github_failure(failure, max_error_len=500)
+
+        joined = "\n".join(result)
+        assert "..." in joined
+        # Should have approximately 500 x's (plus the "..." suffix)
+        assert len([c for c in joined if c == "x"]) < 600
