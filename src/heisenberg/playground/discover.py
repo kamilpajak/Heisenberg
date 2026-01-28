@@ -709,7 +709,6 @@ _USE_DEFAULT_CACHE = object()  # Sentinel for "use default cache path"
 
 def discover_sources(
     global_limit: int = 30,
-    min_stars: int = 100,
     queries: list[str] | None = None,
     verify_failures: bool = False,
     on_progress: callable | None = None,
@@ -720,7 +719,6 @@ def discover_sources(
 
     Args:
         global_limit: Maximum total repos to analyze across all queries
-        min_stars: Minimum star count to include
         queries: Custom search queries (uses DEFAULT_QUERIES if None)
         verify_failures: If True, download artifacts to verify they have failures
         on_progress: Optional callback(ProgressInfo) for progress updates (legacy)
@@ -783,7 +781,7 @@ def discover_sources(
                 # Use Rich markup: repo in cyan, stage in dim
                 progress.update(
                     task_ids[repo],
-                    description=f"⏳ [cyan]{repo}[/cyan] [dim]│[/dim] {stage}",
+                    description=f"⏳ [cyan]{repo:<40}[/cyan] [dim]│[/dim] {stage}",
                 )
 
         try:
@@ -804,14 +802,17 @@ def discover_sources(
 
         # Update Rich progress (mark task complete)
         if progress and repo in task_ids:
-            is_compatible = result and result.status == SourceStatus.COMPATIBLE
-            status_icon = "[green]✓[/green]" if is_compatible else "[red]✗[/red]"
+            status_icon = format_status_icon(result.status) if result else "❓"
             status_text = result.status.value if result else "error"
             time_str = f"{elapsed_ms / 1000:.1f}s" if elapsed_ms >= 1000 else f"{elapsed_ms}ms"
             extra = f" [dim]({message})[/dim]" if message else ""
+            # Fixed-width columns: icon(2) repo(40) │ status(14) time(6)
             progress.update(
                 task_ids[repo],
-                description=f"{status_icon} [cyan]{repo}[/cyan] [dim]│[/dim] {status_text} [dim]{time_str}[/dim]{extra}",
+                description=(
+                    f"{status_icon} [cyan]{repo:<40}[/cyan] [dim]│[/dim]"
+                    f" {status_text:<14} [dim]{time_str:>6}[/dim]{extra}"
+                ),
                 completed=1,
             )
 
@@ -843,7 +844,7 @@ def discover_sources(
         if progress:
             for repo in repos_to_analyze:
                 task_id = progress.add_task(
-                    f"⏳ [cyan]{repo}[/cyan] [dim]│[/dim] Waiting...",
+                    f"⏳ [cyan]{repo:<40}[/cyan] [dim]│[/dim] {'waiting...':<14}",
                     total=1,
                 )
                 task_ids[repo] = task_id
@@ -870,8 +871,7 @@ def discover_sources(
     if cache:
         cache.save()
 
-    # Filter and sort
-    sources = filter_by_min_stars(sources, min_stars=min_stars)
+    # Sort (filtering is caller's responsibility)
     sources = sort_sources(sources)
 
     return sources
@@ -891,13 +891,11 @@ def create_progress_display():
         Progress,
         SpinnerColumn,
         TextColumn,
-        TimeElapsedColumn,
     )
 
     return Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        TimeElapsedColumn(),
         transient=False,  # Keep completed tasks visible
     )
 
@@ -973,19 +971,27 @@ def print_source_line(
 def print_summary(
     sources: list[ProjectSource],
     min_stars: int,
+    total_analyzed: int | None = None,
     out: TextIO = sys.stdout,
 ) -> None:
     """Print the analysis summary."""
     compatible_count = sum(1 for c in sources if c.compatible)
+    analyzed = total_analyzed or len(sources)
 
-    print(f"📋 Analyzed {len(sources)} repositories (min {min_stars}⭐)", file=out)
+    if analyzed != len(sources):
+        print(
+            f"📋 Analyzed {analyzed} repositories, {len(sources)} with ≥{min_stars}⭐",
+            file=out,
+        )
+    else:
+        print(f"📋 Analyzed {len(sources)} repositories (min {min_stars}⭐)", file=out)
     print("🔬 Results:\n", file=out)
 
     for i, source in enumerate(sources, 1):
         print_source_line(source, i, len(sources), out)
 
     print(f"\n{'=' * 70}", file=out)
-    print(f"📊 Results: {compatible_count} compatible / {len(sources)} checked", file=out)
+    print(f"📊 Results: {compatible_count} compatible / {len(sources)} listed", file=out)
     print(f"{'=' * 70}\n", file=out)
 
 
@@ -1069,13 +1075,15 @@ def main() -> None:
 
     sources = discover_sources(
         global_limit=args.limit,
-        min_stars=args.min_stars,
         verify_failures=args.verify,
         show_progress=True,  # Use Rich progress display
         cache_path=cache_path,
     )
 
-    print_summary(sources, args.min_stars)
+    total_analyzed = len(sources)
+    sources = filter_by_min_stars(sources, min_stars=args.min_stars)
+
+    print_summary(sources, args.min_stars, total_analyzed=total_analyzed)
     print_compatible_projects(sources)
 
     if args.output:

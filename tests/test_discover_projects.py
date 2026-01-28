@@ -563,7 +563,7 @@ class TestDiscoverSources:
 
         from heisenberg.playground.discover import discover_sources
 
-        discover_sources(global_limit=10, min_stars=0)
+        discover_sources(global_limit=10)
 
         # Should have called search for each default query
         assert mock_search.call_count == len(DEFAULT_QUERIES)
@@ -799,7 +799,7 @@ class TestDiscoverWithKnownGoodRepos:
             status=SourceStatus.COMPATIBLE,
         )
 
-        discover_sources(global_limit=50, min_stars=0)
+        discover_sources(global_limit=50)
 
         # Should have analyzed known good repos
         analyzed_repos = [call[0][0] for call in mock_analyze.call_args_list]
@@ -820,7 +820,7 @@ class TestDiscoverWithKnownGoodRepos:
             status=SourceStatus.COMPATIBLE,
         )
 
-        discover_sources(global_limit=50, min_stars=0)
+        discover_sources(global_limit=50)
 
         # microsoft/playwright should only be analyzed once
         analyzed_repos = [call[0][0] for call in mock_analyze.call_args_list]
@@ -1011,7 +1011,7 @@ class TestParallelProcessing:
 
         # This should complete faster due to parallelism
         # We can't easily test timing, but we can verify it doesn't break
-        result = discover_sources(global_limit=5, min_stars=0, verify_failures=True)
+        result = discover_sources(global_limit=5, verify_failures=True)
 
         # Should have analyzed all repos (3 from search + 1 from KNOWN_GOOD_REPOS)
         assert mock_analyze.call_count >= 3
@@ -1036,7 +1036,7 @@ class TestParallelProcessing:
         mock_analyze.side_effect = analyze_side_effect
 
         # Should not raise, should return results for successful repos
-        result = discover_sources(global_limit=5, min_stars=0, verify_failures=True)
+        result = discover_sources(global_limit=5, verify_failures=True)
 
         # Should have at least one result (repo2)
         assert len(result) >= 1
@@ -1065,7 +1065,6 @@ class TestProgressCallback:
 
         discover_sources(
             global_limit=5,
-            min_stars=0,
             on_progress=on_progress,
         )
 
@@ -1207,7 +1206,7 @@ class TestThreadSafeProgress:
             def on_progress(info):
                 progress_infos.append(info)
 
-            discover_sources(global_limit=5, min_stars=0, on_progress=on_progress)
+            discover_sources(global_limit=5, on_progress=on_progress)
 
             assert len(progress_infos) >= 1
             assert isinstance(progress_infos[0], ProgressInfo)
@@ -1232,7 +1231,7 @@ class TestThreadSafeProgress:
             def on_progress(info):
                 completed_numbers.append(info.completed)
 
-            discover_sources(global_limit=5, min_stars=0, on_progress=on_progress)
+            discover_sources(global_limit=5, on_progress=on_progress)
 
             # Should be sequential: 1, 2, 3, ... (not jumping around)
             assert completed_numbers == sorted(completed_numbers)
@@ -1287,7 +1286,7 @@ class TestThreadSafeProgress:
                 def on_progress(info):
                     results.append(info.completed)
 
-                discover_sources(global_limit=4, min_stars=0, on_progress=on_progress)
+                discover_sources(global_limit=4, on_progress=on_progress)
 
                 # The completed numbers in order of callback should be sequential: 1, 2, 3, 4
                 # If race condition exists, we might see [2, 1, 3, 4] or similar
@@ -1355,7 +1354,6 @@ class TestDiscoverWithRichProgress:
         # Should complete without error when show_progress=True
         result = discover_sources(
             global_limit=5,
-            min_stars=0,
             show_progress=True,
         )
 
@@ -1377,7 +1375,6 @@ class TestDiscoverWithRichProgress:
         # Should work silently
         result = discover_sources(
             global_limit=5,
-            min_stars=0,
             show_progress=False,
         )
 
@@ -2119,7 +2116,6 @@ class TestNoCacheFlag:
         # Should not raise when cache_path=None
         result = discover_sources(
             global_limit=5,
-            min_stars=0,
             verify_failures=True,
             cache_path=None,  # Explicitly disable cache
         )
