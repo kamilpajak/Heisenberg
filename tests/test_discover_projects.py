@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 from heisenberg.playground.discover import (
     DEFAULT_QUERIES,
-    CandidateStatus,
-    ProjectCandidate,
-    analyze_candidate,
+    ProjectSource,
+    SourceStatus,
+    analyze_source,
     determine_status,
     download_and_check_failures,
     filter_by_min_stars,
@@ -21,7 +21,7 @@ from heisenberg.playground.discover import (
     get_run_artifacts,
     is_playwright_artifact,
     search_repos,
-    sort_candidates,
+    sort_sources,
     verify_has_failures,
 )
 
@@ -49,51 +49,51 @@ class TestConfiguration:
 # =============================================================================
 
 
-class TestCandidateStatus:
-    """Tests for CandidateStatus enum."""
+class TestSourceStatus:
+    """Tests for SourceStatus enum."""
 
     def test_has_all_statuses(self):
         """Should have all expected status values."""
-        assert CandidateStatus.COMPATIBLE.value == "compatible"
-        assert CandidateStatus.HAS_ARTIFACTS.value == "has_artifacts"
-        assert CandidateStatus.NO_ARTIFACTS.value == "no_artifacts"
-        assert CandidateStatus.NO_FAILED_RUNS.value == "no_failed_runs"
+        assert SourceStatus.COMPATIBLE.value == "compatible"
+        assert SourceStatus.HAS_ARTIFACTS.value == "has_artifacts"
+        assert SourceStatus.NO_ARTIFACTS.value == "no_artifacts"
+        assert SourceStatus.NO_FAILED_RUNS.value == "no_failed_runs"
 
 
-class TestProjectCandidate:
-    """Tests for ProjectCandidate dataclass."""
+class TestProjectSource:
+    """Tests for ProjectSource dataclass."""
 
     def test_compatible_property_true_when_compatible(self):
         """compatible property should return True for COMPATIBLE status."""
-        candidate = ProjectCandidate(
+        source = ProjectSource(
             repo="owner/repo",
             stars=100,
-            status=CandidateStatus.COMPATIBLE,
+            status=SourceStatus.COMPATIBLE,
         )
-        assert candidate.compatible is True
+        assert source.compatible is True
 
     def test_compatible_property_false_for_other_statuses(self):
         """compatible property should return False for non-COMPATIBLE status."""
         for status in [
-            CandidateStatus.HAS_ARTIFACTS,
-            CandidateStatus.NO_ARTIFACTS,
-            CandidateStatus.NO_FAILED_RUNS,
+            SourceStatus.HAS_ARTIFACTS,
+            SourceStatus.NO_ARTIFACTS,
+            SourceStatus.NO_FAILED_RUNS,
         ]:
-            candidate = ProjectCandidate(repo="owner/repo", stars=100, status=status)
-            assert candidate.compatible is False
+            source = ProjectSource(repo="owner/repo", stars=100, status=status)
+            assert source.compatible is False
 
     def test_has_artifacts_property(self):
         """has_artifacts property should check artifact_names list."""
-        with_artifacts = ProjectCandidate(
+        with_artifacts = ProjectSource(
             repo="owner/repo",
             stars=100,
-            status=CandidateStatus.HAS_ARTIFACTS,
+            status=SourceStatus.HAS_ARTIFACTS,
             artifact_names=["report"],
         )
-        without_artifacts = ProjectCandidate(
+        without_artifacts = ProjectSource(
             repo="owner/repo",
             stars=100,
-            status=CandidateStatus.NO_ARTIFACTS,
+            status=SourceStatus.NO_ARTIFACTS,
             artifact_names=[],
         )
         assert with_artifacts.has_artifacts is True
@@ -168,22 +168,22 @@ class TestDetermineStatus:
     def test_no_failed_runs(self):
         """Should return NO_FAILED_RUNS when run_id is None."""
         status = determine_status(None, [], [])
-        assert status == CandidateStatus.NO_FAILED_RUNS
+        assert status == SourceStatus.NO_FAILED_RUNS
 
     def test_no_artifacts(self):
         """Should return NO_ARTIFACTS when artifact list is empty."""
         status = determine_status("123", [], [])
-        assert status == CandidateStatus.NO_ARTIFACTS
+        assert status == SourceStatus.NO_ARTIFACTS
 
     def test_has_artifacts_but_no_playwright(self):
         """Should return HAS_ARTIFACTS when artifacts exist but none are Playwright."""
         status = determine_status("123", ["coverage-report"], [])
-        assert status == CandidateStatus.HAS_ARTIFACTS
+        assert status == SourceStatus.HAS_ARTIFACTS
 
     def test_compatible(self):
         """Should return COMPATIBLE when Playwright artifacts exist."""
         status = determine_status("123", ["playwright-report"], ["playwright-report"])
-        assert status == CandidateStatus.COMPATIBLE
+        assert status == SourceStatus.COMPATIBLE
 
 
 class TestFilterExpiredArtifacts:
@@ -211,54 +211,54 @@ class TestFilterByMinStars:
 
     def test_filters_below_threshold(self):
         """Should filter out repos below min_stars threshold."""
-        candidates = [
-            ProjectCandidate(
+        sources = [
+            ProjectSource(
                 repo="low/stars",
                 stars=50,
-                status=CandidateStatus.COMPATIBLE,
+                status=SourceStatus.COMPATIBLE,
             ),
-            ProjectCandidate(
+            ProjectSource(
                 repo="high/stars",
                 stars=500,
-                status=CandidateStatus.COMPATIBLE,
+                status=SourceStatus.COMPATIBLE,
             ),
         ]
-        filtered = filter_by_min_stars(candidates, min_stars=100)
+        filtered = filter_by_min_stars(sources, min_stars=100)
         assert len(filtered) == 1
         assert filtered[0].repo == "high/stars"
 
     def test_keeps_at_threshold(self):
         """Should keep repos at exactly min_stars threshold."""
-        candidates = [
-            ProjectCandidate(
+        sources = [
+            ProjectSource(
                 repo="exact/threshold",
                 stars=100,
-                status=CandidateStatus.COMPATIBLE,
+                status=SourceStatus.COMPATIBLE,
             ),
         ]
-        filtered = filter_by_min_stars(candidates, min_stars=100)
+        filtered = filter_by_min_stars(sources, min_stars=100)
         assert len(filtered) == 1
 
 
-class TestSortCandidates:
-    """Tests for sort_candidates function."""
+class TestSortSources:
+    """Tests for sort_sources function."""
 
     def test_sorts_compatible_first(self):
-        """Compatible candidates should come before non-compatible."""
-        candidates = [
-            ProjectCandidate(repo="a", stars=1000, status=CandidateStatus.HAS_ARTIFACTS),
-            ProjectCandidate(repo="b", stars=100, status=CandidateStatus.COMPATIBLE),
+        """Compatible sources should come before non-compatible."""
+        sources = [
+            ProjectSource(repo="a", stars=1000, status=SourceStatus.HAS_ARTIFACTS),
+            ProjectSource(repo="b", stars=100, status=SourceStatus.COMPATIBLE),
         ]
-        sorted_list = sort_candidates(candidates)
+        sorted_list = sort_sources(sources)
         assert sorted_list[0].repo == "b"  # Compatible first
 
     def test_sorts_by_stars_within_same_status(self):
         """Higher stars should come first within same compatibility."""
-        candidates = [
-            ProjectCandidate(repo="a", stars=100, status=CandidateStatus.COMPATIBLE),
-            ProjectCandidate(repo="b", stars=500, status=CandidateStatus.COMPATIBLE),
+        sources = [
+            ProjectSource(repo="a", stars=100, status=SourceStatus.COMPATIBLE),
+            ProjectSource(repo="b", stars=500, status=SourceStatus.COMPATIBLE),
         ]
-        sorted_list = sort_candidates(candidates)
+        sorted_list = sort_sources(sources)
         assert sorted_list[0].repo == "b"  # Higher stars first
 
 
@@ -404,7 +404,7 @@ class TestSearchRepos:
 
 
 class TestAnalyzeCandidate:
-    """Tests for analyze_candidate function."""
+    """Tests for analyze_source function."""
 
     @patch("heisenberg.playground.discover.find_valid_artifacts")
     @patch("heisenberg.playground.discover.get_repo_stars")
@@ -418,9 +418,9 @@ class TestAnalyzeCandidate:
         )
         mock_get_stars.return_value = 999
 
-        candidate = analyze_candidate("owner/repo", stars=5000)
+        source = analyze_source("owner/repo", stars=5000)
 
-        assert candidate.stars == 5000
+        assert source.stars == 5000
         mock_get_stars.assert_not_called()
 
     @patch("heisenberg.playground.discover.find_valid_artifacts")
@@ -435,9 +435,9 @@ class TestAnalyzeCandidate:
         )
         mock_get_stars.return_value = 1234
 
-        candidate = analyze_candidate("owner/repo")
+        source = analyze_source("owner/repo")
 
-        assert candidate.stars == 1234
+        assert source.stars == 1234
         mock_get_stars.assert_called_once_with("owner/repo")
 
     @patch("heisenberg.playground.discover.find_valid_artifacts")
@@ -452,10 +452,10 @@ class TestAnalyzeCandidate:
         )
         mock_get_stars.return_value = 100
 
-        candidate = analyze_candidate("owner/repo")
+        source = analyze_source("owner/repo")
 
-        assert candidate.status == CandidateStatus.COMPATIBLE
-        assert candidate.playwright_artifacts == ["playwright-report"]
+        assert source.status == SourceStatus.COMPATIBLE
+        assert source.playwright_artifacts == ["playwright-report"]
 
 
 # =============================================================================
@@ -468,19 +468,19 @@ class TestFormatStatusIcon:
 
     def test_compatible_icon(self):
         """COMPATIBLE status should show checkmark."""
-        assert "✅" in format_status_icon(CandidateStatus.COMPATIBLE)
+        assert "✅" in format_status_icon(SourceStatus.COMPATIBLE)
 
     def test_has_artifacts_icon(self):
         """HAS_ARTIFACTS status should show warning."""
-        assert "⚠" in format_status_icon(CandidateStatus.HAS_ARTIFACTS)
+        assert "⚠" in format_status_icon(SourceStatus.HAS_ARTIFACTS)
 
     def test_no_artifacts_icon(self):
         """NO_ARTIFACTS status should show X."""
-        assert "❌" in format_status_icon(CandidateStatus.NO_ARTIFACTS)
+        assert "❌" in format_status_icon(SourceStatus.NO_ARTIFACTS)
 
     def test_no_failed_runs_icon(self):
         """NO_FAILED_RUNS status should show skip icon."""
-        assert "⏭" in format_status_icon(CandidateStatus.NO_FAILED_RUNS)
+        assert "⏭" in format_status_icon(SourceStatus.NO_FAILED_RUNS)
 
 
 class TestFormatStatusDetail:
@@ -488,35 +488,35 @@ class TestFormatStatusDetail:
 
     def test_compatible_shows_artifacts(self):
         """COMPATIBLE status should show playwright artifacts."""
-        candidate = ProjectCandidate(
+        source = ProjectSource(
             repo="owner/repo",
             stars=100,
-            status=CandidateStatus.COMPATIBLE,
+            status=SourceStatus.COMPATIBLE,
             playwright_artifacts=["playwright-report"],
         )
-        detail = format_status_detail(candidate)
+        detail = format_status_detail(source)
         assert "playwright-report" in detail
         assert "100" in detail  # Stars
 
     def test_has_artifacts_shows_artifact_names(self):
         """HAS_ARTIFACTS status should show artifact names."""
-        candidate = ProjectCandidate(
+        source = ProjectSource(
             repo="owner/repo",
             stars=100,
-            status=CandidateStatus.HAS_ARTIFACTS,
+            status=SourceStatus.HAS_ARTIFACTS,
             artifact_names=["coverage-report"],
         )
-        detail = format_status_detail(candidate)
+        detail = format_status_detail(source)
         assert "coverage-report" in detail
 
     def test_no_artifacts_message(self):
         """NO_ARTIFACTS status should show appropriate message."""
-        candidate = ProjectCandidate(
+        source = ProjectSource(
             repo="owner/repo",
             stars=100,
-            status=CandidateStatus.NO_ARTIFACTS,
+            status=SourceStatus.NO_ARTIFACTS,
         )
-        detail = format_status_detail(candidate)
+        detail = format_status_detail(source)
         assert "No artifacts" in detail
 
 
@@ -547,23 +547,23 @@ class TestRateLimitHandling:
 # =============================================================================
 
 
-class TestDiscoverCandidates:
-    """Tests for discover_candidates function."""
+class TestDiscoverSources:
+    """Tests for discover_sources function."""
 
-    @patch("heisenberg.playground.discover.analyze_candidate")
+    @patch("heisenberg.playground.discover.analyze_source")
     @patch("heisenberg.playground.discover.search_repos")
     def test_uses_default_queries(self, mock_search, mock_analyze):
         """Should use DEFAULT_QUERIES when queries not provided."""
         mock_search.return_value = []
-        mock_analyze.return_value = ProjectCandidate(
+        mock_analyze.return_value = ProjectSource(
             repo="owner/repo",
             stars=100,
-            status=CandidateStatus.COMPATIBLE,
+            status=SourceStatus.COMPATIBLE,
         )
 
-        from heisenberg.playground.discover import discover_candidates
+        from heisenberg.playground.discover import discover_sources
 
-        discover_candidates(global_limit=10, min_stars=0)
+        discover_sources(global_limit=10, min_stars=0)
 
         # Should have called search for each default query
         assert mock_search.call_count == len(DEFAULT_QUERIES)
@@ -574,22 +574,22 @@ class TestDiscoverCandidates:
 # =============================================================================
 
 
-class TestCandidateStatusNoFailures:
+class TestSourceStatusNoFailures:
     """Tests for NO_FAILURES status - artifacts exist but no test failures."""
 
     def test_no_failures_status_exists(self):
-        """CandidateStatus should have NO_FAILURES value."""
-        assert CandidateStatus.NO_FAILURES.value == "no_failures"
+        """SourceStatus should have NO_FAILURES value."""
+        assert SourceStatus.NO_FAILURES.value == "no_failures"
 
     def test_no_failures_is_not_compatible(self):
         """NO_FAILURES status should NOT be considered compatible."""
-        candidate = ProjectCandidate(
+        source = ProjectSource(
             repo="owner/repo",
             stars=1000,
-            status=CandidateStatus.NO_FAILURES,
+            status=SourceStatus.NO_FAILURES,
             playwright_artifacts=["playwright-report"],
         )
-        assert candidate.compatible is False
+        assert source.compatible is False
 
 
 class TestVerifyHasFailures:
@@ -675,7 +675,7 @@ class TestDetermineStatusWithFailures:
             playwright_artifacts=["playwright-report"],
             failure_count=0,
         )
-        assert status == CandidateStatus.NO_FAILURES
+        assert status == SourceStatus.NO_FAILURES
 
     def test_compatible_when_has_failures(self):
         """Should return COMPATIBLE when has artifacts AND failures."""
@@ -685,7 +685,7 @@ class TestDetermineStatusWithFailures:
             playwright_artifacts=["playwright-report"],
             failure_count=5,
         )
-        assert status == CandidateStatus.COMPATIBLE
+        assert status == SourceStatus.COMPATIBLE
 
     def test_compatible_when_failure_count_none(self):
         """Should return COMPATIBLE when failure_count not checked (None)."""
@@ -696,27 +696,27 @@ class TestDetermineStatusWithFailures:
             playwright_artifacts=["playwright-report"],
             failure_count=None,
         )
-        assert status == CandidateStatus.COMPATIBLE
+        assert status == SourceStatus.COMPATIBLE
 
 
-class TestAnalyzeCandidateWithVerification:
-    """Tests for analyze_candidate with failure verification."""
+class TestAnalyzeSourceWithVerification:
+    """Tests for analyze_source with failure verification."""
 
     @patch("heisenberg.playground.discover.verify_has_failures")
     @patch("heisenberg.playground.discover.find_valid_artifacts")
     @patch("heisenberg.playground.discover.get_repo_stars")
     def test_verifies_failures_when_enabled(self, mock_stars, mock_artifacts, mock_verify):
         """Should verify failures when verify_failures=True."""
-        from heisenberg.playground.discover import analyze_candidate
+        from heisenberg.playground.discover import analyze_source
 
         mock_stars.return_value = 100
         mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
         mock_verify.return_value = True  # Has failures
 
-        candidate = analyze_candidate("owner/repo", verify_failures=True)
+        source = analyze_source("owner/repo", verify_failures=True)
 
         mock_verify.assert_called_once()
-        assert candidate.status == CandidateStatus.COMPATIBLE
+        assert source.status == SourceStatus.COMPATIBLE
 
     @patch("heisenberg.playground.discover.verify_has_failures")
     @patch("heisenberg.playground.discover.find_valid_artifacts")
@@ -725,31 +725,31 @@ class TestAnalyzeCandidateWithVerification:
         self, mock_stars, mock_artifacts, mock_verify
     ):
         """Should set NO_FAILURES when verification finds no failures."""
-        from heisenberg.playground.discover import analyze_candidate
+        from heisenberg.playground.discover import analyze_source
 
         mock_stars.return_value = 100
         mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
         mock_verify.return_value = False  # No failures
 
-        candidate = analyze_candidate("owner/repo", verify_failures=True)
+        source = analyze_source("owner/repo", verify_failures=True)
 
-        assert candidate.status == CandidateStatus.NO_FAILURES
+        assert source.status == SourceStatus.NO_FAILURES
 
     @patch("heisenberg.playground.discover.verify_has_failures")
     @patch("heisenberg.playground.discover.find_valid_artifacts")
     @patch("heisenberg.playground.discover.get_repo_stars")
     def test_skips_verification_when_disabled(self, mock_stars, mock_artifacts, mock_verify):
         """Should skip verification when verify_failures=False (default)."""
-        from heisenberg.playground.discover import analyze_candidate
+        from heisenberg.playground.discover import analyze_source
 
         mock_stars.return_value = 100
         mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
 
-        candidate = analyze_candidate("owner/repo", verify_failures=False)
+        source = analyze_source("owner/repo", verify_failures=False)
 
         mock_verify.assert_not_called()
         # Still marked compatible (legacy behavior)
-        assert candidate.status == CandidateStatus.COMPATIBLE
+        assert source.status == SourceStatus.COMPATIBLE
 
 
 # =============================================================================
@@ -784,43 +784,43 @@ class TestKnownGoodRepos:
 
 
 class TestDiscoverWithKnownGoodRepos:
-    """Tests for discover_candidates including known good repos."""
+    """Tests for discover_sources including known good repos."""
 
-    @patch("heisenberg.playground.discover.analyze_candidate_with_status")
+    @patch("heisenberg.playground.discover.analyze_source_with_status")
     @patch("heisenberg.playground.discover.search_repos")
     def test_includes_known_good_repos(self, mock_search, mock_analyze):
         """Should include KNOWN_GOOD_REPOS in addition to search results."""
-        from heisenberg.playground.discover import KNOWN_GOOD_REPOS, discover_candidates
+        from heisenberg.playground.discover import KNOWN_GOOD_REPOS, discover_sources
 
         mock_search.return_value = ["other/repo"]
-        mock_analyze.return_value = ProjectCandidate(
+        mock_analyze.return_value = ProjectSource(
             repo="test/repo",
             stars=1000,
-            status=CandidateStatus.COMPATIBLE,
+            status=SourceStatus.COMPATIBLE,
         )
 
-        discover_candidates(global_limit=50, min_stars=0)
+        discover_sources(global_limit=50, min_stars=0)
 
         # Should have analyzed known good repos
         analyzed_repos = [call[0][0] for call in mock_analyze.call_args_list]
         for known_repo in KNOWN_GOOD_REPOS:
             assert known_repo in analyzed_repos
 
-    @patch("heisenberg.playground.discover.analyze_candidate_with_status")
+    @patch("heisenberg.playground.discover.analyze_source_with_status")
     @patch("heisenberg.playground.discover.search_repos")
     def test_deduplicates_known_good_repos(self, mock_search, mock_analyze):
         """Should not analyze known good repo twice if also in search results."""
-        from heisenberg.playground.discover import discover_candidates
+        from heisenberg.playground.discover import discover_sources
 
         # Search returns microsoft/playwright which is also in KNOWN_GOOD_REPOS
         mock_search.return_value = ["microsoft/playwright", "other/repo"]
-        mock_analyze.return_value = ProjectCandidate(
+        mock_analyze.return_value = ProjectSource(
             repo="test/repo",
             stars=1000,
-            status=CandidateStatus.COMPATIBLE,
+            status=SourceStatus.COMPATIBLE,
         )
 
-        discover_candidates(global_limit=50, min_stars=0)
+        discover_sources(global_limit=50, min_stars=0)
 
         # microsoft/playwright should only be analyzed once
         analyzed_repos = [call[0][0] for call in mock_analyze.call_args_list]
@@ -994,49 +994,49 @@ class TestOptimizedDownloadAndCheck:
 
 
 class TestParallelProcessing:
-    """Tests for parallel candidate analysis."""
+    """Tests for parallel source analysis."""
 
-    @patch("heisenberg.playground.discover.analyze_candidate_with_status")
+    @patch("heisenberg.playground.discover.analyze_source_with_status")
     @patch("heisenberg.playground.discover.search_repos")
-    def test_discover_candidates_uses_parallel_processing(self, mock_search, mock_analyze):
-        """discover_candidates should process repos in parallel when verify=True."""
-        from heisenberg.playground.discover import discover_candidates
+    def test_discover_sources_uses_parallel_processing(self, mock_search, mock_analyze):
+        """discover_sources should process repos in parallel when verify=True."""
+        from heisenberg.playground.discover import discover_sources
 
         mock_search.return_value = ["repo1", "repo2", "repo3"]
-        mock_analyze.return_value = ProjectCandidate(
+        mock_analyze.return_value = ProjectSource(
             repo="test/repo",
             stars=1000,
-            status=CandidateStatus.COMPATIBLE,
+            status=SourceStatus.COMPATIBLE,
         )
 
         # This should complete faster due to parallelism
         # We can't easily test timing, but we can verify it doesn't break
-        result = discover_candidates(global_limit=5, min_stars=0, verify_failures=True)
+        result = discover_sources(global_limit=5, min_stars=0, verify_failures=True)
 
         # Should have analyzed all repos (3 from search + 1 from KNOWN_GOOD_REPOS)
         assert mock_analyze.call_count >= 3
 
-    @patch("heisenberg.playground.discover.analyze_candidate_with_status")
+    @patch("heisenberg.playground.discover.analyze_source_with_status")
     @patch("heisenberg.playground.discover.search_repos")
     def test_parallel_processing_handles_exceptions(self, mock_search, mock_analyze):
         """Parallel processing should handle individual repo failures gracefully."""
-        from heisenberg.playground.discover import discover_candidates
+        from heisenberg.playground.discover import discover_sources
 
         mock_search.return_value = ["repo1", "repo2"]
 
         def analyze_side_effect(repo, **kwargs):
             if repo == "repo1":
                 raise Exception("API error")
-            return ProjectCandidate(
+            return ProjectSource(
                 repo=repo,
                 stars=1000,
-                status=CandidateStatus.COMPATIBLE,
+                status=SourceStatus.COMPATIBLE,
             )
 
         mock_analyze.side_effect = analyze_side_effect
 
         # Should not raise, should return results for successful repos
-        result = discover_candidates(global_limit=5, min_stars=0, verify_failures=True)
+        result = discover_sources(global_limit=5, min_stars=0, verify_failures=True)
 
         # Should have at least one result (repo2)
         assert len(result) >= 1
@@ -1045,17 +1045,17 @@ class TestParallelProcessing:
 class TestProgressCallback:
     """Tests for progress feedback during discovery."""
 
-    @patch("heisenberg.playground.discover.analyze_candidate")
+    @patch("heisenberg.playground.discover.analyze_source")
     @patch("heisenberg.playground.discover.search_repos")
     def test_discover_accepts_progress_callback(self, mock_search, mock_analyze):
-        """discover_candidates should accept optional progress callback."""
-        from heisenberg.playground.discover import ProgressInfo, discover_candidates
+        """discover_sources should accept optional progress callback."""
+        from heisenberg.playground.discover import ProgressInfo, discover_sources
 
         mock_search.return_value = ["repo1", "repo2"]
-        mock_analyze.return_value = ProjectCandidate(
+        mock_analyze.return_value = ProjectSource(
             repo="test/repo",
             stars=1000,
-            status=CandidateStatus.COMPATIBLE,
+            status=SourceStatus.COMPATIBLE,
         )
 
         progress_calls = []
@@ -1063,7 +1063,7 @@ class TestProgressCallback:
         def on_progress(info: ProgressInfo):
             progress_calls.append(info)
 
-        discover_candidates(
+        discover_sources(
             global_limit=5,
             min_stars=0,
             on_progress=on_progress,
@@ -1187,19 +1187,19 @@ class TestFormatProgressLine:
 class TestThreadSafeProgress:
     """Tests for thread-safe progress reporting."""
 
-    def test_discover_candidates_returns_progress_info(self):
+    def test_discover_sources_returns_progress_info(self):
         """Progress callback should receive ProgressInfo objects."""
-        from heisenberg.playground.discover import ProgressInfo, discover_candidates
+        from heisenberg.playground.discover import ProgressInfo, discover_sources
 
         with (
             patch("heisenberg.playground.discover.search_repos") as mock_search,
-            patch("heisenberg.playground.discover.analyze_candidate") as mock_analyze,
+            patch("heisenberg.playground.discover.analyze_source") as mock_analyze,
         ):
             mock_search.return_value = ["repo1"]
-            mock_analyze.return_value = ProjectCandidate(
+            mock_analyze.return_value = ProjectSource(
                 repo="repo1",
                 stars=1000,
-                status=CandidateStatus.COMPATIBLE,
+                status=SourceStatus.COMPATIBLE,
             )
 
             progress_infos = []
@@ -1207,24 +1207,24 @@ class TestThreadSafeProgress:
             def on_progress(info):
                 progress_infos.append(info)
 
-            discover_candidates(global_limit=5, min_stars=0, on_progress=on_progress)
+            discover_sources(global_limit=5, min_stars=0, on_progress=on_progress)
 
             assert len(progress_infos) >= 1
             assert isinstance(progress_infos[0], ProgressInfo)
 
     def test_progress_completed_is_sequential(self):
         """Progress.completed should increment sequentially regardless of finish order."""
-        from heisenberg.playground.discover import discover_candidates
+        from heisenberg.playground.discover import discover_sources
 
         with (
             patch("heisenberg.playground.discover.search_repos") as mock_search,
-            patch("heisenberg.playground.discover.analyze_candidate") as mock_analyze,
+            patch("heisenberg.playground.discover.analyze_source") as mock_analyze,
         ):
             mock_search.return_value = ["repo1", "repo2", "repo3"]
-            mock_analyze.return_value = ProjectCandidate(
+            mock_analyze.return_value = ProjectSource(
                 repo="test/repo",
                 stars=1000,
-                status=CandidateStatus.COMPATIBLE,
+                status=SourceStatus.COMPATIBLE,
             )
 
             completed_numbers = []
@@ -1232,7 +1232,7 @@ class TestThreadSafeProgress:
             def on_progress(info):
                 completed_numbers.append(info.completed)
 
-            discover_candidates(global_limit=5, min_stars=0, on_progress=on_progress)
+            discover_sources(global_limit=5, min_stars=0, on_progress=on_progress)
 
             # Should be sequential: 1, 2, 3, ... (not jumping around)
             assert completed_numbers == sorted(completed_numbers)
@@ -1247,14 +1247,14 @@ class TestThreadSafeProgress:
         import time
 
         from heisenberg.playground.discover import (
-            discover_candidates,
+            discover_sources,
         )
 
         # Run multiple times to increase chance of catching race condition
         for attempt in range(5):
             with (
                 patch("heisenberg.playground.discover.search_repos") as mock_search,
-                patch("heisenberg.playground.discover.analyze_candidate") as mock_analyze,
+                patch("heisenberg.playground.discover.analyze_source") as mock_analyze,
                 patch("heisenberg.playground.discover.KNOWN_GOOD_REPOS", []),
             ):  # Disable known good repos
                 mock_search.return_value = ["repo1", "repo2", "repo3", "repo4"]
@@ -1274,10 +1274,10 @@ class TestThreadSafeProgress:
                     else:
                         time.sleep(0.001)
 
-                    return ProjectCandidate(
+                    return ProjectSource(
                         repo=repo,
                         stars=1000,
-                        status=CandidateStatus.COMPATIBLE,
+                        status=SourceStatus.COMPATIBLE,
                     )
 
                 mock_analyze.side_effect = slow_analyze
@@ -1287,7 +1287,7 @@ class TestThreadSafeProgress:
                 def on_progress(info):
                     results.append(info.completed)
 
-                discover_candidates(global_limit=4, min_stars=0, on_progress=on_progress)
+                discover_sources(global_limit=4, min_stars=0, on_progress=on_progress)
 
                 # The completed numbers in order of callback should be sequential: 1, 2, 3, 4
                 # If race condition exists, we might see [2, 1, 3, 4] or similar
@@ -1337,23 +1337,23 @@ class TestRichProgressDisplay:
 
 
 class TestDiscoverWithRichProgress:
-    """Tests for discover_candidates with Rich progress display."""
+    """Tests for discover_sources with Rich progress display."""
 
-    @patch("heisenberg.playground.discover.analyze_candidate")
+    @patch("heisenberg.playground.discover.analyze_source")
     @patch("heisenberg.playground.discover.search_repos")
     def test_discover_shows_active_tasks(self, mock_search, mock_analyze):
-        """discover_candidates should show tasks while they're running."""
-        from heisenberg.playground.discover import discover_candidates
+        """discover_sources should show tasks while they're running."""
+        from heisenberg.playground.discover import discover_sources
 
         mock_search.return_value = ["repo1", "repo2"]
-        mock_analyze.return_value = ProjectCandidate(
+        mock_analyze.return_value = ProjectSource(
             repo="test/repo",
             stars=1000,
-            status=CandidateStatus.COMPATIBLE,
+            status=SourceStatus.COMPATIBLE,
         )
 
         # Should complete without error when show_progress=True
-        result = discover_candidates(
+        result = discover_sources(
             global_limit=5,
             min_stars=0,
             show_progress=True,
@@ -1361,21 +1361,21 @@ class TestDiscoverWithRichProgress:
 
         assert len(result) >= 1
 
-    @patch("heisenberg.playground.discover.analyze_candidate")
+    @patch("heisenberg.playground.discover.analyze_source")
     @patch("heisenberg.playground.discover.search_repos")
     def test_discover_works_without_progress(self, mock_search, mock_analyze):
-        """discover_candidates should work with show_progress=False."""
-        from heisenberg.playground.discover import discover_candidates
+        """discover_sources should work with show_progress=False."""
+        from heisenberg.playground.discover import discover_sources
 
         mock_search.return_value = ["repo1"]
-        mock_analyze.return_value = ProjectCandidate(
+        mock_analyze.return_value = ProjectSource(
             repo="test/repo",
             stars=1000,
-            status=CandidateStatus.COMPATIBLE,
+            status=SourceStatus.COMPATIBLE,
         )
 
         # Should work silently
-        result = discover_candidates(
+        result = discover_sources(
             global_limit=5,
             min_stars=0,
             show_progress=False,
@@ -1385,19 +1385,19 @@ class TestDiscoverWithRichProgress:
 
 
 class TestAnalyzeWithStatusUpdates:
-    """Tests for analyze_candidate_with_status showing current operation."""
+    """Tests for analyze_source_with_status showing current operation."""
 
-    def test_analyze_candidate_with_status_exists(self):
-        """analyze_candidate_with_status function should exist."""
-        from heisenberg.playground.discover import analyze_candidate_with_status
+    def test_analyze_source_with_status_exists(self):
+        """analyze_source_with_status function should exist."""
+        from heisenberg.playground.discover import analyze_source_with_status
 
-        assert callable(analyze_candidate_with_status)
+        assert callable(analyze_source_with_status)
 
     @patch("heisenberg.playground.discover.get_repo_stars")
     @patch("heisenberg.playground.discover.find_valid_artifacts")
     def test_calls_status_callback_with_stages(self, mock_artifacts, mock_stars):
         """Should call status_callback with different stages."""
-        from heisenberg.playground.discover import analyze_candidate_with_status
+        from heisenberg.playground.discover import analyze_source_with_status
 
         mock_stars.return_value = 1000
         mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
@@ -1407,7 +1407,7 @@ class TestAnalyzeWithStatusUpdates:
         def on_status(stage: str):
             stages_seen.append(stage)
 
-        analyze_candidate_with_status(
+        analyze_source_with_status(
             "owner/repo",
             verify_failures=False,
             on_status=on_status,
@@ -1422,7 +1422,7 @@ class TestAnalyzeWithStatusUpdates:
     @patch("heisenberg.playground.discover.find_valid_artifacts")
     def test_shows_downloading_stage_when_verifying(self, mock_artifacts, mock_stars, mock_verify):
         """Should show 'Downloading...' stage when verify_failures=True."""
-        from heisenberg.playground.discover import analyze_candidate_with_status
+        from heisenberg.playground.discover import analyze_source_with_status
 
         mock_stars.return_value = 1000
         mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
@@ -1433,7 +1433,7 @@ class TestAnalyzeWithStatusUpdates:
         def on_status(stage: str):
             stages_seen.append(stage)
 
-        analyze_candidate_with_status(
+        analyze_source_with_status(
             "other/repo",  # Not in KNOWN_GOOD_REPOS
             verify_failures=True,
             on_status=on_status,
@@ -1451,13 +1451,13 @@ class TestSkipVerificationForKnownGoodRepos:
     @patch("heisenberg.playground.discover.get_repo_stars")
     def test_skips_verification_for_known_good_repos(self, mock_stars, mock_artifacts, mock_verify):
         """Should NOT call verify_has_failures for repos in KNOWN_GOOD_REPOS."""
-        from heisenberg.playground.discover import KNOWN_GOOD_REPOS, analyze_candidate
+        from heisenberg.playground.discover import KNOWN_GOOD_REPOS, analyze_source
 
         mock_stars.return_value = 80000
         mock_artifacts.return_value = ("123", "url", ["blob-report-1"], "2024-01-15T10:00:00Z")
 
         # Analyze a known good repo with verify=True
-        candidate = analyze_candidate(
+        source = analyze_source(
             KNOWN_GOOD_REPOS[0],  # microsoft/playwright
             verify_failures=True,
         )
@@ -1465,24 +1465,24 @@ class TestSkipVerificationForKnownGoodRepos:
         # Should NOT have called verify (expensive download)
         mock_verify.assert_not_called()
         # Should still be marked COMPATIBLE (trusted)
-        assert candidate.status == CandidateStatus.COMPATIBLE
+        assert source.status == SourceStatus.COMPATIBLE
 
     @patch("heisenberg.playground.discover.verify_has_failures")
     @patch("heisenberg.playground.discover.find_valid_artifacts")
     @patch("heisenberg.playground.discover.get_repo_stars")
     def test_still_verifies_unknown_repos(self, mock_stars, mock_artifacts, mock_verify):
         """Should still verify repos NOT in KNOWN_GOOD_REPOS."""
-        from heisenberg.playground.discover import analyze_candidate
+        from heisenberg.playground.discover import analyze_source
 
         mock_stars.return_value = 1000
         mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
         mock_verify.return_value = True
 
-        candidate = analyze_candidate("unknown/repo", verify_failures=True)
+        source = analyze_source("unknown/repo", verify_failures=True)
 
         # Should have called verify for unknown repo
         mock_verify.assert_called_once()
-        assert candidate.status == CandidateStatus.COMPATIBLE
+        assert source.status == SourceStatus.COMPATIBLE
 
 
 # =============================================================================
@@ -2103,21 +2103,21 @@ class TestDefaultCachePath:
 class TestNoCacheFlag:
     """Tests for --no-cache CLI flag."""
 
-    @patch("heisenberg.playground.discover.analyze_candidate_with_status")
+    @patch("heisenberg.playground.discover.analyze_source_with_status")
     @patch("heisenberg.playground.discover.search_repos")
     def test_discover_accepts_no_cache_flag(self, mock_search, mock_analyze):
-        """discover_candidates should accept cache_path=None to disable cache."""
-        from heisenberg.playground.discover import discover_candidates
+        """discover_sources should accept cache_path=None to disable cache."""
+        from heisenberg.playground.discover import discover_sources
 
         mock_search.return_value = ["repo1"]
-        mock_analyze.return_value = ProjectCandidate(
+        mock_analyze.return_value = ProjectSource(
             repo="repo1",
             stars=1000,
-            status=CandidateStatus.COMPATIBLE,
+            status=SourceStatus.COMPATIBLE,
         )
 
         # Should not raise when cache_path=None
-        result = discover_candidates(
+        result = discover_sources(
             global_limit=5,
             min_stars=0,
             verify_failures=True,

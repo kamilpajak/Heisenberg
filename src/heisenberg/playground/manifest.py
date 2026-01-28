@@ -28,8 +28,8 @@ class GeneratorConfig:
 
 
 @dataclass
-class ScenarioEntry:
-    """Entry for a single scenario in the manifest."""
+class CaseEntry:
+    """Entry for a single case in the manifest."""
 
     id: str
     source: dict[str, Any]
@@ -56,9 +56,9 @@ class ScenarioEntry:
 
 @dataclass
 class Manifest:
-    """Generated manifest with all scenarios and stats."""
+    """Generated manifest with all cases and stats."""
 
-    scenarios: list[ScenarioEntry]
+    cases: list[CaseEntry]
     stats: dict[str, int]
     generated_at: str
 
@@ -66,7 +66,7 @@ class Manifest:
         """Convert to dictionary for JSON serialization."""
         return {
             "generated_at": self.generated_at,
-            "scenarios": [s.to_dict() for s in self.scenarios],
+            "cases": [s.to_dict() for s in self.cases],
             "stats": self.stats,
         }
 
@@ -86,25 +86,25 @@ class ManifestGenerator:
         """
         self.config = config
 
-    def discover_scenarios(self) -> list[Path]:
-        """Discover all scenario directories.
+    def discover_cases(self) -> list[Path]:
+        """Discover all case directories.
 
         Returns:
-            List of paths to scenario directories.
+            List of paths to case directories.
         """
         if not self.config.cases_dir.exists():
             return []
 
         return [p for p in sorted(self.config.cases_dir.iterdir()) if p.is_dir()]
 
-    def load_scenario(self, case_dir: Path) -> ScenarioEntry:
-        """Load scenario data from directory.
+    def load_case(self, case_dir: Path) -> CaseEntry:
+        """Load case data from directory.
 
         Args:
-            case_dir: Path to scenario directory.
+            case_dir: Path to case directory.
 
         Returns:
-            ScenarioEntry with scenario data.
+            CaseEntry with case data.
         """
         case_id = case_dir.name
 
@@ -121,7 +121,7 @@ class ManifestGenerator:
             "original_run_id": metadata.get("run_id"),
         }
 
-        # Build asset paths (relative to scenarios dir)
+        # Build asset paths (relative to cases dir)
         assets: dict[str, str | None] = {
             "report": f"{case_id}/report.json" if (case_dir / "report.json").exists() else None,
         }
@@ -148,7 +148,7 @@ class ManifestGenerator:
                 "confidence": None,
             }
 
-        return ScenarioEntry(
+        return CaseEntry(
             id=case_id,
             source=source,
             assets=assets,
@@ -156,17 +156,17 @@ class ManifestGenerator:
         )
 
     def generate(self) -> Manifest:
-        """Generate manifest from all scenarios.
+        """Generate manifest from all cases.
 
         Returns:
-            Manifest with all scenarios and stats.
+            Manifest with all cases and stats.
         """
-        case_dirs = self.discover_scenarios()
+        case_dirs = self.discover_cases()
         entries = []
 
         for case_dir in case_dirs:
             try:
-                entry = self.load_scenario(case_dir)
+                entry = self.load_case(case_dir)
 
                 # Skip pending unless include_pending is set
                 if entry.validation.get("status") == "pending" and not self.config.include_pending:
@@ -181,22 +181,22 @@ class ManifestGenerator:
         generated_at = datetime.now(UTC).isoformat()
 
         return Manifest(
-            scenarios=entries,
+            cases=entries,
             stats=stats,
             generated_at=generated_at,
         )
 
-    def _calculate_stats(self, entries: list[ScenarioEntry]) -> dict[str, int]:
-        """Calculate statistics from scenario entries.
+    def _calculate_stats(self, entries: list[CaseEntry]) -> dict[str, int]:
+        """Calculate statistics from case entries.
 
         Args:
-            entries: List of scenario entries.
+            entries: List of case entries.
 
         Returns:
             Dictionary with stats.
         """
         stats = {
-            "total_scenarios": len(entries),
+            "total_cases": len(entries),
             "high_confidence": 0,
             "medium_confidence": 0,
             "low_confidence": 0,

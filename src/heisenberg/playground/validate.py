@@ -15,7 +15,7 @@ from typing import Any
 
 
 class ValidationStatus(Enum):
-    """Status of scenario validation."""
+    """Status of case validation."""
 
     VALID = "valid"
     STALE = "stale"
@@ -24,7 +24,7 @@ class ValidationStatus(Enum):
 
 @dataclass
 class ValidatorConfig:
-    """Configuration for scenario validation."""
+    """Configuration for case validation."""
 
     cases_dir: Path
     max_age_days: int = 90  # GitHub artifacts expire after 90 days
@@ -33,7 +33,7 @@ class ValidatorConfig:
 
 @dataclass
 class ValidationResult:
-    """Result of validating a single scenario."""
+    """Result of validating a single case."""
 
     case_id: str
     status: ValidationStatus
@@ -41,7 +41,7 @@ class ValidationResult:
 
     @property
     def is_valid(self) -> bool:
-        """Check if scenario passed validation."""
+        """Check if case passed validation."""
         return self.status == ValidationStatus.VALID
 
     def to_dict(self) -> dict[str, Any]:
@@ -56,19 +56,19 @@ class ValidationResult:
 
 @dataclass
 class ValidationReport:
-    """Report summarizing validation of all scenarios."""
+    """Report summarizing validation of all cases."""
 
     results: list[ValidationResult]
     validated_at: str
 
     @property
     def total(self) -> int:
-        """Total number of scenarios validated."""
+        """Total number of cases validated."""
         return len(self.results)
 
     @property
     def valid(self) -> int:
-        """Number of valid scenarios."""
+        """Number of valid cases."""
         return sum(1 for r in self.results if r.status == ValidationStatus.VALID)
 
     @property
@@ -110,11 +110,11 @@ class CaseValidator:
         """
         self.config = config
 
-    def validate_scenario(self, case_dir: Path) -> ValidationResult:
-        """Validate a single scenario directory.
+    def validate_case(self, case_dir: Path) -> ValidationResult:
+        """Validate a single case directory.
 
         Args:
-            case_dir: Path to scenario directory.
+            case_dir: Path to case directory.
 
         Returns:
             ValidationResult with status and any issues found.
@@ -157,7 +157,7 @@ class CaseValidator:
             age_days = (datetime.now(UTC) - captured_at).days
 
             if age_days > self.config.max_age_days:
-                issues.append(f"Scenario is {age_days} days old (max: {self.config.max_age_days})")
+                issues.append(f"Case is {age_days} days old (max: {self.config.max_age_days})")
                 return ValidationResult(case_id, ValidationStatus.STALE, issues)
         except ValueError as e:
             issues.append(f"Invalid captured_at format: {e}")
@@ -171,10 +171,10 @@ class CaseValidator:
         return ValidationResult(case_id, ValidationStatus.VALID, issues)
 
     def validate_all(self) -> list[ValidationResult]:
-        """Validate all scenarios in the scenarios directory.
+        """Validate all cases in the cases directory.
 
         Returns:
-            List of ValidationResults for each scenario.
+            List of ValidationResults for each case.
         """
         if not self.config.cases_dir.exists():
             return []
@@ -182,13 +182,13 @@ class CaseValidator:
         results = []
         for case_dir in sorted(self.config.cases_dir.iterdir()):
             if case_dir.is_dir():
-                result = self.validate_scenario(case_dir)
+                result = self.validate_case(case_dir)
                 results.append(result)
 
         return results
 
     def generate_report(self) -> ValidationReport:
-        """Generate a validation report for all scenarios.
+        """Generate a validation report for all cases.
 
         Returns:
             ValidationReport with summary and individual results.

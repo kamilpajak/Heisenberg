@@ -410,7 +410,7 @@ async def run_freeze(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
     except Exception as e:
-        print(f"Error freezing scenario: {e}", file=sys.stderr)
+        print(f"Error freezing case: {e}", file=sys.stderr)
         return 1
 
 
@@ -424,7 +424,7 @@ def run_analyze_case(args: argparse.Namespace) -> int:
         return 1
 
     if not args.case_dir.exists():
-        print(f"Error: Scenario directory not found: {args.case_dir}", file=sys.stderr)
+        print(f"Error: Case directory not found: {args.case_dir}", file=sys.stderr)
         return 1
 
     config = AnalyzeConfig(
@@ -450,14 +450,14 @@ def run_analyze_case(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
     except Exception as e:
-        print(f"Error analyzing scenario: {e}", file=sys.stderr)
+        print(f"Error analyzing case: {e}", file=sys.stderr)
         return 1
 
 
 def run_generate_manifest(args: argparse.Namespace) -> int:
     """Run the generate-manifest command."""
     if not args.cases_dir.exists():
-        print(f"Error: Scenarios directory not found: {args.cases_dir}", file=sys.stderr)
+        print(f"Error: Cases directory not found: {args.cases_dir}", file=sys.stderr)
         return 1
 
     config = GeneratorConfig(
@@ -471,7 +471,7 @@ def run_generate_manifest(args: argparse.Namespace) -> int:
     try:
         manifest = generator.generate_and_save()
         print(f"Manifest generated: {config.output_path}")
-        print(f"  Total scenarios: {manifest.stats['total_scenarios']}")
+        print(f"  Total cases: {manifest.stats['total_cases']}")
         print(f"  HIGH confidence: {manifest.stats['high_confidence']}")
         print(f"  MEDIUM confidence: {manifest.stats['medium_confidence']}")
         print(f"  LOW confidence: {manifest.stats['low_confidence']}")
@@ -508,7 +508,7 @@ def _print_validation_report(report, cases_dir) -> None:
 def run_validate_cases(args: argparse.Namespace) -> int:
     """Run the validate-cases command."""
     if not args.cases_dir.exists():
-        print(f"Error: Scenarios directory not found: {args.cases_dir}", file=sys.stderr)
+        print(f"Error: Cases directory not found: {args.cases_dir}", file=sys.stderr)
         return 1
 
     config = ValidatorConfig(
@@ -531,5 +531,5 @@ def run_validate_cases(args: argparse.Namespace) -> int:
         return 1 if has_issues else 0
 
     except Exception as e:
-        print(f"Error validating scenarios: {e}", file=sys.stderr)
+        print(f"Error validating cases: {e}", file=sys.stderr)
         return 1

@@ -62,7 +62,7 @@ build-backend = "hatchling.build"
 packages = ["src/heisenberg"]
 
 [tool.hatch.build.targets.sdist]
-exclude = ["playground/", "scenarios/"]
+exclude = ["playground/", "cases/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

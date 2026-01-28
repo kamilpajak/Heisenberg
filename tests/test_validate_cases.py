@@ -58,9 +58,9 @@ def sample_diagnosis():
 
 
 @pytest.fixture
-def complete_scenario(tmp_path, fresh_metadata, sample_diagnosis):
-    """Create a complete scenario with all required files."""
-    case_dir = tmp_path / "complete-scenario-123"
+def complete_case(tmp_path, fresh_metadata, sample_diagnosis):
+    """Create a complete case with all required files."""
+    case_dir = tmp_path / "complete-case-123"
     case_dir.mkdir()
 
     (case_dir / "metadata.json").write_text(json.dumps(fresh_metadata, indent=2))
@@ -71,9 +71,9 @@ def complete_scenario(tmp_path, fresh_metadata, sample_diagnosis):
 
 
 @pytest.fixture
-def incomplete_scenario(tmp_path, fresh_metadata):
-    """Create scenario missing diagnosis.json."""
-    case_dir = tmp_path / "incomplete-scenario-456"
+def incomplete_case(tmp_path, fresh_metadata):
+    """Create case missing diagnosis.json."""
+    case_dir = tmp_path / "incomplete-case-456"
     case_dir.mkdir()
 
     (case_dir / "metadata.json").write_text(json.dumps(fresh_metadata, indent=2))
@@ -84,9 +84,9 @@ def incomplete_scenario(tmp_path, fresh_metadata):
 
 
 @pytest.fixture
-def stale_scenario(tmp_path, stale_metadata, sample_diagnosis):
-    """Create a stale scenario (captured > 90 days ago)."""
-    case_dir = tmp_path / "stale-scenario-789"
+def stale_case(tmp_path, stale_metadata, sample_diagnosis):
+    """Create a stale case (captured > 90 days ago)."""
+    case_dir = tmp_path / "stale-case-789"
     case_dir.mkdir()
 
     (case_dir / "metadata.json").write_text(json.dumps(stale_metadata, indent=2))
@@ -98,31 +98,31 @@ def stale_scenario(tmp_path, stale_metadata, sample_diagnosis):
 
 @pytest.fixture
 def cases_dir_mixed(tmp_path, fresh_metadata, stale_metadata, sample_diagnosis):
-    """Create scenarios directory with mixed validity."""
-    scenarios = tmp_path / "scenarios"
-    scenarios.mkdir()
+    """Create cases directory with mixed validity."""
+    cases = tmp_path / "cases"
+    cases.mkdir()
 
-    # Valid scenario
-    s1 = scenarios / "valid-123"
+    # Valid case
+    s1 = cases / "valid-123"
     s1.mkdir()
     (s1 / "metadata.json").write_text(json.dumps(fresh_metadata, indent=2))
     (s1 / "report.json").write_text('{"suites": [], "stats": {}}')
     (s1 / "diagnosis.json").write_text(json.dumps(sample_diagnosis, indent=2))
 
-    # Stale scenario
-    s2 = scenarios / "stale-456"
+    # Stale case
+    s2 = cases / "stale-456"
     s2.mkdir()
     (s2 / "metadata.json").write_text(json.dumps(stale_metadata, indent=2))
     (s2 / "report.json").write_text('{"suites": [], "stats": {}}')
     (s2 / "diagnosis.json").write_text(json.dumps(sample_diagnosis, indent=2))
 
-    # Incomplete scenario (no diagnosis)
-    s3 = scenarios / "incomplete-789"
+    # Incomplete case (no diagnosis)
+    s3 = cases / "incomplete-789"
     s3.mkdir()
     (s3 / "metadata.json").write_text(json.dumps(fresh_metadata, indent=2))
     (s3 / "report.json").write_text('{"suites": [], "stats": {}}')
 
-    return scenarios
+    return cases
 
 
 # --- ValidatorConfig Tests ---
@@ -135,35 +135,35 @@ class TestValidatorConfig:
         """ValidatorConfig should require cases_dir."""
         from heisenberg.playground.validate import ValidatorConfig
 
-        config = ValidatorConfig(cases_dir=Path("/tmp/scenarios"))
-        assert config.cases_dir == Path("/tmp/scenarios")
+        config = ValidatorConfig(cases_dir=Path("/tmp/cases"))
+        assert config.cases_dir == Path("/tmp/cases")
 
     def test_config_has_default_max_age_days(self):
         """ValidatorConfig should default max_age_days to 90."""
         from heisenberg.playground.validate import ValidatorConfig
 
-        config = ValidatorConfig(cases_dir=Path("/tmp/scenarios"))
+        config = ValidatorConfig(cases_dir=Path("/tmp/cases"))
         assert config.max_age_days == 90
 
     def test_config_accepts_custom_max_age(self):
         """ValidatorConfig should accept custom max_age_days."""
         from heisenberg.playground.validate import ValidatorConfig
 
-        config = ValidatorConfig(cases_dir=Path("/tmp/scenarios"), max_age_days=30)
+        config = ValidatorConfig(cases_dir=Path("/tmp/cases"), max_age_days=30)
         assert config.max_age_days == 30
 
     def test_config_has_require_diagnosis_flag(self):
         """ValidatorConfig should have require_diagnosis flag."""
         from heisenberg.playground.validate import ValidatorConfig
 
-        config = ValidatorConfig(cases_dir=Path("/tmp/scenarios"), require_diagnosis=True)
+        config = ValidatorConfig(cases_dir=Path("/tmp/cases"), require_diagnosis=True)
         assert config.require_diagnosis is True
 
     def test_config_require_diagnosis_defaults_true(self):
         """require_diagnosis should default to True."""
         from heisenberg.playground.validate import ValidatorConfig
 
-        config = ValidatorConfig(cases_dir=Path("/tmp/scenarios"))
+        config = ValidatorConfig(cases_dir=Path("/tmp/cases"))
         assert config.require_diagnosis is True
 
 
@@ -233,38 +233,38 @@ class TestCaseValidator:
         validator = CaseValidator(config)
         assert validator.config == config
 
-    def test_validate_scenario_returns_result(self, complete_scenario):
-        """validate_scenario should return ValidationResult."""
+    def test_validate_case_returns_result(self, complete_case):
+        """validate_case should return ValidationResult."""
         from heisenberg.playground.validate import (
             CaseValidator,
             ValidationResult,
             ValidatorConfig,
         )
 
-        config = ValidatorConfig(cases_dir=complete_scenario.parent)
+        config = ValidatorConfig(cases_dir=complete_case.parent)
         validator = CaseValidator(config)
 
-        result = validator.validate_scenario(complete_scenario)
+        result = validator.validate_case(complete_case)
 
         assert isinstance(result, ValidationResult)
 
-    def test_complete_scenario_is_valid(self, complete_scenario):
-        """Complete fresh scenario should be VALID."""
+    def test_complete_case_is_valid(self, complete_case):
+        """Complete fresh case should be VALID."""
         from heisenberg.playground.validate import (
             CaseValidator,
             ValidationStatus,
             ValidatorConfig,
         )
 
-        config = ValidatorConfig(cases_dir=complete_scenario.parent)
+        config = ValidatorConfig(cases_dir=complete_case.parent)
         validator = CaseValidator(config)
 
-        result = validator.validate_scenario(complete_scenario)
+        result = validator.validate_case(complete_case)
 
         assert result.status == ValidationStatus.VALID
         assert result.issues == []
 
-    def test_stale_scenario_is_stale(self, stale_scenario):
+    def test_stale_case_is_stale(self, stale_case):
         """Scenario older than max_age_days should be STALE."""
         from heisenberg.playground.validate import (
             CaseValidator,
@@ -272,15 +272,15 @@ class TestCaseValidator:
             ValidatorConfig,
         )
 
-        config = ValidatorConfig(cases_dir=stale_scenario.parent, max_age_days=90)
+        config = ValidatorConfig(cases_dir=stale_case.parent, max_age_days=90)
         validator = CaseValidator(config)
 
-        result = validator.validate_scenario(stale_scenario)
+        result = validator.validate_case(stale_case)
 
         assert result.status == ValidationStatus.STALE
         assert any("age" in issue.lower() or "old" in issue.lower() for issue in result.issues)
 
-    def test_incomplete_scenario_is_invalid(self, incomplete_scenario):
+    def test_incomplete_case_is_invalid(self, incomplete_case):
         """Scenario missing diagnosis.json should be INVALID when require_diagnosis=True."""
         from heisenberg.playground.validate import (
             CaseValidator,
@@ -288,15 +288,15 @@ class TestCaseValidator:
             ValidatorConfig,
         )
 
-        config = ValidatorConfig(cases_dir=incomplete_scenario.parent, require_diagnosis=True)
+        config = ValidatorConfig(cases_dir=incomplete_case.parent, require_diagnosis=True)
         validator = CaseValidator(config)
 
-        result = validator.validate_scenario(incomplete_scenario)
+        result = validator.validate_case(incomplete_case)
 
         assert result.status == ValidationStatus.INVALID
         assert any("diagnosis" in issue.lower() for issue in result.issues)
 
-    def test_incomplete_scenario_valid_when_diagnosis_not_required(self, incomplete_scenario):
+    def test_incomplete_case_valid_when_diagnosis_not_required(self, incomplete_case):
         """Scenario missing diagnosis should be VALID when require_diagnosis=False."""
         from heisenberg.playground.validate import (
             CaseValidator,
@@ -304,10 +304,10 @@ class TestCaseValidator:
             ValidatorConfig,
         )
 
-        config = ValidatorConfig(cases_dir=incomplete_scenario.parent, require_diagnosis=False)
+        config = ValidatorConfig(cases_dir=incomplete_case.parent, require_diagnosis=False)
         validator = CaseValidator(config)
 
-        result = validator.validate_scenario(incomplete_scenario)
+        result = validator.validate_case(incomplete_case)
 
         assert result.status == ValidationStatus.VALID
 
@@ -326,7 +326,7 @@ class TestCaseValidator:
         config = ValidatorConfig(cases_dir=tmp_path)
         validator = CaseValidator(config)
 
-        result = validator.validate_scenario(case_dir)
+        result = validator.validate_case(case_dir)
 
         assert result.status == ValidationStatus.INVALID
         assert any("metadata" in issue.lower() for issue in result.issues)
@@ -346,7 +346,7 @@ class TestCaseValidator:
         config = ValidatorConfig(cases_dir=tmp_path, require_diagnosis=False)
         validator = CaseValidator(config)
 
-        result = validator.validate_scenario(case_dir)
+        result = validator.validate_case(case_dir)
 
         assert result.status == ValidationStatus.INVALID
         assert any("report" in issue.lower() for issue in result.issues)
@@ -370,8 +370,8 @@ class TestValidateAll:
         assert isinstance(results, list)
         assert len(results) == 3  # valid, stale, incomplete
 
-    def test_validate_all_checks_each_scenario(self, cases_dir_mixed):
-        """validate_all should check each scenario directory."""
+    def test_validate_all_checks_each_case(self, cases_dir_mixed):
+        """validate_all should check each case directory."""
         from heisenberg.playground.validate import CaseValidator, ValidatorConfig
 
         config = ValidatorConfig(cases_dir=cases_dir_mixed)
@@ -494,7 +494,7 @@ class TestValidationEdgeCases:
         config = ValidatorConfig(cases_dir=tmp_path, require_diagnosis=False)
         validator = CaseValidator(config)
 
-        result = validator.validate_scenario(case_dir)
+        result = validator.validate_case(case_dir)
 
         assert result.status == ValidationStatus.INVALID
         assert any("json" in issue.lower() or "parse" in issue.lower() for issue in result.issues)
@@ -516,7 +516,7 @@ class TestValidationEdgeCases:
         config = ValidatorConfig(cases_dir=tmp_path, require_diagnosis=False)
         validator = CaseValidator(config)
 
-        result = validator.validate_scenario(case_dir)
+        result = validator.validate_case(case_dir)
 
         assert result.status == ValidationStatus.INVALID
         assert any("captured_at" in issue.lower() for issue in result.issues)
@@ -545,11 +545,11 @@ class TestValidationEdgeCases:
         # With 90-day threshold, should be valid
         config_90 = ValidatorConfig(cases_dir=tmp_path, max_age_days=90, require_diagnosis=False)
         validator_90 = CaseValidator(config_90)
-        result_90 = validator_90.validate_scenario(case_dir)
+        result_90 = validator_90.validate_case(case_dir)
         assert result_90.status == ValidationStatus.VALID
 
         # With 30-day threshold, should be stale
         config_30 = ValidatorConfig(cases_dir=tmp_path, max_age_days=30, require_diagnosis=False)
         validator_30 = CaseValidator(config_30)
-        result_30 = validator_30.validate_scenario(case_dir)
+        result_30 = validator_30.validate_case(case_dir)
         assert result_30.status == ValidationStatus.STALE

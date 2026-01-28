@@ -8,7 +8,7 @@ This script searches GitHub for repositories that:
 
 Architecture follows Single Responsibility Principle:
 - GitHubClient: API communication
-- Domain: ProjectCandidate, CandidateStatus, validation logic
+- Domain: ProjectSource, SourceStatus, validation logic
 - Presenter: CLI output formatting
 - Config: DEFAULT_QUERIES, PLAYWRIGHT_PATTERNS
 """
@@ -72,8 +72,8 @@ def get_default_cache_path():
 # =============================================================================
 
 
-class CandidateStatus(Enum):
-    """Status of a candidate project."""
+class SourceStatus(Enum):
+    """Status of a source project."""
 
     COMPATIBLE = "compatible"  # Has valid Playwright artifacts WITH failures
     NO_FAILURES = "no_failures"  # Has Playwright artifacts but 0 test failures
@@ -89,18 +89,18 @@ class ProgressInfo:
     completed: int  # Sequential completion number (1, 2, 3...)
     total: int  # Total repos to analyze
     repo: str  # Repository name
-    status: str  # CandidateStatus value
+    status: str  # SourceStatus value
     elapsed_ms: int  # Time taken in milliseconds
     message: str | None = None  # Optional extra message
 
 
 @dataclass
-class ProjectCandidate:
-    """A candidate project for testing."""
+class ProjectSource:
+    """A source project for testing."""
 
     repo: str
     stars: int
-    status: CandidateStatus
+    status: SourceStatus
     artifact_names: list[str] = field(default_factory=list)
     playwright_artifacts: list[str] = field(default_factory=list)
     run_id: str | None = None
@@ -108,12 +108,12 @@ class ProjectCandidate:
 
     @property
     def compatible(self) -> bool:
-        """Whether this candidate has valid Playwright artifacts."""
-        return self.status == CandidateStatus.COMPATIBLE
+        """Whether this source has valid Playwright artifacts."""
+        return self.status == SourceStatus.COMPATIBLE
 
     @property
     def has_artifacts(self) -> bool:
-        """Whether this candidate has any artifacts."""
+        """Whether this source has any artifacts."""
         return len(self.artifact_names) > 0
 
 
@@ -557,8 +557,8 @@ def determine_status(
     artifact_names: list[str],
     playwright_artifacts: list[str],
     failure_count: int | None = None,
-) -> CandidateStatus:
-    """Determine the status of a candidate based on its data.
+) -> SourceStatus:
+    """Determine the status of a source based on its data.
 
     Args:
         run_id: Workflow run ID
@@ -567,24 +567,24 @@ def determine_status(
         failure_count: Number of test failures (None = not verified)
     """
     if not run_id:
-        return CandidateStatus.NO_FAILED_RUNS
+        return SourceStatus.NO_FAILED_RUNS
     if not artifact_names:
-        return CandidateStatus.NO_ARTIFACTS
+        return SourceStatus.NO_ARTIFACTS
     if not playwright_artifacts:
-        return CandidateStatus.HAS_ARTIFACTS
+        return SourceStatus.HAS_ARTIFACTS
     # If failure_count was verified and is 0, mark as NO_FAILURES
     if failure_count is not None and failure_count == 0:
-        return CandidateStatus.NO_FAILURES
-    return CandidateStatus.COMPATIBLE
+        return SourceStatus.NO_FAILURES
+    return SourceStatus.COMPATIBLE
 
 
-def analyze_candidate_with_status(
+def analyze_source_with_status(
     repo: str,
     stars: int | None = None,
     verify_failures: bool = False,
     on_status: callable | None = None,
     cache: RunCache | None = None,
-) -> ProjectCandidate:
+) -> ProjectSource:
     """Analyze a repository with status updates for each stage.
 
     Args:
@@ -595,7 +595,7 @@ def analyze_candidate_with_status(
         cache: Optional RunCache for caching verification results
 
     Returns:
-        ProjectCandidate with analysis results
+        ProjectSource with analysis results
     """
 
     def report(stage: str) -> None:
@@ -635,7 +635,7 @@ def analyze_candidate_with_status(
 
     status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
 
-    return ProjectCandidate(
+    return ProjectSource(
         repo=repo,
         stars=stars,
         status=status,
@@ -646,12 +646,12 @@ def analyze_candidate_with_status(
     )
 
 
-def analyze_candidate(
+def analyze_source(
     repo: str,
     stars: int | None = None,
     verify_failures: bool = False,
-) -> ProjectCandidate:
-    """Analyze a repository as a candidate for testing.
+) -> ProjectSource:
+    """Analyze a repository as a source for testing.
 
     Args:
         repo: Repository in owner/repo format
@@ -678,7 +678,7 @@ def analyze_candidate(
 
     status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
 
-    return ProjectCandidate(
+    return ProjectSource(
         repo=repo,
         stars=stars,
         status=status,
@@ -689,16 +689,14 @@ def analyze_candidate(
     )
 
 
-def filter_by_min_stars(
-    candidates: list[ProjectCandidate], min_stars: int = 100
-) -> list[ProjectCandidate]:
-    """Filter candidates by minimum star count."""
-    return [c for c in candidates if c.stars >= min_stars]
+def filter_by_min_stars(sources: list[ProjectSource], min_stars: int = 100) -> list[ProjectSource]:
+    """Filter sources by minimum star count."""
+    return [c for c in sources if c.stars >= min_stars]
 
 
-def sort_candidates(candidates: list[ProjectCandidate]) -> list[ProjectCandidate]:
-    """Sort candidates by compatibility (desc), then stars (desc)."""
-    return sorted(candidates, key=lambda c: (-c.compatible, -c.stars))
+def sort_sources(sources: list[ProjectSource]) -> list[ProjectSource]:
+    """Sort sources by compatibility (desc), then stars (desc)."""
+    return sorted(sources, key=lambda c: (-c.compatible, -c.stars))
 
 
 # =============================================================================
@@ -709,7 +707,7 @@ def sort_candidates(candidates: list[ProjectCandidate]) -> list[ProjectCandidate
 _USE_DEFAULT_CACHE = object()  # Sentinel for "use default cache path"
 
 
-def discover_candidates(
+def discover_sources(
     global_limit: int = 30,
     min_stars: int = 100,
     queries: list[str] | None = None,
@@ -717,8 +715,8 @@ def discover_candidates(
     on_progress: callable | None = None,
     show_progress: bool = False,
     cache_path: str | None | object = _USE_DEFAULT_CACHE,
-) -> list[ProjectCandidate]:
-    """Discover candidate projects from GitHub.
+) -> list[ProjectSource]:
+    """Discover source projects from GitHub.
 
     Args:
         global_limit: Maximum total repos to analyze across all queries
@@ -731,7 +729,7 @@ def discover_candidates(
             ~/.cache/heisenberg/verified_runs.json. Set to None to disable caching.
 
     Returns:
-        List of analyzed ProjectCandidate objects, sorted by compatibility
+        List of analyzed ProjectSource objects, sorted by compatibility
     """
     import threading
     import time
@@ -763,7 +761,7 @@ def discover_candidates(
 
     repos_to_analyze = list(all_repos)[:global_limit]
     total = len(repos_to_analyze)
-    candidates: list[ProjectCandidate] = []
+    sources: list[ProjectSource] = []
 
     # Thread-safe counter for sequential completion numbers
     completion_counter = [0]  # Use list to allow mutation in nested function
@@ -773,7 +771,7 @@ def discover_candidates(
     progress = create_progress_display() if show_progress else None
     task_ids: dict[str, int] = {}  # repo -> task_id mapping
 
-    def analyze_with_progress(repo: str) -> ProjectCandidate | None:
+    def analyze_with_progress(repo: str) -> ProjectSource | None:
         """Analyze a repo and report progress."""
         start_time = time.time()
         result = None
@@ -793,7 +791,7 @@ def discover_candidates(
             if verify_failures and repo in KNOWN_GOOD_REPOS:
                 message = "skipped verify"
 
-            result = analyze_candidate_with_status(
+            result = analyze_source_with_status(
                 repo,
                 verify_failures=verify_failures,
                 on_status=on_status if progress else None,
@@ -806,7 +804,7 @@ def discover_candidates(
 
         # Update Rich progress (mark task complete)
         if progress and repo in task_ids:
-            is_compatible = result and result.status == CandidateStatus.COMPATIBLE
+            is_compatible = result and result.status == SourceStatus.COMPATIBLE
             status_icon = "[green]✓[/green]" if is_compatible else "[red]✗[/red]"
             status_text = result.status.value if result else "error"
             time_str = f"{elapsed_ms / 1000:.1f}s" if elapsed_ms >= 1000 else f"{elapsed_ms}ms"
@@ -839,7 +837,7 @@ def discover_candidates(
 
     def run_discovery():
         """Run the actual discovery with ThreadPoolExecutor."""
-        nonlocal candidates
+        nonlocal sources
 
         # Add tasks to Rich progress (shows spinner while running)
         if progress:
@@ -859,7 +857,7 @@ def discover_candidates(
             for future in as_completed(futures):
                 result = future.result()
                 if result is not None:
-                    candidates.append(result)
+                    sources.append(result)
 
     # Run with or without Rich progress context
     if progress:
@@ -873,10 +871,10 @@ def discover_candidates(
         cache.save()
 
     # Filter and sort
-    candidates = filter_by_min_stars(candidates, min_stars=min_stars)
-    candidates = sort_candidates(candidates)
+    sources = filter_by_min_stars(sources, min_stars=min_stars)
+    sources = sort_sources(sources)
 
-    return candidates
+    return sources
 
 
 # =============================================================================
@@ -932,71 +930,71 @@ def format_progress_line(info: ProgressInfo) -> str:
     return line
 
 
-def format_status_icon(status: CandidateStatus) -> str:
-    """Get the icon for a candidate status."""
+def format_status_icon(status: SourceStatus) -> str:
+    """Get the icon for a source status."""
     icons = {
-        CandidateStatus.COMPATIBLE: "✅",
-        CandidateStatus.NO_FAILURES: "🟡",
-        CandidateStatus.HAS_ARTIFACTS: "⚠️ ",
-        CandidateStatus.NO_ARTIFACTS: "❌",
-        CandidateStatus.NO_FAILED_RUNS: "⏭️ ",
+        SourceStatus.COMPATIBLE: "✅",
+        SourceStatus.NO_FAILURES: "🟡",
+        SourceStatus.HAS_ARTIFACTS: "⚠️ ",
+        SourceStatus.NO_ARTIFACTS: "❌",
+        SourceStatus.NO_FAILED_RUNS: "⏭️ ",
     }
     return icons.get(status, "?")
 
 
-def format_status_detail(candidate: ProjectCandidate) -> str:
-    """Format the detail text for a candidate's status."""
-    if candidate.status == CandidateStatus.COMPATIBLE:
-        artifacts = ", ".join(candidate.playwright_artifacts[:3])
-        return f"{candidate.stars:>5}⭐ ✓ {artifacts}"
-    elif candidate.status == CandidateStatus.NO_FAILURES:
+def format_status_detail(source: ProjectSource) -> str:
+    """Format the detail text for a source's status."""
+    if source.status == SourceStatus.COMPATIBLE:
+        artifacts = ", ".join(source.playwright_artifacts[:3])
+        return f"{source.stars:>5}⭐ ✓ {artifacts}"
+    elif source.status == SourceStatus.NO_FAILURES:
         return "0 test failures (tests passed)"
-    elif candidate.status == CandidateStatus.HAS_ARTIFACTS:
-        artifacts = ", ".join(candidate.artifact_names[:3])
+    elif source.status == SourceStatus.HAS_ARTIFACTS:
+        artifacts = ", ".join(source.artifact_names[:3])
         return f"Artifacts: {artifacts}"
-    elif candidate.status == CandidateStatus.NO_ARTIFACTS:
+    elif source.status == SourceStatus.NO_ARTIFACTS:
         return "No artifacts"
     else:
         return "No failed runs"
 
 
-def print_candidate_line(
-    candidate: ProjectCandidate,
+def print_source_line(
+    source: ProjectSource,
     index: int,
     total: int,
     out: TextIO = sys.stdout,
 ) -> None:
-    """Print a single candidate line."""
-    icon = format_status_icon(candidate.status)
-    detail = format_status_detail(candidate)
-    print(f"  [{index:2}/{total}] {candidate.repo:<45} {icon} {detail}", file=out)
+    """Print a single source line."""
+    icon = format_status_icon(source.status)
+    detail = format_status_detail(source)
+    print(f"  [{index:2}/{total}] {source.repo:<45} {icon} {detail}", file=out)
 
 
 def print_summary(
-    candidates: list[ProjectCandidate],
+    sources: list[ProjectSource],
     min_stars: int,
     out: TextIO = sys.stdout,
 ) -> None:
     """Print the analysis summary."""
-    compatible_count = sum(1 for c in candidates if c.compatible)
+    compatible_count = sum(1 for c in sources if c.compatible)
 
-    print(f"📋 Analyzed {len(candidates)} repositories (min {min_stars}⭐)", file=out)
+    print(f"📋 Analyzed {len(sources)} repositories (min {min_stars}⭐)", file=out)
     print("🔬 Results:\n", file=out)
 
-    for i, candidate in enumerate(candidates, 1):
-        print_candidate_line(candidate, i, len(candidates), out)
+    for i, source in enumerate(sources, 1):
+        print_source_line(source, i, len(sources), out)
 
     print(f"\n{'=' * 70}", file=out)
-    print(f"📊 Results: {compatible_count} compatible / {len(candidates)} checked", file=out)
+    print(f"📊 Results: {compatible_count} compatible / {len(sources)} checked", file=out)
     print(f"{'=' * 70}\n", file=out)
 
 
 def print_compatible_projects(
-    candidates: list[ProjectCandidate],
+    sources: list[ProjectSource],
     out: TextIO = sys.stdout,
 ) -> None:
     """Print details of compatible projects."""
-    compatible = [c for c in candidates if c.compatible]
+    compatible = [c for c in sources if c.compatible]
     if not compatible:
         return
 
@@ -1009,7 +1007,7 @@ def print_compatible_projects(
         print(file=out)
 
 
-def save_results(candidates: list[ProjectCandidate], output_path: str) -> None:
+def save_results(sources: list[ProjectSource], output_path: str) -> None:
     """Save results to JSON file."""
     output_data = [
         {
@@ -1022,7 +1020,7 @@ def save_results(candidates: list[ProjectCandidate], output_path: str) -> None:
             "run_id": c.run_id,
             "run_url": c.run_url,
         }
-        for c in candidates
+        for c in sources
     ]
     with open(output_path, "w") as f:
         json.dump(output_data, f, indent=2)
@@ -1069,7 +1067,7 @@ def main() -> None:
     # Determine cache_path: None to disable, or use default
     cache_path = None if args.no_cache else _USE_DEFAULT_CACHE
 
-    candidates = discover_candidates(
+    sources = discover_sources(
         global_limit=args.limit,
         min_stars=args.min_stars,
         verify_failures=args.verify,
@@ -1077,11 +1075,11 @@ def main() -> None:
         cache_path=cache_path,
     )
 
-    print_summary(candidates, args.min_stars)
-    print_compatible_projects(candidates)
+    print_summary(sources, args.min_stars)
+    print_compatible_projects(sources)
 
     if args.output:
-        save_results(candidates, args.output)
+        save_results(sources, args.output)
 
 
 if __name__ == "__main__":

@@ -207,8 +207,8 @@ def _add_freeze_parser(subparsers) -> None:
         "--output",
         "-o",
         type=Path,
-        default=Path("./scenarios"),
-        help="Output directory for frozen cases (default: ./scenarios)",
+        default=Path("./cases"),
+        help="Output directory for frozen cases (default: ./cases)",
     )
     freeze_parser.add_argument(
         "--token",
@@ -255,7 +255,7 @@ def _add_generate_manifest_parser(subparsers) -> None:
     parser.add_argument(
         "cases_dir",
         type=Path,
-        help="Path to the scenarios directory",
+        help="Path to the cases directory",
     )
     parser.add_argument(
         "--output",
@@ -267,7 +267,7 @@ def _add_generate_manifest_parser(subparsers) -> None:
     parser.add_argument(
         "--include-pending",
         action="store_true",
-        help="Include scenarios without diagnosis (pending analysis)",
+        help="Include cases without diagnosis (pending analysis)",
     )
 
 
@@ -280,18 +280,18 @@ def _add_validate_cases_parser(subparsers) -> None:
     parser.add_argument(
         "cases_dir",
         type=Path,
-        help="Path to the scenarios directory",
+        help="Path to the cases directory",
     )
     parser.add_argument(
         "--max-age",
         type=int,
         default=90,
-        help="Maximum age in days before scenario is considered stale (default: 90)",
+        help="Maximum age in days before case is considered stale (default: 90)",
     )
     parser.add_argument(
         "--no-require-diagnosis",
         action="store_true",
-        help="Don't require diagnosis.json (allow pending scenarios)",
+        help="Don't require diagnosis.json (allow pending cases)",
     )
     parser.add_argument(
         "--json",

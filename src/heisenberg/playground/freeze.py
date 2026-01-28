@@ -20,7 +20,7 @@ from heisenberg.reports import ReportType, get_default_registry
 
 @dataclass
 class FreezeConfig:
-    """Configuration for freezing a scenario."""
+    """Configuration for freezing a case."""
 
     repo: str  # Format: "owner/repo"
     output_dir: Path
@@ -43,7 +43,7 @@ class CaseMetadata:
 
 @dataclass
 class FrozenCase:
-    """Result of freezing a scenario - paths to frozen assets."""
+    """Result of freezing a case - paths to frozen assets."""
 
     id: str
     case_dir: Path
@@ -118,7 +118,7 @@ class CaseFreezer:
             return None
 
     def _generate_case_id(self) -> str:
-        """Generate a filesystem-safe scenario ID."""
+        """Generate a filesystem-safe case ID."""
         # Replace / with - and add run_id
         repo_slug = self.config.repo.replace("/", "-").lower()
         run_id = self.config.run_id or "latest"
@@ -193,7 +193,7 @@ class CaseFreezer:
         # Filter for Playwright artifacts (raises if none found)
         playwright_artifacts = self._find_playwright_artifacts(artifacts, run_id)
 
-        # Create scenario directory
+        # Create case directory
         case_id = self._generate_case_id()
         case_dir = self.config.output_dir / case_id
         case_dir.mkdir(parents=True, exist_ok=True)

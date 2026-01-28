@@ -86,7 +86,7 @@ def sample_diagnosis_low():
 
 @pytest.fixture
 def case_dir_with_diagnosis(tmp_path, sample_metadata, sample_diagnosis):
-    """Create a scenario directory with metadata and diagnosis."""
+    """Create a case directory with metadata and diagnosis."""
     case_dir = tmp_path / "tryghost-ghost-21395156769"
     case_dir.mkdir()
 
@@ -99,8 +99,8 @@ def case_dir_with_diagnosis(tmp_path, sample_metadata, sample_diagnosis):
 
 @pytest.fixture
 def case_dir_without_diagnosis(tmp_path, sample_metadata):
-    """Create a scenario directory with metadata but no diagnosis."""
-    case_dir = tmp_path / "pending-scenario-12345"
+    """Create a case directory with metadata but no diagnosis."""
+    case_dir = tmp_path / "pending-case-12345"
     case_dir.mkdir()
 
     (case_dir / "metadata.json").write_text(json.dumps(sample_metadata, indent=2))
@@ -111,26 +111,26 @@ def case_dir_without_diagnosis(tmp_path, sample_metadata):
 
 @pytest.fixture
 def cases_dir_multiple(tmp_path, sample_metadata, sample_diagnosis, sample_diagnosis_medium):
-    """Create scenarios directory with multiple scenarios."""
-    scenarios = tmp_path / "scenarios"
-    scenarios.mkdir()
+    """Create cases directory with multiple cases."""
+    cases = tmp_path / "cases"
+    cases.mkdir()
 
-    # Scenario 1 - HIGH confidence
-    s1 = scenarios / "tryghost-ghost-21395156769"
+    # Case 1 - HIGH confidence
+    s1 = cases / "tryghost-ghost-21395156769"
     s1.mkdir()
     (s1 / "metadata.json").write_text(json.dumps(sample_metadata, indent=2))
     (s1 / "diagnosis.json").write_text(json.dumps(sample_diagnosis, indent=2))
     (s1 / "report.json").write_text("{}")
 
-    # Scenario 2 - MEDIUM confidence
+    # Case 2 - MEDIUM confidence
     s2_meta = {**sample_metadata, "repo": "formkit/auto-animate", "run_id": 12345}
-    s2 = scenarios / "formkit-auto-animate-12345"
+    s2 = cases / "formkit-auto-animate-12345"
     s2.mkdir()
     (s2 / "metadata.json").write_text(json.dumps(s2_meta, indent=2))
     (s2 / "diagnosis.json").write_text(json.dumps(sample_diagnosis_medium, indent=2))
     (s2 / "report.json").write_text("{}")
 
-    return scenarios
+    return cases
 
 
 # --- GeneratorConfig Tests ---
@@ -143,22 +143,22 @@ class TestGeneratorConfig:
         """GeneratorConfig should require cases_dir."""
         from heisenberg.playground.manifest import GeneratorConfig
 
-        config = GeneratorConfig(cases_dir=Path("/tmp/scenarios"))
-        assert config.cases_dir == Path("/tmp/scenarios")
+        config = GeneratorConfig(cases_dir=Path("/tmp/cases"))
+        assert config.cases_dir == Path("/tmp/cases")
 
     def test_config_has_default_output_path(self):
         """GeneratorConfig should default output to manifest.json in cases_dir."""
         from heisenberg.playground.manifest import GeneratorConfig
 
-        config = GeneratorConfig(cases_dir=Path("/tmp/scenarios"))
-        assert config.output_path == Path("/tmp/scenarios/manifest.json")
+        config = GeneratorConfig(cases_dir=Path("/tmp/cases"))
+        assert config.output_path == Path("/tmp/cases/manifest.json")
 
     def test_config_accepts_custom_output_path(self):
         """GeneratorConfig should accept custom output path."""
         from heisenberg.playground.manifest import GeneratorConfig
 
         config = GeneratorConfig(
-            cases_dir=Path("/tmp/scenarios"),
+            cases_dir=Path("/tmp/cases"),
             output_path=Path("/tmp/custom/manifest.json"),
         )
         assert config.output_path == Path("/tmp/custom/manifest.json")
@@ -167,14 +167,14 @@ class TestGeneratorConfig:
         """GeneratorConfig should have include_pending flag."""
         from heisenberg.playground.manifest import GeneratorConfig
 
-        config = GeneratorConfig(cases_dir=Path("/tmp/scenarios"), include_pending=True)
+        config = GeneratorConfig(cases_dir=Path("/tmp/cases"), include_pending=True)
         assert config.include_pending is True
 
     def test_config_include_pending_defaults_false(self):
         """include_pending should default to False."""
         from heisenberg.playground.manifest import GeneratorConfig
 
-        config = GeneratorConfig(cases_dir=Path("/tmp/scenarios"))
+        config = GeneratorConfig(cases_dir=Path("/tmp/cases"))
         assert config.include_pending is False
 
 
@@ -192,117 +192,117 @@ class TestManifestGenerator:
         generator = ManifestGenerator(config)
         assert generator.config == config
 
-    def test_discover_scenarios_finds_directories(self, cases_dir_multiple):
-        """discover_scenarios should find all scenario directories."""
+    def test_discover_cases_finds_directories(self, cases_dir_multiple):
+        """discover_cases should find all case directories."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=cases_dir_multiple)
         generator = ManifestGenerator(config)
 
-        scenarios = generator.discover_scenarios()
+        cases = generator.discover_cases()
 
-        assert len(scenarios) == 2
-        case_ids = {s.name for s in scenarios}
+        assert len(cases) == 2
+        case_ids = {s.name for s in cases}
         assert "tryghost-ghost-21395156769" in case_ids
         assert "formkit-auto-animate-12345" in case_ids
 
-    def test_discover_scenarios_ignores_files(self, tmp_path):
-        """discover_scenarios should ignore files, only return directories."""
+    def test_discover_cases_ignores_files(self, tmp_path):
+        """discover_cases should ignore files, only return directories."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         (tmp_path / "readme.md").write_text("# README")
-        (tmp_path / "scenario-123").mkdir()
+        (tmp_path / "case-123").mkdir()
 
         config = GeneratorConfig(cases_dir=tmp_path)
         generator = ManifestGenerator(config)
 
-        scenarios = generator.discover_scenarios()
+        cases = generator.discover_cases()
 
-        assert len(scenarios) == 1
-        assert scenarios[0].name == "scenario-123"
+        assert len(cases) == 1
+        assert cases[0].name == "case-123"
 
-    def test_discover_scenarios_empty_dir(self, tmp_path):
-        """discover_scenarios should return empty list for empty directory."""
+    def test_discover_cases_empty_dir(self, tmp_path):
+        """discover_cases should return empty list for empty directory."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=tmp_path)
         generator = ManifestGenerator(config)
 
-        scenarios = generator.discover_scenarios()
+        cases = generator.discover_cases()
 
-        assert scenarios == []
+        assert cases == []
 
 
-class TestLoadScenarioData:
-    """Tests for loading scenario data."""
+class TestLoadCaseData:
+    """Tests for loading case data."""
 
-    def test_load_scenario_returns_entry(self, case_dir_with_diagnosis):
-        """load_scenario should return ScenarioEntry."""
-        from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator, ScenarioEntry
+    def test_load_case_returns_entry(self, case_dir_with_diagnosis):
+        """load_case should return CaseEntry."""
+        from heisenberg.playground.manifest import CaseEntry, GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_with_diagnosis.parent)
         generator = ManifestGenerator(config)
 
-        entry = generator.load_scenario(case_dir_with_diagnosis)
+        entry = generator.load_case(case_dir_with_diagnosis)
 
-        assert isinstance(entry, ScenarioEntry)
+        assert isinstance(entry, CaseEntry)
 
-    def test_load_scenario_extracts_id(self, case_dir_with_diagnosis):
-        """load_scenario should extract scenario ID from directory name."""
+    def test_load_case_extracts_id(self, case_dir_with_diagnosis):
+        """load_case should extract case ID from directory name."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_with_diagnosis.parent)
         generator = ManifestGenerator(config)
 
-        entry = generator.load_scenario(case_dir_with_diagnosis)
+        entry = generator.load_case(case_dir_with_diagnosis)
 
         assert entry.id == "tryghost-ghost-21395156769"
 
-    def test_load_scenario_extracts_source_info(self, case_dir_with_diagnosis):
-        """load_scenario should extract source info from metadata."""
+    def test_load_case_extracts_source_info(self, case_dir_with_diagnosis):
+        """load_case should extract source info from metadata."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_with_diagnosis.parent)
         generator = ManifestGenerator(config)
 
-        entry = generator.load_scenario(case_dir_with_diagnosis)
+        entry = generator.load_case(case_dir_with_diagnosis)
 
         assert entry.source["repo"] == "TryGhost/Ghost"
         assert entry.source["stars"] == 51700
         assert entry.source["original_run_id"] == 21395156769
 
-    def test_load_scenario_extracts_validation_from_diagnosis(self, case_dir_with_diagnosis):
-        """load_scenario should extract validation info from diagnosis."""
+    def test_load_case_extracts_validation_from_diagnosis(self, case_dir_with_diagnosis):
+        """load_case should extract validation info from diagnosis."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_with_diagnosis.parent)
         generator = ManifestGenerator(config)
 
-        entry = generator.load_scenario(case_dir_with_diagnosis)
+        entry = generator.load_case(case_dir_with_diagnosis)
 
         assert entry.validation["confidence"] == "HIGH"
         assert "root_cause" in entry.validation
 
-    def test_load_scenario_builds_asset_paths(self, case_dir_with_diagnosis):
-        """load_scenario should build relative asset paths."""
+    def test_load_case_builds_asset_paths(self, case_dir_with_diagnosis):
+        """load_case should build relative asset paths."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_with_diagnosis.parent)
         generator = ManifestGenerator(config)
 
-        entry = generator.load_scenario(case_dir_with_diagnosis)
+        entry = generator.load_case(case_dir_with_diagnosis)
 
         assert entry.assets["report"] == "tryghost-ghost-21395156769/report.json"
         assert entry.assets["diagnosis"] == "tryghost-ghost-21395156769/diagnosis.json"
 
-    def test_load_scenario_without_diagnosis_returns_pending(self, case_dir_without_diagnosis):
-        """load_scenario without diagnosis should mark as pending."""
+    def test_load_case_without_diagnosis_returns_pending(self, case_dir_without_diagnosis):
+        """load_case without diagnosis should mark as pending."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=case_dir_without_diagnosis.parent)
         generator = ManifestGenerator(config)
 
-        entry = generator.load_scenario(case_dir_without_diagnosis)
+        entry = generator.load_case(case_dir_without_diagnosis)
 
         assert entry.validation["status"] == "pending"
         assert entry.assets.get("diagnosis") is None
@@ -325,8 +325,8 @@ class TestGenerateManifest:
 
         assert isinstance(manifest, Manifest)
 
-    def test_generate_includes_all_analyzed_scenarios(self, cases_dir_multiple):
-        """generate() should include all scenarios with diagnosis."""
+    def test_generate_includes_all_analyzed_cases(self, cases_dir_multiple):
+        """generate() should include all cases with diagnosis."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=cases_dir_multiple)
@@ -334,12 +334,12 @@ class TestGenerateManifest:
 
         manifest = generator.generate()
 
-        assert len(manifest.scenarios) == 2
+        assert len(manifest.cases) == 2
 
     def test_generate_excludes_pending_by_default(
         self, tmp_path, sample_metadata, sample_diagnosis
     ):
-        """generate() should exclude pending scenarios by default."""
+        """generate() should exclude pending cases by default."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         # Create one analyzed and one pending
@@ -359,13 +359,13 @@ class TestGenerateManifest:
 
         manifest = generator.generate()
 
-        assert len(manifest.scenarios) == 1
-        assert manifest.scenarios[0].id == "analyzed-123"
+        assert len(manifest.cases) == 1
+        assert manifest.cases[0].id == "analyzed-123"
 
     def test_generate_includes_pending_when_flag_set(
         self, tmp_path, sample_metadata, sample_diagnosis
     ):
-        """generate() should include pending scenarios when include_pending=True."""
+        """generate() should include pending cases when include_pending=True."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         s1 = tmp_path / "analyzed-123"
@@ -384,7 +384,7 @@ class TestGenerateManifest:
 
         manifest = generator.generate()
 
-        assert len(manifest.scenarios) == 2
+        assert len(manifest.cases) == 2
 
     def test_generate_sets_generated_at(self, cases_dir_multiple):
         """generate() should set generated_at timestamp."""
@@ -406,8 +406,8 @@ class TestGenerateManifest:
 class TestCalculateStats:
     """Tests for stats calculation."""
 
-    def test_stats_counts_total_scenarios(self, cases_dir_multiple):
-        """Stats should count total scenarios."""
+    def test_stats_counts_total_cases(self, cases_dir_multiple):
+        """Stats should count total cases."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         config = GeneratorConfig(cases_dir=cases_dir_multiple)
@@ -415,7 +415,7 @@ class TestCalculateStats:
 
         manifest = generator.generate()
 
-        assert manifest.stats["total_scenarios"] == 2
+        assert manifest.stats["total_cases"] == 2
 
     def test_stats_counts_by_confidence(
         self,
@@ -425,7 +425,7 @@ class TestCalculateStats:
         sample_diagnosis_medium,
         sample_diagnosis_low,
     ):
-        """Stats should count scenarios by confidence level."""
+        """Stats should count cases by confidence level."""
         from heisenberg.playground.manifest import GeneratorConfig, ManifestGenerator
 
         # HIGH
@@ -476,9 +476,9 @@ class TestManifestSerialization:
         data = manifest.to_dict()
 
         assert "generated_at" in data
-        assert "scenarios" in data
+        assert "cases" in data
         assert "stats" in data
-        assert isinstance(data["scenarios"], list)
+        assert isinstance(data["cases"], list)
 
     def test_manifest_to_json(self, cases_dir_multiple):
         """Manifest should serialize to JSON string."""
@@ -492,7 +492,7 @@ class TestManifestSerialization:
 
         # Should be valid JSON
         parsed = json.loads(json_str)
-        assert "scenarios" in parsed
+        assert "cases" in parsed
 
 
 # --- Save Manifest Tests ---
@@ -526,7 +526,7 @@ class TestSaveManifest:
         generator.save(manifest)
 
         data = json.loads(output_path.read_text())
-        assert "scenarios" in data
+        assert "cases" in data
         assert "stats" in data
 
     def test_generate_and_save_convenience(self, cases_dir_multiple):
@@ -540,4 +540,4 @@ class TestSaveManifest:
         manifest = generator.generate_and_save()
 
         assert output_path.exists()
-        assert manifest.stats["total_scenarios"] == 2
+        assert manifest.stats["total_cases"] == 2
