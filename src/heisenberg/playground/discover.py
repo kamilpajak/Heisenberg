@@ -32,6 +32,12 @@ DEFAULT_QUERIES = [
     'playwright "upload-artifact" path:.github/workflows extension:yml',
     '"blob-report" "upload-artifact" path:.github/workflows',
     '"playwright-report" "actions/upload-artifact" path:.github/workflows',
+    '"blob-report" path:.github extension:yml',  # Repos with custom upload actions
+]
+
+# Curated list of repos known to have Playwright tests with frequent failures
+KNOWN_GOOD_REPOS = [
+    "microsoft/playwright",  # The Playwright project itself - always has test failures
 ]
 
 PLAYWRIGHT_PATTERNS = [
@@ -45,6 +51,20 @@ PLAYWRIGHT_PATTERNS = [
 _PLAYWRIGHT_REGEX = re.compile("|".join(PLAYWRIGHT_PATTERNS), re.IGNORECASE)
 
 MAX_RUNS_TO_CHECK = 5
+CACHE_TTL_DAYS = 90
+CACHE_SCHEMA_VERSION = 1
+
+
+def get_default_cache_path():
+    """Get the default cache path (XDG-compliant).
+
+    Returns:
+        Path to ~/.cache/heisenberg/verified_runs.json
+    """
+    from pathlib import Path
+
+    cache_dir = Path.home() / ".cache" / "heisenberg"
+    return cache_dir / "verified_runs.json"
 
 
 # =============================================================================
@@ -55,10 +75,23 @@ MAX_RUNS_TO_CHECK = 5
 class CandidateStatus(Enum):
     """Status of a candidate project."""
 
-    COMPATIBLE = "compatible"  # Has valid Playwright artifacts
+    COMPATIBLE = "compatible"  # Has valid Playwright artifacts WITH failures
+    NO_FAILURES = "no_failures"  # Has Playwright artifacts but 0 test failures
     HAS_ARTIFACTS = "has_artifacts"  # Has artifacts but not Playwright
     NO_ARTIFACTS = "no_artifacts"  # Run exists but no artifacts
     NO_FAILED_RUNS = "no_failed_runs"  # No failed workflow runs
+
+
+@dataclass
+class ProgressInfo:
+    """Progress information for a single repo analysis."""
+
+    completed: int  # Sequential completion number (1, 2, 3...)
+    total: int  # Total repos to analyze
+    repo: str  # Repository name
+    status: str  # CandidateStatus value
+    elapsed_ms: int  # Time taken in milliseconds
+    message: str | None = None  # Optional extra message
 
 
 @dataclass
@@ -82,6 +115,167 @@ class ProjectCandidate:
     def has_artifacts(self) -> bool:
         """Whether this candidate has any artifacts."""
         return len(self.artifact_names) > 0
+
+
+# =============================================================================
+# VERIFICATION CACHE
+# =============================================================================
+
+
+class RunCache:
+    """Cache for verified run results with TTL.
+
+    Stores run_id -> failure_count mappings to avoid re-downloading
+    large artifacts on subsequent runs. Entries expire after 90 days
+    to ensure users can still view runs on GitHub.
+
+    Thread-safe: uses a lock for concurrent access and auto-saves on write.
+    """
+
+    def __init__(self, cache_path: str | None = None):
+        """Initialize cache.
+
+        Args:
+            cache_path: Path to cache JSON file. If None, uses in-memory only.
+        """
+        import threading
+        from pathlib import Path
+
+        self._path = Path(cache_path) if cache_path else None
+        self._data: dict = {"schema_version": CACHE_SCHEMA_VERSION, "runs": {}}
+        # Use RLock (reentrant) because set() calls save() while holding lock
+        self._lock = threading.RLock()
+        self._load()
+
+    def _load(self) -> None:
+        """Load cache from disk if it exists, then prune expired entries."""
+        if not self._path or not self._path.exists():
+            return
+
+        try:
+            data = json.loads(self._path.read_text())
+            # Ignore old schema versions
+            if data.get("schema_version") != CACHE_SCHEMA_VERSION:
+                return
+            self._data = data
+            # Prune expired/corrupt entries
+            self._prune()
+        except (json.JSONDecodeError, OSError):
+            # Corrupt or unreadable file - start fresh
+            pass
+
+    def _prune(self) -> None:
+        """Remove expired and corrupt entries from cache.
+
+        Called during load to prevent unbounded cache growth.
+        Saves to disk if any entries were pruned.
+        """
+        from datetime import datetime, timedelta
+
+        now = datetime.now()
+        cutoff = timedelta(days=CACHE_TTL_DAYS)
+        expired_ids = []
+
+        for run_id, entry in self._data["runs"].items():
+            try:
+                created_at = datetime.fromisoformat(entry["run_created_at"])
+                if now - created_at > cutoff:
+                    expired_ids.append(run_id)
+            except (KeyError, ValueError):
+                # Missing or invalid date - prune corrupt entry
+                expired_ids.append(run_id)
+
+        for run_id in expired_ids:
+            del self._data["runs"][run_id]
+
+        # Save if we pruned anything
+        if expired_ids:
+            self.save()
+
+    def save(self) -> None:
+        """Save cache to disk (thread-safe)."""
+        if not self._path:
+            return
+
+        with self._lock:
+            # Create parent directory if needed
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._path.write_text(json.dumps(self._data, indent=2))
+
+    def get(self, run_id: str) -> int | None:
+        """Get cached failure count for a run (thread-safe).
+
+        Returns None if not in cache or if run is older than 90 days
+        (GitHub artifacts would have expired).
+        """
+        from datetime import datetime, timedelta
+
+        with self._lock:
+            entry = self._data["runs"].get(run_id)
+            if not entry:
+                return None
+
+            # Check TTL based on when the RUN was created (not when we cached it)
+            # This ensures artifacts are still available on GitHub for demo users
+            try:
+                run_created_at = datetime.fromisoformat(entry["run_created_at"])
+                run_age = datetime.now() - run_created_at
+                if run_age > timedelta(days=CACHE_TTL_DAYS):
+                    return None  # Expired - GitHub artifacts gone
+                return entry["failure_count"]
+            except (KeyError, ValueError):
+                return None
+
+    def set(self, run_id: str, failure_count: int, run_created_at: str) -> None:
+        """Store failure count for a run and auto-save to disk.
+
+        Thread-safe: uses lock for concurrent access.
+
+        Args:
+            run_id: GitHub workflow run ID
+            failure_count: Number of test failures
+            run_created_at: ISO timestamp of when the run was created on GitHub
+        """
+        with self._lock:
+            self._data["runs"][run_id] = {
+                "failure_count": failure_count,
+                "run_created_at": run_created_at,
+            }
+            self.save()  # Auto-save to prevent data loss on crash
+
+
+def verify_has_failures_cached(
+    repo: str,
+    run_id: str,
+    artifact_name: str,
+    cache: RunCache,
+    run_created_at: str,
+) -> bool:
+    """Verify that an artifact contains actual test failures, using cache.
+
+    Args:
+        repo: Repository in owner/repo format
+        run_id: Workflow run ID
+        artifact_name: Name of the artifact to check
+        cache: RunCache instance for caching results
+        run_created_at: ISO timestamp of when the run was created on GitHub
+
+    Returns:
+        True if artifact has non-zero failure count.
+    """
+    # Check cache first
+    cached_count = cache.get(run_id)
+    if cached_count is not None:
+        return cached_count > 0
+
+    # Cache miss - download and verify
+    failure_count = download_and_check_failures(repo, run_id, artifact_name)
+
+    # Store result in cache (even if None or 0)
+    if failure_count is not None:
+        cache.set(run_id, failure_count, run_created_at)
+
+    return failure_count is not None and failure_count > 0
 
 
 # =============================================================================
@@ -162,6 +356,97 @@ def get_run_artifacts(repo: str, run_id: str) -> list[dict]:
     return data["artifacts"]
 
 
+def download_artifact_to_dir(repo: str, artifact_name: str, target_dir: str) -> bool:
+    """Download and extract artifact directly to target directory.
+
+    Args:
+        repo: Repository in owner/repo format
+        artifact_name: Name of the artifact to download
+        target_dir: Directory to extract artifact contents to
+
+    Returns:
+        True if download succeeded, False otherwise.
+    """
+    cmd = ["gh", "run", "download", "-R", repo, "-n", artifact_name, "-D", target_dir]
+    try:
+        subprocess.run(cmd, capture_output=True, check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def extract_failure_count_from_dir(dir_path) -> int | None:
+    """Extract failure count from files in an extracted artifact directory.
+
+    Handles both direct JSON files and nested ZIP files (blob reports).
+
+    Args:
+        dir_path: Path to the extracted artifact directory
+
+    Returns:
+        Number of failures found, or None if no stats found.
+    """
+    import zipfile
+    from pathlib import Path
+
+    dir_path = Path(dir_path)
+
+    # First, check nested ZIP files (blob reports)
+    for zip_file in dir_path.glob("*.zip"):
+        try:
+            with zipfile.ZipFile(zip_file) as zf:
+                for name in zf.namelist():
+                    if name.endswith(".json"):
+                        content = zf.read(name)
+                        data = json.loads(content)
+                        failures = _extract_failure_count(data)
+                        if failures is not None:
+                            return failures
+        except (zipfile.BadZipFile, json.JSONDecodeError):
+            continue
+
+    # Then check direct JSON files
+    for json_file in dir_path.rglob("*.json"):
+        try:
+            data = json.loads(json_file.read_text())
+            failures = _extract_failure_count(data)
+            if failures is not None:
+                return failures
+        except (json.JSONDecodeError, OSError):
+            continue
+
+    return None
+
+
+def gh_artifact_download(repo: str, artifact_name: str) -> bytes | None:
+    """Download artifact content via gh CLI.
+
+    DEPRECATED: Use download_artifact_to_dir instead for better performance.
+
+    Returns raw bytes of the artifact ZIP, or None on failure.
+    """
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cmd = ["gh", "run", "download", "-R", repo, "-n", artifact_name, "-D", tmpdir]
+        try:
+            subprocess.run(cmd, capture_output=True, check=True)
+            # gh extracts the zip, so we need to re-zip the contents
+            import io
+            import zipfile
+
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w") as zf:
+                for file_path in Path(tmpdir).rglob("*"):
+                    if file_path.is_file():
+                        arcname = str(file_path.relative_to(tmpdir))
+                        zf.write(file_path, arcname)
+            return zip_buffer.getvalue()
+        except subprocess.CalledProcessError:
+            return None
+
+
 # =============================================================================
 # DOMAIN LOGIC (Validation & Analysis)
 # =============================================================================
@@ -172,60 +457,226 @@ def is_playwright_artifact(name: str) -> bool:
     return bool(_PLAYWRIGHT_REGEX.search(name))
 
 
+def download_and_check_failures(repo: str, run_id: str, artifact_name: str) -> int | None:
+    """Download artifact and extract failure count.
+
+    Uses optimized direct file reading instead of re-zipping.
+
+    Returns:
+        Number of failures found, or None if download/parsing failed.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        if not download_artifact_to_dir(repo, artifact_name, tmpdir):
+            return None
+
+        return extract_failure_count_from_dir(tmpdir)
+
+
+def _extract_failure_count(data: dict) -> int | None:
+    """Extract failure count from Playwright report data."""
+    if not isinstance(data, dict):
+        return None
+
+    stats = data.get("stats", {})
+    if not stats:
+        return None
+
+    # Playwright JSON reporter format: unexpected, flaky
+    if "unexpected" in stats:
+        return stats.get("unexpected", 0) + stats.get("flaky", 0)
+
+    # Playwright blob/JSONL format: failed
+    if "failed" in stats:
+        return stats.get("failed", 0)
+
+    return None
+
+
+def verify_has_failures(repo: str, run_id: str, artifact_name: str) -> bool:
+    """Verify that an artifact contains actual test failures.
+
+    Downloads the artifact and checks if it has non-zero failure count.
+    """
+    failure_count = download_and_check_failures(repo, run_id, artifact_name)
+    return failure_count is not None and failure_count > 0
+
+
 def filter_expired_artifacts(artifacts: list[dict]) -> list[str]:
     """Filter out expired artifacts, return names of valid ones."""
     return [a["name"] for a in artifacts if not a.get("expired", False)]
 
 
-def find_valid_artifacts(repo: str) -> tuple[str | None, str | None, list[str]]:
-    """Find valid (non-expired) artifacts from recent failed runs.
+def find_valid_artifacts(repo: str) -> tuple[str | None, str | None, list[str], str | None]:
+    """Find valid (non-expired) Playwright artifacts from recent failed runs.
+
+    Prioritizes runs with Playwright artifacts over runs with other artifacts.
 
     Returns:
-        Tuple of (run_id, run_url, artifact_names) for first run with artifacts,
-        or (first_run_id, first_run_url, []) if no artifacts found.
+        Tuple of (run_id, run_url, artifact_names, run_created_at) for first run
+        with Playwright artifacts, or first run with any artifacts,
+        or (first_run_id, first_run_url, [], run_created_at) if none.
     """
     runs = get_failed_runs(repo)
     if not runs:
-        return None, None, []
+        return None, None, [], None
 
+    # First pass: look for runs with Playwright artifacts
     for run in runs:
         run_id = str(run["id"])
         run_url = run.get("html_url", "")
+        run_created_at = run.get("created_at")
+
+        artifacts = get_run_artifacts(repo, run_id)
+        valid_names = filter_expired_artifacts(artifacts)
+        playwright_names = [a for a in valid_names if is_playwright_artifact(a)]
+
+        if playwright_names:
+            return run_id, run_url, valid_names, run_created_at
+
+    # Second pass: return first run with any artifacts
+    for run in runs:
+        run_id = str(run["id"])
+        run_url = run.get("html_url", "")
+        run_created_at = run.get("created_at")
 
         artifacts = get_run_artifacts(repo, run_id)
         valid_names = filter_expired_artifacts(artifacts)
 
         if valid_names:
-            return run_id, run_url, valid_names
+            return run_id, run_url, valid_names, run_created_at
 
     # No artifacts found, return first run info
     first_run = runs[0]
-    return str(first_run["id"]), first_run.get("html_url", ""), []
+    return str(first_run["id"]), first_run.get("html_url", ""), [], first_run.get("created_at")
 
 
 def determine_status(
     run_id: str | None,
     artifact_names: list[str],
     playwright_artifacts: list[str],
+    failure_count: int | None = None,
 ) -> CandidateStatus:
-    """Determine the status of a candidate based on its data."""
+    """Determine the status of a candidate based on its data.
+
+    Args:
+        run_id: Workflow run ID
+        artifact_names: All artifact names
+        playwright_artifacts: Playwright-specific artifact names
+        failure_count: Number of test failures (None = not verified)
+    """
     if not run_id:
         return CandidateStatus.NO_FAILED_RUNS
     if not artifact_names:
         return CandidateStatus.NO_ARTIFACTS
     if not playwright_artifacts:
         return CandidateStatus.HAS_ARTIFACTS
+    # If failure_count was verified and is 0, mark as NO_FAILURES
+    if failure_count is not None and failure_count == 0:
+        return CandidateStatus.NO_FAILURES
     return CandidateStatus.COMPATIBLE
 
 
-def analyze_candidate(repo: str, stars: int | None = None) -> ProjectCandidate:
-    """Analyze a repository as a candidate for testing."""
+def analyze_candidate_with_status(
+    repo: str,
+    stars: int | None = None,
+    verify_failures: bool = False,
+    on_status: callable | None = None,
+    cache: RunCache | None = None,
+) -> ProjectCandidate:
+    """Analyze a repository with status updates for each stage.
+
+    Args:
+        repo: Repository in owner/repo format
+        stars: Star count (fetched if None)
+        verify_failures: If True, download artifact to verify it has failures
+        on_status: Optional callback(stage_description) for status updates
+        cache: Optional RunCache for caching verification results
+
+    Returns:
+        ProjectCandidate with analysis results
+    """
+
+    def report(stage: str) -> None:
+        if on_status:
+            on_status(stage)
+
+    report("Fetching repo info...")
+
     if stars is None:
         stars = get_repo_stars(repo)
 
-    run_id, run_url, artifact_names = find_valid_artifacts(repo)
+    report("Fetching failed runs...")
+
+    run_id, run_url, artifact_names, run_created_at = find_valid_artifacts(repo)
     playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
-    status = determine_status(run_id, artifact_names, playwright_artifacts)
+
+    # Optionally verify that artifact has actual failures
+    failure_count = None
+    if verify_failures and playwright_artifacts and run_id:
+        # Skip verification for KNOWN_GOOD_REPOS (they're trusted to have failures)
+        if repo in KNOWN_GOOD_REPOS:
+            failure_count = 1  # Trust that it has failures
+        else:
+            report(
+                "Downloading artifact..."
+                if not cache or not cache.get(run_id)
+                else "Checking cache..."
+            )
+            # Try the first Playwright artifact
+            if cache and run_created_at:
+                has_failures = verify_has_failures_cached(
+                    repo, run_id, playwright_artifacts[0], cache, run_created_at
+                )
+            else:
+                has_failures = verify_has_failures(repo, run_id, playwright_artifacts[0])
+            failure_count = 1 if has_failures else 0
+
+    status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
+
+    return ProjectCandidate(
+        repo=repo,
+        stars=stars,
+        status=status,
+        artifact_names=artifact_names,
+        playwright_artifacts=playwright_artifacts,
+        run_id=run_id,
+        run_url=run_url,
+    )
+
+
+def analyze_candidate(
+    repo: str,
+    stars: int | None = None,
+    verify_failures: bool = False,
+) -> ProjectCandidate:
+    """Analyze a repository as a candidate for testing.
+
+    Args:
+        repo: Repository in owner/repo format
+        stars: Star count (fetched if None)
+        verify_failures: If True, download artifact to verify it has failures
+    """
+    if stars is None:
+        stars = get_repo_stars(repo)
+
+    run_id, run_url, artifact_names, run_created_at = find_valid_artifacts(repo)
+    playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
+
+    # Optionally verify that artifact has actual failures
+    failure_count = None
+    if verify_failures and playwright_artifacts and run_id:
+        # Skip verification for KNOWN_GOOD_REPOS (they're trusted to have failures)
+        # This avoids downloading massive artifacts (50-200MB) for microsoft/playwright
+        if repo in KNOWN_GOOD_REPOS:
+            failure_count = 1  # Trust that it has failures
+        else:
+            # Try the first Playwright artifact
+            has_failures = verify_has_failures(repo, run_id, playwright_artifacts[0])
+            failure_count = 1 if has_failures else 0
+
+    status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
 
     return ProjectCandidate(
         repo=repo,
@@ -255,10 +706,17 @@ def sort_candidates(candidates: list[ProjectCandidate]) -> list[ProjectCandidate
 # =============================================================================
 
 
+_USE_DEFAULT_CACHE = object()  # Sentinel for "use default cache path"
+
+
 def discover_candidates(
     global_limit: int = 30,
     min_stars: int = 100,
     queries: list[str] | None = None,
+    verify_failures: bool = False,
+    on_progress: callable | None = None,
+    show_progress: bool = False,
+    cache_path: str | None | object = _USE_DEFAULT_CACHE,
 ) -> list[ProjectCandidate]:
     """Discover candidate projects from GitHub.
 
@@ -266,23 +724,153 @@ def discover_candidates(
         global_limit: Maximum total repos to analyze across all queries
         min_stars: Minimum star count to include
         queries: Custom search queries (uses DEFAULT_QUERIES if None)
+        verify_failures: If True, download artifacts to verify they have failures
+        on_progress: Optional callback(ProgressInfo) for progress updates (legacy)
+        show_progress: If True, show Rich progress display with spinners
+        cache_path: Path to cache file for verified runs. Default uses
+            ~/.cache/heisenberg/verified_runs.json. Set to None to disable caching.
 
     Returns:
         List of analyzed ProjectCandidate objects, sorted by compatibility
     """
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     if queries is None:
         queries = DEFAULT_QUERIES
 
-    # Collect unique repos from all queries
-    all_repos: set[str] = set()
+    # Determine cache path: default, explicit path, or disabled (None)
+    actual_cache_path = None
+    if verify_failures:
+        if cache_path is _USE_DEFAULT_CACHE:
+            actual_cache_path = get_default_cache_path()
+        elif cache_path is not None:
+            actual_cache_path = cache_path
+
+    # Initialize verification cache (with 90-day TTL based on run creation time)
+    cache = RunCache(cache_path=actual_cache_path) if actual_cache_path else None
+
+    # Start with known good repos (high probability of having failures)
+    all_repos: set[str] = set(KNOWN_GOOD_REPOS)
+
+    # Add repos from search queries
     for query in queries:
         results = search_repos(query, limit=global_limit)
         all_repos.update(results)
         if len(all_repos) >= global_limit:
             break
 
-    # Analyze candidates
-    candidates = [analyze_candidate(repo) for repo in list(all_repos)[:global_limit]]
+    repos_to_analyze = list(all_repos)[:global_limit]
+    total = len(repos_to_analyze)
+    candidates: list[ProjectCandidate] = []
+
+    # Thread-safe counter for sequential completion numbers
+    completion_counter = [0]  # Use list to allow mutation in nested function
+    counter_lock = threading.Lock()
+
+    # Rich progress display (if enabled)
+    progress = create_progress_display() if show_progress else None
+    task_ids: dict[str, int] = {}  # repo -> task_id mapping
+
+    def analyze_with_progress(repo: str) -> ProjectCandidate | None:
+        """Analyze a repo and report progress."""
+        start_time = time.time()
+        result = None
+        message = None
+
+        def on_status(stage: str) -> None:
+            """Update Rich progress with current stage."""
+            if progress and repo in task_ids:
+                # Use Rich markup: repo in cyan, stage in dim
+                progress.update(
+                    task_ids[repo],
+                    description=f"⏳ [cyan]{repo}[/cyan] [dim]│[/dim] {stage}",
+                )
+
+        try:
+            # Check if this is a known good repo (for message)
+            if verify_failures and repo in KNOWN_GOOD_REPOS:
+                message = "skipped verify"
+
+            result = analyze_candidate_with_status(
+                repo,
+                verify_failures=verify_failures,
+                on_status=on_status if progress else None,
+                cache=cache,
+            )
+        except Exception:
+            pass
+
+        elapsed_ms = int((time.time() - start_time) * 1000)
+
+        # Update Rich progress (mark task complete)
+        if progress and repo in task_ids:
+            is_compatible = result and result.status == CandidateStatus.COMPATIBLE
+            status_icon = "[green]✓[/green]" if is_compatible else "[red]✗[/red]"
+            status_text = result.status.value if result else "error"
+            time_str = f"{elapsed_ms / 1000:.1f}s" if elapsed_ms >= 1000 else f"{elapsed_ms}ms"
+            extra = f" [dim]({message})[/dim]" if message else ""
+            progress.update(
+                task_ids[repo],
+                description=f"{status_icon} [cyan]{repo}[/cyan] [dim]│[/dim] {status_text} [dim]{time_str}[/dim]{extra}",
+                completed=1,
+            )
+
+        # Legacy callback support
+        if on_progress:
+            status = result.status.value if result else "error"
+
+            with counter_lock:
+                completion_counter[0] += 1
+                completed = completion_counter[0]
+
+                info = ProgressInfo(
+                    completed=completed,
+                    total=total,
+                    repo=repo,
+                    status=status,
+                    elapsed_ms=elapsed_ms,
+                    message=message,
+                )
+                on_progress(info)
+
+        return result
+
+    def run_discovery():
+        """Run the actual discovery with ThreadPoolExecutor."""
+        nonlocal candidates
+
+        # Add tasks to Rich progress (shows spinner while running)
+        if progress:
+            for repo in repos_to_analyze:
+                task_id = progress.add_task(
+                    f"⏳ [cyan]{repo}[/cyan] [dim]│[/dim] Waiting...",
+                    total=1,
+                )
+                task_ids[repo] = task_id
+
+        # Use parallel processing for faster execution
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {
+                executor.submit(analyze_with_progress, repo): repo for repo in repos_to_analyze
+            }
+
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    candidates.append(result)
+
+    # Run with or without Rich progress context
+    if progress:
+        with progress:
+            run_discovery()
+    else:
+        run_discovery()
+
+    # Save verification cache to disk
+    if cache:
+        cache.save()
 
     # Filter and sort
     candidates = filter_by_min_stars(candidates, min_stars=min_stars)
@@ -296,10 +884,59 @@ def discover_candidates(
 # =============================================================================
 
 
+def create_progress_display():
+    """Create a Rich Progress display for tracking repo analysis.
+
+    Returns a Progress object with spinner for active tasks.
+    """
+    from rich.progress import (
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
+    )
+
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        transient=False,  # Keep completed tasks visible
+    )
+
+
+def format_progress_line(info: ProgressInfo) -> str:
+    """Format a progress line for CLI output.
+
+    Args:
+        info: ProgressInfo with completion details
+
+    Returns:
+        Formatted string like "[ 3/10] ✓ owner/repo (1.5s)"
+    """
+    # Status icon
+    icon = "✓" if info.status == "compatible" else "✗"
+
+    # Format elapsed time
+    if info.elapsed_ms >= 1000:
+        time_str = f"{info.elapsed_ms / 1000:.1f}s"
+    else:
+        time_str = f"{info.elapsed_ms}ms"
+
+    # Base line
+    line = f"[{info.completed:2}/{info.total}] {icon} {info.repo} ({time_str})"
+
+    # Add optional message
+    if info.message:
+        line += f" - {info.message}"
+
+    return line
+
+
 def format_status_icon(status: CandidateStatus) -> str:
     """Get the icon for a candidate status."""
     icons = {
         CandidateStatus.COMPATIBLE: "✅",
+        CandidateStatus.NO_FAILURES: "🟡",
         CandidateStatus.HAS_ARTIFACTS: "⚠️ ",
         CandidateStatus.NO_ARTIFACTS: "❌",
         CandidateStatus.NO_FAILED_RUNS: "⏭️ ",
@@ -312,6 +949,8 @@ def format_status_detail(candidate: ProjectCandidate) -> str:
     if candidate.status == CandidateStatus.COMPATIBLE:
         artifacts = ", ".join(candidate.playwright_artifacts[:3])
         return f"{candidate.stars:>5}⭐ ✓ {artifacts}"
+    elif candidate.status == CandidateStatus.NO_FAILURES:
+        return "0 test failures (tests passed)"
     elif candidate.status == CandidateStatus.HAS_ARTIFACTS:
         artifacts = ", ".join(candidate.artifact_names[:3])
         return f"Artifacts: {artifacts}"
@@ -395,19 +1034,47 @@ def save_results(candidates: list[ProjectCandidate], output_path: str) -> None:
 # =============================================================================
 
 
-def main() -> None:
-    """Main entry point for CLI."""
+def create_argument_parser() -> argparse.ArgumentParser:
+    """Create and return the argument parser for CLI."""
     parser = argparse.ArgumentParser(description="Discover projects for Heisenberg testing")
     parser.add_argument("--min-stars", type=int, default=100, help="Minimum stars")
     parser.add_argument("--limit", type=int, default=30, help="Max repos to analyze (global)")
     parser.add_argument("--output", "-o", help="Output JSON file")
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Download artifacts to verify they have actual failures (slower)",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        dest="no_cache",
+        help="Disable verification cache (force re-download of artifacts)",
+    )
+    return parser
+
+
+def main() -> None:
+    """Main entry point for CLI."""
+    parser = create_argument_parser()
     args = parser.parse_args()
 
     print("🔍 Searching GitHub for Playwright projects with artifacts...\n")
+    if args.verify:
+        cache_info = " (cache disabled)" if args.no_cache else ""
+        print(
+            f"📦 Verification enabled - downloading artifacts to check for failures{cache_info}\n"
+        )
+
+    # Determine cache_path: None to disable, or use default
+    cache_path = None if args.no_cache else _USE_DEFAULT_CACHE
 
     candidates = discover_candidates(
         global_limit=args.limit,
         min_stars=args.min_stars,
+        verify_failures=args.verify,
+        show_progress=True,  # Use Rich progress display
+        cache_path=cache_path,
     )
 
     print_summary(candidates, args.min_stars)
