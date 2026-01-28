@@ -7,6 +7,7 @@ import pytest
 
 from heisenberg.utils.merging import (
     BlobMergeError,
+    _write_blob_files,
     extract_blob_files,
     extract_blob_zips,
     merge_blob_reports,
@@ -195,3 +196,47 @@ class TestBlobMergeError:
         error.__cause__ = cause
 
         assert error.__cause__ == cause
+
+
+class TestWriteBlobFiles:
+    """Tests for _write_blob_files helper."""
+
+    def test_writes_blob_zips_to_directory(self, tmp_path):
+        """Should write blob zips to the directory."""
+        blob_zips = [
+            ("report-1.zip", b"content1"),
+            ("report-2.zip", b"content2"),
+        ]
+
+        _write_blob_files(tmp_path, None, blob_zips)
+
+        assert (tmp_path / "report-1.zip").exists()
+        assert (tmp_path / "report-2.zip").exists()
+        assert (tmp_path / "report-1.zip").read_bytes() == b"content1"
+
+    def test_writes_legacy_blob_files_as_jsonl(self, tmp_path):
+        """Should write legacy blob_files as .jsonl files."""
+        blob_files = [b"content1", b"content2"]
+
+        _write_blob_files(tmp_path, blob_files, None)
+
+        assert (tmp_path / "report-0.jsonl").exists()
+        assert (tmp_path / "report-1.jsonl").exists()
+        assert (tmp_path / "report-0.jsonl").read_bytes() == b"content1"
+
+    def test_prefers_blob_zips_over_blob_files(self, tmp_path):
+        """Should use blob_zips when both are provided."""
+        blob_files = [b"legacy"]
+        blob_zips = [("report.zip", b"preferred")]
+
+        _write_blob_files(tmp_path, blob_files, blob_zips)
+
+        assert (tmp_path / "report.zip").exists()
+        assert not (tmp_path / "report-0.jsonl").exists()
+
+    def test_handles_empty_inputs(self, tmp_path):
+        """Should handle None inputs gracefully."""
+        _write_blob_files(tmp_path, None, None)
+
+        # Should not create any files
+        assert list(tmp_path.iterdir()) == []
