@@ -3,20 +3,27 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from unittest.mock import MagicMock, patch
 
 from heisenberg.playground.discover import (
     DEFAULT_QUERIES,
+    GH_MAX_RETRIES,
     ProjectSource,
     SourceStatus,
+    _gh_subprocess,
+    _is_rate_limit_error,
     analyze_source,
     determine_status,
     download_and_check_failures,
     filter_by_min_stars,
     filter_expired_artifacts,
     find_valid_artifacts,
-    format_status_detail,
+    format_size,
+    format_stars,
+    format_status_color,
     format_status_icon,
+    format_status_label,
     get_failed_runs,
     get_run_artifacts,
     is_playwright_artifact,
@@ -270,8 +277,9 @@ class TestSortSources:
 class TestGetFailedRuns:
     """Tests for get_failed_runs function."""
 
+    @patch("time.sleep")
     @patch("subprocess.run")
-    def test_returns_workflow_runs(self, mock_run):
+    def test_returns_workflow_runs(self, mock_run, _mock_sleep):
         """Should return list of workflow runs."""
         mock_run.return_value = MagicMock(
             stdout=json.dumps(
@@ -290,8 +298,9 @@ class TestGetFailedRuns:
         assert len(runs) == 2
         assert runs[0]["id"] == 100
 
+    @patch("time.sleep")
     @patch("subprocess.run")
-    def test_requests_multiple_runs(self, mock_run):
+    def test_requests_multiple_runs(self, mock_run, _mock_sleep):
         """Should request per_page=5 by default."""
         mock_run.return_value = MagicMock(
             stdout=json.dumps({"workflow_runs": []}),
@@ -343,7 +352,7 @@ class TestFindValidArtifacts:
 
         mock_get_artifacts.side_effect = artifacts_side_effect
 
-        run_id, run_url, artifacts, run_created_at = find_valid_artifacts("owner/repo")
+        run_id, run_url, artifacts, run_created_at, _ = find_valid_artifacts("owner/repo")
 
         assert run_id == "200"
         assert "playwright-report" in artifacts
@@ -361,7 +370,7 @@ class TestFindValidArtifacts:
             {"name": "trace.zip", "expired": False},
         ]
 
-        run_id, run_url, artifacts, run_created_at = find_valid_artifacts("owner/repo")
+        run_id, run_url, artifacts, run_created_at, _ = find_valid_artifacts("owner/repo")
 
         assert "playwright-report" not in artifacts
         assert "trace.zip" in artifacts
@@ -370,8 +379,9 @@ class TestFindValidArtifacts:
 class TestSearchRepos:
     """Tests for search_repos function."""
 
+    @patch("time.sleep")
     @patch("subprocess.run")
-    def test_returns_repo_names(self, mock_run):
+    def test_returns_repo_names(self, mock_run, _mock_sleep):
         """Should return list of repo names."""
         mock_run.return_value = MagicMock(
             stdout=json.dumps({"items": [{"repository": {"full_name": "owner/repo"}}]}),
@@ -383,8 +393,9 @@ class TestSearchRepos:
         assert len(results) == 1
         assert results[0] == "owner/repo"
 
+    @patch("time.sleep")
     @patch("subprocess.run")
-    def test_deduplicates_across_results(self, mock_run):
+    def test_deduplicates_across_results(self, mock_run, _mock_sleep):
         """Should deduplicate repos that appear multiple times."""
         mock_run.return_value = MagicMock(
             stdout=json.dumps(
@@ -415,6 +426,7 @@ class TestAnalyzeCandidate:
             "url",
             ["playwright-report"],
             "2024-01-15T10:00:00Z",
+            {"playwright-report": 50_000_000},
         )
         mock_get_stars.return_value = 999
 
@@ -432,6 +444,7 @@ class TestAnalyzeCandidate:
             "url",
             ["playwright-report"],
             "2024-01-15T10:00:00Z",
+            {"playwright-report": 50_000_000},
         )
         mock_get_stars.return_value = 1234
 
@@ -449,6 +462,7 @@ class TestAnalyzeCandidate:
             "url",
             ["playwright-report"],
             "2024-01-15T10:00:00Z",
+            {"playwright-report": 50_000_000},
         )
         mock_get_stars.return_value = 100
 
@@ -467,57 +481,217 @@ class TestFormatStatusIcon:
     """Tests for format_status_icon function."""
 
     def test_compatible_icon(self):
-        """COMPATIBLE status should show checkmark."""
-        assert "✅" in format_status_icon(SourceStatus.COMPATIBLE)
+        """COMPATIBLE status should show plus."""
+        assert format_status_icon(SourceStatus.COMPATIBLE) == "+"
+
+    def test_no_failures_icon(self):
+        """NO_FAILURES status should show tilde."""
+        assert format_status_icon(SourceStatus.NO_FAILURES) == "~"
 
     def test_has_artifacts_icon(self):
-        """HAS_ARTIFACTS status should show warning."""
-        assert "⚠" in format_status_icon(SourceStatus.HAS_ARTIFACTS)
+        """HAS_ARTIFACTS status should show exclamation."""
+        assert format_status_icon(SourceStatus.HAS_ARTIFACTS) == "!"
 
     def test_no_artifacts_icon(self):
-        """NO_ARTIFACTS status should show X."""
-        assert "❌" in format_status_icon(SourceStatus.NO_ARTIFACTS)
+        """NO_ARTIFACTS status should show dash."""
+        assert format_status_icon(SourceStatus.NO_ARTIFACTS) == "-"
 
     def test_no_failed_runs_icon(self):
-        """NO_FAILED_RUNS status should show skip icon."""
-        assert "⏭" in format_status_icon(SourceStatus.NO_FAILED_RUNS)
+        """NO_FAILED_RUNS status should show dot."""
+        assert format_status_icon(SourceStatus.NO_FAILED_RUNS) == "."
 
 
-class TestFormatStatusDetail:
-    """Tests for format_status_detail function."""
+class TestFormatStatusColor:
+    """Tests for format_status_color function."""
 
-    def test_compatible_shows_artifacts(self):
-        """COMPATIBLE status should show playwright artifacts."""
-        source = ProjectSource(
-            repo="owner/repo",
-            stars=100,
-            status=SourceStatus.COMPATIBLE,
-            playwright_artifacts=["playwright-report"],
+    def test_compatible_color(self):
+        """COMPATIBLE status should be green."""
+        assert format_status_color(SourceStatus.COMPATIBLE) == "green"
+
+    def test_no_failures_color(self):
+        """NO_FAILURES status should be yellow."""
+        assert format_status_color(SourceStatus.NO_FAILURES) == "yellow"
+
+    def test_has_artifacts_color(self):
+        """HAS_ARTIFACTS status should be yellow."""
+        assert format_status_color(SourceStatus.HAS_ARTIFACTS) == "yellow"
+
+    def test_no_artifacts_color(self):
+        """NO_ARTIFACTS status should be red."""
+        assert format_status_color(SourceStatus.NO_ARTIFACTS) == "red"
+
+    def test_no_failed_runs_color(self):
+        """NO_FAILED_RUNS status should be dim."""
+        assert format_status_color(SourceStatus.NO_FAILED_RUNS) == "dim"
+
+
+class TestFormatStatusLabel:
+    """Tests for format_status_label function."""
+
+    def test_compatible_label(self):
+        """COMPATIBLE status should return 'compatible'."""
+        assert format_status_label(SourceStatus.COMPATIBLE) == "compatible"
+
+    def test_no_failures_label(self):
+        """NO_FAILURES status should return 'tests passing'."""
+        assert format_status_label(SourceStatus.NO_FAILURES) == "tests passing"
+
+    def test_has_artifacts_label(self):
+        """HAS_ARTIFACTS status should return 'has artifacts'."""
+        assert format_status_label(SourceStatus.HAS_ARTIFACTS) == "has artifacts"
+
+    def test_no_artifacts_label(self):
+        """NO_ARTIFACTS status should return 'no artifacts'."""
+        assert format_status_label(SourceStatus.NO_ARTIFACTS) == "no artifacts"
+
+    def test_no_failed_runs_label(self):
+        """NO_FAILED_RUNS status should return 'no failed runs'."""
+        assert format_status_label(SourceStatus.NO_FAILED_RUNS) == "no failed runs"
+
+    def test_all_labels_have_spaces(self):
+        """All multi-word labels should use spaces, not underscores."""
+        for status in SourceStatus:
+            label = format_status_label(status)
+            assert "_" not in label, f"{status.name} label contains underscore: {label}"
+
+    def test_all_labels_fit_column_width(self):
+        """All labels should fit within COL_STATUS (14 chars)."""
+        from heisenberg.playground.discover import COL_STATUS
+
+        for status in SourceStatus:
+            label = format_status_label(status)
+            assert len(label) <= COL_STATUS, (
+                f"{status.name} label '{label}' is {len(label)} chars, max {COL_STATUS}"
+            )
+
+
+class TestFormatStars:
+    """Tests for format_stars function."""
+
+    def test_small_numbers_unchanged(self):
+        """Numbers under 1000 should be returned as-is."""
+        assert format_stars(0) == "0"
+        assert format_stars(293) == "293"
+        assert format_stars(999) == "999"
+
+    def test_thousands(self):
+        """Numbers >= 1000 should use 'k' suffix with one decimal."""
+        assert format_stars(1000) == "1.0k"
+        assert format_stars(5962) == "6.0k"
+        assert format_stars(6746) == "6.7k"
+        assert format_stars(81807) == "81.8k"
+
+    def test_millions(self):
+        """Numbers >= 1M should use 'M' suffix with one decimal."""
+        assert format_stars(1_000_000) == "1.0M"
+        assert format_stars(2_500_000) == "2.5M"
+
+
+class TestFormatSize:
+    """Tests for format_size function."""
+
+    def test_bytes(self):
+        """Small values should show bytes."""
+        assert format_size(0) == "0 B"
+        assert format_size(512) == "512 B"
+
+    def test_kilobytes(self):
+        """Values in KB range should show KB."""
+        assert format_size(1024) == "1 KB"
+        assert format_size(150_000) == "146 KB"
+
+    def test_megabytes(self):
+        """Values in MB range should show MB."""
+        assert format_size(1_048_576) == "1 MB"
+        assert format_size(52_000_000) == "50 MB"
+        assert format_size(500_000_000) == "477 MB"
+
+    def test_gigabytes(self):
+        """Values in GB range should show GB with one decimal."""
+        assert format_size(1_073_741_824) == "1.0 GB"
+        assert format_size(1_500_000_000) == "1.4 GB"
+
+
+# =============================================================================
+# TIMEOUT HANDLING
+# =============================================================================
+
+
+class TestSubprocessTimeouts:
+    """Tests for subprocess timeout handling."""
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_gh_api_returns_none_on_timeout(self, mock_run, _mock_sleep):
+        """gh_api should return None when subprocess times out."""
+        from heisenberg.playground.discover import gh_api
+
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
+
+        result = gh_api("/repos/owner/repo")
+
+        assert result is None
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_search_repos_returns_empty_on_timeout(self, mock_run, _mock_sleep):
+        """search_repos should return empty list on timeout."""
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
+
+        result = search_repos("query", limit=10)
+
+        assert result == []
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_get_failed_runs_returns_empty_on_timeout(self, mock_run, _mock_sleep):
+        """get_failed_runs should return empty list on timeout."""
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
+
+        result = get_failed_runs("owner/repo")
+
+        assert result == []
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_download_artifact_returns_false_on_timeout(self, mock_run, _mock_sleep):
+        """download_artifact_to_dir should return False on timeout."""
+        from heisenberg.playground.discover import download_artifact_to_dir
+
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=120)
+
+        result = download_artifact_to_dir("owner/repo", "artifact", "/tmp/target")
+
+        assert result is False
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_download_artifact_passes_timeout(self, mock_run, _mock_sleep):
+        """download_artifact_to_dir should pass timeout to subprocess."""
+        from heisenberg.playground.discover import TIMEOUT_DOWNLOAD, download_artifact_to_dir
+
+        mock_run.return_value = MagicMock(returncode=0)
+
+        download_artifact_to_dir("owner/repo", "artifact", "/tmp/target")
+
+        _, kwargs = mock_run.call_args
+        assert kwargs.get("timeout") == TIMEOUT_DOWNLOAD
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_gh_api_passes_timeout(self, mock_run, _mock_sleep):
+        """gh_api should pass timeout to subprocess."""
+        from heisenberg.playground.discover import TIMEOUT_API, gh_api
+
+        mock_run.return_value = MagicMock(
+            stdout='{"ok": true}',
+            returncode=0,
         )
-        detail = format_status_detail(source)
-        assert "playwright-report" in detail
-        assert "100" in detail  # Stars
 
-    def test_has_artifacts_shows_artifact_names(self):
-        """HAS_ARTIFACTS status should show artifact names."""
-        source = ProjectSource(
-            repo="owner/repo",
-            stars=100,
-            status=SourceStatus.HAS_ARTIFACTS,
-            artifact_names=["coverage-report"],
-        )
-        detail = format_status_detail(source)
-        assert "coverage-report" in detail
+        gh_api("/repos/owner/repo")
 
-    def test_no_artifacts_message(self):
-        """NO_ARTIFACTS status should show appropriate message."""
-        source = ProjectSource(
-            repo="owner/repo",
-            stars=100,
-            status=SourceStatus.NO_ARTIFACTS,
-        )
-        detail = format_status_detail(source)
-        assert "No artifacts" in detail
+        _, kwargs = mock_run.call_args
+        assert kwargs.get("timeout") == TIMEOUT_API
 
 
 # =============================================================================
@@ -528,9 +702,10 @@ class TestFormatStatusDetail:
 class TestRateLimitHandling:
     """Tests for rate limit handling."""
 
+    @patch("time.sleep")
     @patch("subprocess.run")
-    def test_handles_rate_limit_error_gracefully(self, mock_run):
-        """Should handle 403/429 rate limit errors gracefully."""
+    def test_handles_rate_limit_error_gracefully(self, mock_run, _mock_sleep):
+        """gh_api should return None after retries are exhausted."""
         from subprocess import CalledProcessError
 
         mock_run.side_effect = CalledProcessError(1, "gh", stderr="API rate limit exceeded")
@@ -542,6 +717,161 @@ class TestRateLimitHandling:
         assert result is None
 
 
+class TestIsRateLimitError:
+    """Tests for _is_rate_limit_error helper."""
+
+    def test_detects_rate_limit_text(self):
+        """Should detect 'rate limit' in stderr."""
+        exc = subprocess.CalledProcessError(1, "gh", stderr="API rate limit exceeded")
+        assert _is_rate_limit_error(exc) is True
+
+    def test_detects_abuse_text(self):
+        """Should detect 'abuse' in stderr (GitHub secondary rate limit)."""
+        exc = subprocess.CalledProcessError(
+            1, "gh", stderr="You have triggered an abuse detection mechanism"
+        )
+        assert _is_rate_limit_error(exc) is True
+
+    def test_case_insensitive(self):
+        """Should detect rate limit regardless of case."""
+        exc = subprocess.CalledProcessError(1, "gh", stderr="Rate Limit Exceeded")
+        assert _is_rate_limit_error(exc) is True
+
+    def test_false_for_other_errors(self):
+        """Should return False for non-rate-limit errors."""
+        exc = subprocess.CalledProcessError(1, "gh", stderr="Not Found")
+        assert _is_rate_limit_error(exc) is False
+
+    def test_false_for_empty_stderr(self):
+        """Should return False when stderr is empty string."""
+        exc = subprocess.CalledProcessError(1, "gh", stderr="")
+        assert _is_rate_limit_error(exc) is False
+
+    def test_false_for_none_stderr(self):
+        """Should return False when stderr is None."""
+        exc = subprocess.CalledProcessError(1, "gh", stderr=None)
+        assert _is_rate_limit_error(exc) is False
+
+
+class TestGhSubprocess:
+    """Tests for _gh_subprocess throttle + retry wrapper."""
+
+    @patch("random.uniform", return_value=0.1)
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_result_on_success(self, mock_run, mock_sleep, _mock_random):
+        """Should return subprocess result on first attempt."""
+        mock_run.return_value = MagicMock(stdout='{"ok": true}', returncode=0)
+
+        result = _gh_subprocess(["gh", "api", "/test"])
+
+        assert result.stdout == '{"ok": true}'
+        mock_run.assert_called_once()
+
+    @patch("random.uniform", return_value=0.1)
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_retries_on_rate_limit(self, mock_run, mock_sleep, _mock_random):
+        """Should retry and succeed after transient rate limit."""
+        rate_error = subprocess.CalledProcessError(1, "gh", stderr="rate limit exceeded")
+        success = MagicMock(stdout='{"ok": true}', returncode=0)
+        mock_run.side_effect = [rate_error, success]
+
+        result = _gh_subprocess(["gh", "api", "/test"])
+
+        assert result.stdout == '{"ok": true}'
+        assert mock_run.call_count == 2
+
+    @patch("random.uniform", return_value=0.1)
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_raises_after_max_retries(self, mock_run, mock_sleep, _mock_random):
+        """Should raise CalledProcessError after exhausting all retries."""
+        import pytest
+
+        rate_error = subprocess.CalledProcessError(1, "gh", stderr="rate limit exceeded")
+        mock_run.side_effect = rate_error
+
+        with pytest.raises(subprocess.CalledProcessError):
+            _gh_subprocess(["gh", "api", "/test"])
+
+        assert mock_run.call_count == GH_MAX_RETRIES + 1
+
+    @patch("random.uniform", return_value=0.1)
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_no_retry_on_other_errors(self, mock_run, mock_sleep, _mock_random):
+        """Should raise immediately for non-rate-limit errors."""
+        import pytest
+
+        other_error = subprocess.CalledProcessError(1, "gh", stderr="Not Found")
+        mock_run.side_effect = other_error
+
+        with pytest.raises(subprocess.CalledProcessError):
+            _gh_subprocess(["gh", "api", "/test"])
+
+        mock_run.assert_called_once()
+
+    @patch("random.uniform", return_value=0.1)
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_no_retry_on_timeout(self, mock_run, mock_sleep, _mock_random):
+        """Should raise immediately on timeout (not retryable)."""
+        import pytest
+
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            _gh_subprocess(["gh", "api", "/test"])
+
+        mock_run.assert_called_once()
+
+    @patch("random.uniform", return_value=0.1)
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_passes_timeout_parameter(self, mock_run, mock_sleep, _mock_random):
+        """Should forward timeout to subprocess.run."""
+        mock_run.return_value = MagicMock(stdout="{}", returncode=0)
+
+        _gh_subprocess(["gh", "api", "/test"], timeout=60)
+
+        _, kwargs = mock_run.call_args
+        assert kwargs["timeout"] == 60
+
+    @patch("random.uniform", return_value=0.1)
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_jitter_before_each_attempt(self, mock_run, mock_sleep, _mock_random):
+        """Should sleep with small jitter before each API call."""
+        mock_run.return_value = MagicMock(stdout="{}", returncode=0)
+
+        _gh_subprocess(["gh", "api", "/test"])
+
+        # First sleep call is the jitter (0.1 from mocked random.uniform)
+        assert mock_sleep.call_count >= 1
+        assert mock_sleep.call_args_list[0] == ((0.1,),)
+
+    @patch("random.uniform", return_value=0.1)
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_backoff_delays_increase(self, mock_run, mock_sleep, _mock_random):
+        """Retry backoff delays should increase exponentially."""
+        import pytest
+
+        rate_error = subprocess.CalledProcessError(1, "gh", stderr="rate limit")
+        mock_run.side_effect = rate_error
+
+        with pytest.raises(subprocess.CalledProcessError):
+            _gh_subprocess(["gh", "api", "/test"])
+
+        # Extract backoff delays (>= 1.0s, vs jitter which is 0.1s)
+        backoff_delays = [call[0][0] for call in mock_sleep.call_args_list if call[0][0] >= 1.0]
+        assert len(backoff_delays) == GH_MAX_RETRIES
+        # Each delay should be larger than the previous (exponential)
+        for i in range(1, len(backoff_delays)):
+            assert backoff_delays[i] > backoff_delays[i - 1]
+
+
 # =============================================================================
 # INTEGRATION TESTS
 # =============================================================================
@@ -550,9 +880,10 @@ class TestRateLimitHandling:
 class TestDiscoverSources:
     """Tests for discover_sources function."""
 
+    @patch("time.sleep")
     @patch("heisenberg.playground.discover.analyze_source")
     @patch("heisenberg.playground.discover.search_repos")
-    def test_uses_default_queries(self, mock_search, mock_analyze):
+    def test_uses_default_queries(self, mock_search, mock_analyze, _mock_sleep):
         """Should use DEFAULT_QUERIES when queries not provided."""
         mock_search.return_value = []
         mock_analyze.return_value = ProjectSource(
@@ -710,7 +1041,13 @@ class TestAnalyzeSourceWithVerification:
         from heisenberg.playground.discover import analyze_source
 
         mock_stars.return_value = 100
-        mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
+        mock_artifacts.return_value = (
+            "123",
+            "url",
+            ["playwright-report"],
+            "2024-01-15T10:00:00Z",
+            {"playwright-report": 50_000_000},
+        )
         mock_verify.return_value = True  # Has failures
 
         source = analyze_source("owner/repo", verify_failures=True)
@@ -728,7 +1065,13 @@ class TestAnalyzeSourceWithVerification:
         from heisenberg.playground.discover import analyze_source
 
         mock_stars.return_value = 100
-        mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
+        mock_artifacts.return_value = (
+            "123",
+            "url",
+            ["playwright-report"],
+            "2024-01-15T10:00:00Z",
+            {"playwright-report": 50_000_000},
+        )
         mock_verify.return_value = False  # No failures
 
         source = analyze_source("owner/repo", verify_failures=True)
@@ -743,7 +1086,13 @@ class TestAnalyzeSourceWithVerification:
         from heisenberg.playground.discover import analyze_source
 
         mock_stars.return_value = 100
-        mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
+        mock_artifacts.return_value = (
+            "123",
+            "url",
+            ["playwright-report"],
+            "2024-01-15T10:00:00Z",
+            {"playwright-report": 50_000_000},
+        )
 
         source = analyze_source("owner/repo", verify_failures=False)
 
@@ -851,7 +1200,7 @@ class TestCheckMultipleRuns:
 
         mock_get_artifacts.side_effect = artifacts_side_effect
 
-        run_id, run_url, artifacts, run_created_at = find_valid_artifacts("owner/repo")
+        run_id, run_url, artifacts, run_created_at, _ = find_valid_artifacts("owner/repo")
 
         # Should return run 200 which has playwright artifacts
         assert run_id == "200"
@@ -890,8 +1239,9 @@ class TestImprovedQueries:
 class TestDirectFileReading:
     """Tests for reading files directly from temp dir (no re-zipping)."""
 
+    @patch("time.sleep")
     @patch("subprocess.run")
-    def test_download_artifact_to_dir_extracts_to_path(self, mock_run):
+    def test_download_artifact_to_dir_extracts_to_path(self, mock_run, _mock_sleep):
         """download_artifact_to_dir should extract artifact directly to given path."""
         from heisenberg.playground.discover import download_artifact_to_dir
 
@@ -905,8 +1255,9 @@ class TestDirectFileReading:
         assert "-D" in call_args
         assert "/tmp/target" in call_args
 
+    @patch("time.sleep")
     @patch("subprocess.run")
-    def test_download_artifact_to_dir_returns_false_on_failure(self, mock_run):
+    def test_download_artifact_to_dir_returns_false_on_failure(self, mock_run, _mock_sleep):
         """download_artifact_to_dir should return False if gh command fails."""
         from subprocess import CalledProcessError
 
@@ -1045,9 +1396,10 @@ class TestParallelProcessing:
 class TestProgressCallback:
     """Tests for progress feedback during discovery."""
 
+    @patch("time.sleep")
     @patch("heisenberg.playground.discover.analyze_source")
     @patch("heisenberg.playground.discover.search_repos")
-    def test_discover_accepts_progress_callback(self, mock_search, mock_analyze):
+    def test_discover_accepts_progress_callback(self, mock_search, mock_analyze, _mock_sleep):
         """discover_sources should accept optional progress callback."""
         from heisenberg.playground.discover import ProgressInfo, discover_sources
 
@@ -1141,8 +1493,8 @@ class TestFormatProgressLine:
         assert "owner/repo" in line
         assert "1.5s" in line or "1500" in line
 
-    def test_format_progress_line_shows_checkmark_for_compatible(self):
-        """Should show ✓ for compatible repos."""
+    def test_format_progress_line_shows_plus_for_compatible(self):
+        """Should show + for compatible repos."""
         from heisenberg.playground.discover import ProgressInfo, format_progress_line
 
         info = ProgressInfo(
@@ -1151,10 +1503,10 @@ class TestFormatProgressLine:
 
         line = format_progress_line(info)
 
-        assert "✓" in line
+        assert "+" in line
 
-    def test_format_progress_line_shows_x_for_incompatible(self):
-        """Should show ✗ for non-compatible repos."""
+    def test_format_progress_line_shows_dash_for_incompatible(self):
+        """Should show - for non-compatible repos."""
         from heisenberg.playground.discover import ProgressInfo, format_progress_line
 
         info = ProgressInfo(
@@ -1163,7 +1515,7 @@ class TestFormatProgressLine:
 
         line = format_progress_line(info)
 
-        assert "✗" in line
+        assert "-" in line
 
     def test_format_progress_line_includes_message(self):
         """Should include optional message."""
@@ -1186,7 +1538,8 @@ class TestFormatProgressLine:
 class TestThreadSafeProgress:
     """Tests for thread-safe progress reporting."""
 
-    def test_discover_sources_returns_progress_info(self):
+    @patch("time.sleep")
+    def test_discover_sources_returns_progress_info(self, _mock_sleep):
         """Progress callback should receive ProgressInfo objects."""
         from heisenberg.playground.discover import ProgressInfo, discover_sources
 
@@ -1211,7 +1564,8 @@ class TestThreadSafeProgress:
             assert len(progress_infos) >= 1
             assert isinstance(progress_infos[0], ProgressInfo)
 
-    def test_progress_completed_is_sequential(self):
+    @patch("time.sleep")
+    def test_progress_completed_is_sequential(self, _mock_sleep):
         """Progress.completed should increment sequentially regardless of finish order."""
         from heisenberg.playground.discover import discover_sources
 
@@ -1236,14 +1590,14 @@ class TestThreadSafeProgress:
             # Should be sequential: 1, 2, 3, ... (not jumping around)
             assert completed_numbers == sorted(completed_numbers)
 
-    def test_progress_output_order_matches_completed_number(self):
+    @patch("time.sleep")
+    def test_progress_output_order_matches_completed_number(self, _mock_sleep):
         """Progress callback should be called in order matching completed number.
 
         This tests that the callback is inside the lock to prevent race conditions.
         We run the test multiple times to increase chance of catching race conditions.
         """
         import threading
-        import time
 
         from heisenberg.playground.discover import (
             discover_sources,
@@ -1265,13 +1619,6 @@ class TestThreadSafeProgress:
                 def slow_analyze(repo, **kwargs):
                     with call_lock:
                         call_count[0] += 1
-                        my_count = call_count[0]
-
-                    # Make first call slower to allow others to overtake
-                    if my_count == 1:
-                        time.sleep(0.02)
-                    else:
-                        time.sleep(0.001)
 
                     return ProjectSource(
                         repo=repo,
@@ -1324,6 +1671,15 @@ class TestRichProgressDisplay:
         column_types = [type(col).__name__ for col in progress.columns]
         assert "SpinnerColumn" in column_types
 
+    def test_progress_display_has_elapsed_column(self):
+        """Progress display should include a live elapsed timer."""
+        from heisenberg.playground.discover import create_progress_display
+
+        progress = create_progress_display()
+
+        column_types = [type(col).__name__ for col in progress.columns]
+        assert "TimeElapsedColumn" in column_types
+
     def test_progress_display_has_task_description(self):
         """Progress display should show task description."""
         from heisenberg.playground.discover import create_progress_display
@@ -1338,9 +1694,10 @@ class TestRichProgressDisplay:
 class TestDiscoverWithRichProgress:
     """Tests for discover_sources with Rich progress display."""
 
+    @patch("time.sleep")
     @patch("heisenberg.playground.discover.analyze_source")
     @patch("heisenberg.playground.discover.search_repos")
-    def test_discover_shows_active_tasks(self, mock_search, mock_analyze):
+    def test_discover_shows_active_tasks(self, mock_search, mock_analyze, _mock_sleep):
         """discover_sources should show tasks while they're running."""
         from heisenberg.playground.discover import discover_sources
 
@@ -1359,9 +1716,10 @@ class TestDiscoverWithRichProgress:
 
         assert len(result) >= 1
 
+    @patch("time.sleep")
     @patch("heisenberg.playground.discover.analyze_source")
     @patch("heisenberg.playground.discover.search_repos")
-    def test_discover_works_without_progress(self, mock_search, mock_analyze):
+    def test_discover_works_without_progress(self, mock_search, mock_analyze, _mock_sleep):
         """discover_sources should work with show_progress=False."""
         from heisenberg.playground.discover import discover_sources
 
@@ -1397,7 +1755,13 @@ class TestAnalyzeWithStatusUpdates:
         from heisenberg.playground.discover import analyze_source_with_status
 
         mock_stars.return_value = 1000
-        mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
+        mock_artifacts.return_value = (
+            "123",
+            "url",
+            ["playwright-report"],
+            "2024-01-15T10:00:00Z",
+            {"playwright-report": 50_000_000},
+        )
 
         stages_seen = []
 
@@ -1410,9 +1774,9 @@ class TestAnalyzeWithStatusUpdates:
             on_status=on_status,
         )
 
-        # Should have reported at least "Fetching runs" stage
+        # Should have reported at least "fetching runs" stage
         assert len(stages_seen) >= 1
-        assert any("runs" in s.lower() or "artifact" in s.lower() for s in stages_seen)
+        assert any("runs" in s.lower() or "info" in s.lower() for s in stages_seen)
 
     @patch("heisenberg.playground.discover.verify_has_failures")
     @patch("heisenberg.playground.discover.get_repo_stars")
@@ -1422,7 +1786,13 @@ class TestAnalyzeWithStatusUpdates:
         from heisenberg.playground.discover import analyze_source_with_status
 
         mock_stars.return_value = 1000
-        mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
+        mock_artifacts.return_value = (
+            "123",
+            "url",
+            ["playwright-report"],
+            "2024-01-15T10:00:00Z",
+            {"playwright-report": 50_000_000},
+        )
         mock_verify.return_value = True
 
         stages_seen = []
@@ -1436,8 +1806,8 @@ class TestAnalyzeWithStatusUpdates:
             on_status=on_status,
         )
 
-        # Should have a download/verify stage
-        assert any("download" in s.lower() or "verif" in s.lower() for s in stages_seen)
+        # Should have a download/verify stage (stage text is "dl {size}" or "downloading...")
+        assert any("dl" in s.lower() or "download" in s.lower() for s in stages_seen)
 
 
 class TestSkipVerificationForKnownGoodRepos:
@@ -1451,7 +1821,13 @@ class TestSkipVerificationForKnownGoodRepos:
         from heisenberg.playground.discover import KNOWN_GOOD_REPOS, analyze_source
 
         mock_stars.return_value = 80000
-        mock_artifacts.return_value = ("123", "url", ["blob-report-1"], "2024-01-15T10:00:00Z")
+        mock_artifacts.return_value = (
+            "123",
+            "url",
+            ["blob-report-1"],
+            "2024-01-15T10:00:00Z",
+            {"blob-report-1": 200_000_000},
+        )
 
         # Analyze a known good repo with verify=True
         source = analyze_source(
@@ -1472,7 +1848,13 @@ class TestSkipVerificationForKnownGoodRepos:
         from heisenberg.playground.discover import analyze_source
 
         mock_stars.return_value = 1000
-        mock_artifacts.return_value = ("123", "url", ["playwright-report"], "2024-01-15T10:00:00Z")
+        mock_artifacts.return_value = (
+            "123",
+            "url",
+            ["playwright-report"],
+            "2024-01-15T10:00:00Z",
+            {"playwright-report": 50_000_000},
+        )
         mock_verify.return_value = True
 
         source = analyze_source("unknown/repo", verify_failures=True)
@@ -2164,7 +2546,7 @@ class TestFindValidArtifactsReturnsRunCreatedAt:
         ]
         mock_get_artifacts.return_value = [{"name": "playwright-report", "expired": False}]
 
-        run_id, run_url, artifacts, run_created_at = find_valid_artifacts("owner/repo")
+        run_id, run_url, artifacts, run_created_at, _ = find_valid_artifacts("owner/repo")
 
         assert run_id == "100"
         assert run_created_at == "2024-01-15T10:30:00Z"

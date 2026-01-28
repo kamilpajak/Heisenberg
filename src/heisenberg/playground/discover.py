@@ -19,10 +19,9 @@ import argparse
 import json
 import re
 import subprocess
-import sys
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TextIO
 
 # =============================================================================
 # CONFIGURATION
@@ -53,6 +52,13 @@ _PLAYWRIGHT_REGEX = re.compile("|".join(PLAYWRIGHT_PATTERNS), re.IGNORECASE)
 MAX_RUNS_TO_CHECK = 5
 CACHE_TTL_DAYS = 90
 CACHE_SCHEMA_VERSION = 1
+TIMEOUT_API = 30  # seconds — for gh API calls
+TIMEOUT_DOWNLOAD = 120  # seconds — for artifact downloads
+GH_MAX_CONCURRENT = 4  # max concurrent gh CLI processes
+GH_MAX_RETRIES = 3  # retries on secondary rate limit
+GH_RETRY_BASE_DELAY = 2  # seconds — exponential backoff base
+
+_gh_semaphore = threading.Semaphore(GH_MAX_CONCURRENT)
 
 
 def get_default_cache_path():
@@ -283,6 +289,73 @@ def verify_has_failures_cached(
 # =============================================================================
 
 
+def _is_rate_limit_error(exc: subprocess.CalledProcessError) -> bool:
+    """Check if a CalledProcessError is a GitHub rate limit error.
+
+    Detects both primary rate limits ("rate limit") and secondary/abuse
+    limits ("abuse detection") from gh CLI stderr output.
+    """
+    if not exc.stderr:
+        return False
+    stderr = exc.stderr if isinstance(exc.stderr, str) else exc.stderr.decode()
+    lower = stderr.lower()
+    return "rate limit" in lower or "abuse" in lower
+
+
+def _gh_subprocess(
+    cmd: list[str],
+    timeout: int = TIMEOUT_API,
+    capture_output: bool = True,
+    text: bool = True,
+) -> subprocess.CompletedProcess:
+    """Run a gh CLI command with throttling and retry.
+
+    Limits concurrent API calls via semaphore with jitter to prevent
+    GitHub secondary rate limits, and retries with exponential backoff
+    when rate limits are hit despite throttling.
+
+    Args:
+        cmd: Command and arguments for subprocess.run
+        timeout: Timeout in seconds
+        capture_output: Capture stdout/stderr
+        text: Decode output as text
+
+    Returns:
+        CompletedProcess on success
+
+    Raises:
+        subprocess.CalledProcessError: On non-rate-limit errors or after max retries
+        subprocess.TimeoutExpired: On timeout (not retried)
+    """
+    import random
+    import time
+
+    last_error = None
+    for attempt in range(GH_MAX_RETRIES + 1):
+        with _gh_semaphore:
+            time.sleep(random.uniform(0.05, 0.5))
+            try:
+                return subprocess.run(
+                    cmd,
+                    capture_output=capture_output,
+                    text=text,
+                    check=True,
+                    timeout=timeout,
+                )
+            except subprocess.CalledProcessError as e:
+                if not _is_rate_limit_error(e) or attempt >= GH_MAX_RETRIES:
+                    raise
+                last_error = e
+            except subprocess.TimeoutExpired:
+                raise
+
+        # Semaphore released — exponential backoff before retry
+        delay = GH_RETRY_BASE_DELAY * (2**attempt) + random.uniform(0, 1)
+        time.sleep(delay)
+
+    raise last_error  # type: ignore[misc]
+
+
 def gh_api(endpoint: str, params: dict | None = None) -> dict | list | None:
     """Call GitHub API via gh CLI."""
     cmd = ["gh", "api", endpoint]
@@ -290,11 +363,9 @@ def gh_api(endpoint: str, params: dict | None = None) -> dict | list | None:
         for k, v in params.items():
             cmd.extend(["-f", f"{k}={v}"])
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = _gh_subprocess(cmd, timeout=TIMEOUT_API)
         return json.loads(result.stdout) if result.stdout.strip() else None
-    except subprocess.CalledProcessError as e:
-        if e.stderr and "rate limit" in e.stderr.lower():
-            print(f"⚠️  Rate limit hit: {endpoint}", file=sys.stderr)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
     except json.JSONDecodeError:
         return None
@@ -312,9 +383,9 @@ def search_repos(query: str, limit: int = 30) -> list[str]:
 
     cmd = ["gh", "api", "-X", "GET", endpoint]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = _gh_subprocess(cmd, timeout=TIMEOUT_API)
         data = json.loads(result.stdout)
-    except (subprocess.CalledProcessError, json.JSONDecodeError):
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError):
         return []
 
     if not data or "items" not in data:
@@ -340,9 +411,9 @@ def get_failed_runs(repo: str, limit: int = MAX_RUNS_TO_CHECK) -> list[dict]:
     """Get recent failed workflow runs for a repository."""
     cmd = ["gh", "api", "-X", "GET", f"/repos/{repo}/actions/runs?status=failure&per_page={limit}"]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = _gh_subprocess(cmd, timeout=TIMEOUT_API)
         data = json.loads(result.stdout)
-    except (subprocess.CalledProcessError, json.JSONDecodeError):
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError):
         return []
 
     return data.get("workflow_runs", []) if data else []
@@ -369,9 +440,9 @@ def download_artifact_to_dir(repo: str, artifact_name: str, target_dir: str) -> 
     """
     cmd = ["gh", "run", "download", "-R", repo, "-n", artifact_name, "-D", target_dir]
     try:
-        subprocess.run(cmd, capture_output=True, check=True)
+        _gh_subprocess(cmd, timeout=TIMEOUT_DOWNLOAD, text=False)
         return True
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return False
 
 
@@ -431,7 +502,7 @@ def gh_artifact_download(repo: str, artifact_name: str) -> bytes | None:
     with tempfile.TemporaryDirectory() as tmpdir:
         cmd = ["gh", "run", "download", "-R", repo, "-n", artifact_name, "-D", tmpdir]
         try:
-            subprocess.run(cmd, capture_output=True, check=True)
+            _gh_subprocess(cmd, timeout=TIMEOUT_DOWNLOAD, text=False)
             # gh extracts the zip, so we need to re-zip the contents
             import io
             import zipfile
@@ -443,7 +514,7 @@ def gh_artifact_download(repo: str, artifact_name: str) -> bytes | None:
                         arcname = str(file_path.relative_to(tmpdir))
                         zf.write(file_path, arcname)
             return zip_buffer.getvalue()
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return None
 
 
@@ -508,19 +579,26 @@ def filter_expired_artifacts(artifacts: list[dict]) -> list[str]:
     return [a["name"] for a in artifacts if not a.get("expired", False)]
 
 
-def find_valid_artifacts(repo: str) -> tuple[str | None, str | None, list[str], str | None]:
+def _artifact_sizes(artifacts: list[dict]) -> dict[str, int]:
+    """Extract {name: size_in_bytes} for non-expired artifacts."""
+    return {a["name"]: a.get("size_in_bytes", 0) for a in artifacts if not a.get("expired", False)}
+
+
+def find_valid_artifacts(
+    repo: str,
+) -> tuple[str | None, str | None, list[str], str | None, dict[str, int]]:
     """Find valid (non-expired) Playwright artifacts from recent failed runs.
 
     Prioritizes runs with Playwright artifacts over runs with other artifacts.
 
     Returns:
-        Tuple of (run_id, run_url, artifact_names, run_created_at) for first run
-        with Playwright artifacts, or first run with any artifacts,
-        or (first_run_id, first_run_url, [], run_created_at) if none.
+        Tuple of (run_id, run_url, artifact_names, run_created_at, artifact_sizes)
+        for first run with Playwright artifacts, or first run with any artifacts,
+        or (first_run_id, first_run_url, [], run_created_at, {}) if none.
     """
     runs = get_failed_runs(repo)
     if not runs:
-        return None, None, [], None
+        return None, None, [], None, {}
 
     # First pass: look for runs with Playwright artifacts
     for run in runs:
@@ -533,7 +611,7 @@ def find_valid_artifacts(repo: str) -> tuple[str | None, str | None, list[str], 
         playwright_names = [a for a in valid_names if is_playwright_artifact(a)]
 
         if playwright_names:
-            return run_id, run_url, valid_names, run_created_at
+            return run_id, run_url, valid_names, run_created_at, _artifact_sizes(artifacts)
 
     # Second pass: return first run with any artifacts
     for run in runs:
@@ -545,11 +623,11 @@ def find_valid_artifacts(repo: str) -> tuple[str | None, str | None, list[str], 
         valid_names = filter_expired_artifacts(artifacts)
 
         if valid_names:
-            return run_id, run_url, valid_names, run_created_at
+            return run_id, run_url, valid_names, run_created_at, _artifact_sizes(artifacts)
 
     # No artifacts found, return first run info
     first_run = runs[0]
-    return str(first_run["id"]), first_run.get("html_url", ""), [], first_run.get("created_at")
+    return str(first_run["id"]), first_run.get("html_url", ""), [], first_run.get("created_at"), {}
 
 
 def determine_status(
@@ -602,14 +680,14 @@ def analyze_source_with_status(
         if on_status:
             on_status(stage)
 
-    report("Fetching repo info...")
+    report("fetching info")
 
     if stars is None:
         stars = get_repo_stars(repo)
 
-    report("Fetching failed runs...")
+    report("fetching runs")
 
-    run_id, run_url, artifact_names, run_created_at = find_valid_artifacts(repo)
+    run_id, run_url, artifact_names, run_created_at, artifact_sizes = find_valid_artifacts(repo)
     playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
 
     # Optionally verify that artifact has actual failures
@@ -619,11 +697,12 @@ def analyze_source_with_status(
         if repo in KNOWN_GOOD_REPOS:
             failure_count = 1  # Trust that it has failures
         else:
-            report(
-                "Downloading artifact..."
-                if not cache or not cache.get(run_id)
-                else "Checking cache..."
-            )
+            artifact_to_check = playwright_artifacts[0]
+            if not cache or not cache.get(run_id):
+                size = artifact_sizes.get(artifact_to_check, 0)
+                report(f"dl {format_size(size)}" if size > 0 else "downloading...")
+            else:
+                report("checking cache")
             # Try the first Playwright artifact
             if cache and run_created_at:
                 has_failures = verify_has_failures_cached(
@@ -661,7 +740,7 @@ def analyze_source(
     if stars is None:
         stars = get_repo_stars(repo)
 
-    run_id, run_url, artifact_names, run_created_at = find_valid_artifacts(repo)
+    run_id, run_url, artifact_names, run_created_at, _ = find_valid_artifacts(repo)
     playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
 
     # Optionally verify that artifact has actual failures
@@ -775,13 +854,22 @@ def discover_sources(
         result = None
         message = None
 
+        # Start the Rich timer for this task (was created with start=False)
+        if progress and repo in task_ids:
+            progress.start_task(task_ids[repo])
+
         def on_status(stage: str) -> None:
             """Update Rich progress with current stage."""
             if progress and repo in task_ids:
-                # Use Rich markup: repo in cyan, stage in dim
+                stage_display = (
+                    (stage[: COL_STATUS - 1] + "\u2026") if len(stage) > COL_STATUS else stage
+                )
                 progress.update(
                     task_ids[repo],
-                    description=f"⏳ [cyan]{repo:<40}[/cyan] [dim]│[/dim] {stage}",
+                    description=(
+                        f"[dim].[/dim] [cyan]{repo:<{COL_REPO}}[/cyan]"
+                        f" [dim]\u2502[/dim] [dim]{stage_display:<{COL_STATUS}}[/dim]"
+                    ),
                 )
 
         try:
@@ -800,18 +888,18 @@ def discover_sources(
 
         elapsed_ms = int((time.time() - start_time) * 1000)
 
-        # Update Rich progress (mark task complete)
+        # Update Rich progress (mark task complete — stops TimeElapsedColumn)
         if progress and repo in task_ids:
-            status_icon = format_status_icon(result.status) if result else "❓"
-            status_text = result.status.value if result else "error"
-            time_str = f"{elapsed_ms / 1000:.1f}s" if elapsed_ms >= 1000 else f"{elapsed_ms}ms"
+            icon = format_status_icon(result.status) if result else "?"
+            color = format_status_color(result.status) if result else "white"
+            status_text = format_status_label(result.status) if result else "error"
             extra = f" [dim]({message})[/dim]" if message else ""
-            # Fixed-width columns: icon(2) repo(40) │ status(14) time(6)
             progress.update(
                 task_ids[repo],
                 description=(
-                    f"{status_icon} [cyan]{repo:<40}[/cyan] [dim]│[/dim]"
-                    f" {status_text:<14} [dim]{time_str:>6}[/dim]{extra}"
+                    f"[{color}]{icon}[/{color}] [cyan]{repo:<{COL_REPO}}[/cyan]"
+                    f" [dim]\u2502[/dim] [{color}]{status_text:<{COL_STATUS}}[/{color}]"
+                    f"{extra}"
                 ),
                 completed=1,
             )
@@ -844,8 +932,12 @@ def discover_sources(
         if progress:
             for repo in repos_to_analyze:
                 task_id = progress.add_task(
-                    f"⏳ [cyan]{repo:<40}[/cyan] [dim]│[/dim] {'waiting...':<14}",
+                    (
+                        f"[dim].[/dim] [cyan]{repo:<{COL_REPO}}[/cyan]"
+                        f" [dim]\u2502[/dim] [dim]{'waiting...':<{COL_STATUS}}[/dim]"
+                    ),
                     total=1,
+                    start=False,
                 )
                 task_ids[repo] = task_id
 
@@ -881,21 +973,78 @@ def discover_sources(
 # PRESENTER (CLI Output Formatting)
 # =============================================================================
 
+STATUS_ICONS = {
+    SourceStatus.COMPATIBLE: "+",
+    SourceStatus.NO_FAILURES: "~",
+    SourceStatus.HAS_ARTIFACTS: "!",
+    SourceStatus.NO_ARTIFACTS: "-",
+    SourceStatus.NO_FAILED_RUNS: ".",
+}
+
+STATUS_COLORS = {
+    SourceStatus.COMPATIBLE: "green",
+    SourceStatus.NO_FAILURES: "yellow",
+    SourceStatus.HAS_ARTIFACTS: "yellow",
+    SourceStatus.NO_ARTIFACTS: "red",
+    SourceStatus.NO_FAILED_RUNS: "dim",
+}
+
+STATUS_LABELS = {
+    SourceStatus.COMPATIBLE: "compatible",
+    SourceStatus.NO_FAILURES: "tests passing",
+    SourceStatus.HAS_ARTIFACTS: "has artifacts",
+    SourceStatus.NO_ARTIFACTS: "no artifacts",
+    SourceStatus.NO_FAILED_RUNS: "no failed runs",
+}
+
+
+def format_status_label(status: SourceStatus) -> str:
+    """Get the human-readable label for a source status."""
+    return STATUS_LABELS.get(status, status.value)
+
+
+def format_size(size_bytes: int) -> str:
+    """Format byte count as human-readable size (e.g., '52 MB')."""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.0f} KB"
+    if size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.0f} MB"
+    return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+
+
+COL_REPO = 40
+COL_STATUS = 14
+COL_TRAIL = 7
+
+
+def format_stars(stars: int) -> str:
+    """Format star count for display (e.g., 81807 → '81.8k')."""
+    if stars >= 1_000_000:
+        return f"{stars / 1_000_000:.1f}M"
+    if stars >= 1_000:
+        return f"{stars / 1_000:.1f}k"
+    return str(stars)
+
 
 def create_progress_display():
     """Create a Rich Progress display for tracking repo analysis.
 
-    Returns a Progress object with spinner for active tasks.
+    Returns a Progress object with spinner, description, and live elapsed timer.
+    TimeElapsedColumn auto-updates during rendering — no manual refresh needed.
     """
     from rich.progress import (
         Progress,
         SpinnerColumn,
         TextColumn,
+        TimeElapsedColumn,
     )
 
     return Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
         transient=False,  # Keep completed tasks visible
     )
 
@@ -907,10 +1056,10 @@ def format_progress_line(info: ProgressInfo) -> str:
         info: ProgressInfo with completion details
 
     Returns:
-        Formatted string like "[ 3/10] ✓ owner/repo (1.5s)"
+        Formatted string like "[ 3/10] + owner/repo (1.5s)"
     """
     # Status icon
-    icon = "✓" if info.status == "compatible" else "✗"
+    icon = "+" if info.status == "compatible" else "-"
 
     # Format elapsed time
     if info.elapsed_ms >= 1000:
@@ -929,88 +1078,100 @@ def format_progress_line(info: ProgressInfo) -> str:
 
 
 def format_status_icon(status: SourceStatus) -> str:
-    """Get the icon for a source status."""
-    icons = {
-        SourceStatus.COMPATIBLE: "✅",
-        SourceStatus.NO_FAILURES: "🟡",
-        SourceStatus.HAS_ARTIFACTS: "⚠️ ",
-        SourceStatus.NO_ARTIFACTS: "❌",
-        SourceStatus.NO_FAILED_RUNS: "⏭️ ",
-    }
-    return icons.get(status, "?")
+    """Get the text icon for a source status."""
+    return STATUS_ICONS.get(status, "?")
 
 
-def format_status_detail(source: ProjectSource) -> str:
-    """Format the detail text for a source's status."""
-    if source.status == SourceStatus.COMPATIBLE:
-        artifacts = ", ".join(source.playwright_artifacts[:3])
-        return f"{source.stars:>5}⭐ ✓ {artifacts}"
-    elif source.status == SourceStatus.NO_FAILURES:
-        return "0 test failures (tests passed)"
-    elif source.status == SourceStatus.HAS_ARTIFACTS:
-        artifacts = ", ".join(source.artifact_names[:3])
-        return f"Artifacts: {artifacts}"
-    elif source.status == SourceStatus.NO_ARTIFACTS:
-        return "No artifacts"
-    else:
-        return "No failed runs"
+def format_status_color(status: SourceStatus) -> str:
+    """Get the Rich color name for a source status."""
+    return STATUS_COLORS.get(status, "white")
 
 
 def print_source_line(
     source: ProjectSource,
-    index: int,
-    total: int,
-    out: TextIO = sys.stdout,
+    console=None,
 ) -> None:
-    """Print a single source line."""
+    """Print a single source line with unified column layout and colors.
+
+    Format: {icon} {repo:<COL_REPO} │ {status:<COL_STATUS} {stars:>COL_TRAIL}
+    For sources with artifacts, prints indented sub-lines.
+    For COMPATIBLE sources, also prints run URL sub-line.
+    """
+    from rich.console import Console
+
+    if console is None:
+        console = Console(highlight=False)
+
     icon = format_status_icon(source.status)
-    detail = format_status_detail(source)
-    print(f"  [{index:2}/{total}] {source.repo:<45} {icon} {detail}", file=out)
+    color = format_status_color(source.status)
+    status_label = format_status_label(source.status)
+    stars_str = format_stars(source.stars)
+    console.print(
+        f"  [{color}]{icon}[/{color}] {source.repo:<{COL_REPO}}"
+        f" [dim]\u2502[/dim] [{color}]{status_label:<{COL_STATUS}}[/{color}]"
+        f" {stars_str:>{COL_TRAIL}}",
+    )
+
+    # Sub-lines for sources with artifacts
+    if source.status == SourceStatus.COMPATIBLE:
+        artifacts = ", ".join(source.playwright_artifacts[:3])
+        console.print(f"      [dim]{artifacts}[/dim]")
+        if source.run_url:
+            console.print(f"      [dim]{source.run_url}[/dim]")
+    elif source.status == SourceStatus.HAS_ARTIFACTS:
+        artifacts = ", ".join(source.artifact_names[:3])
+        console.print(f"      [dim]{artifacts}[/dim]")
 
 
 def print_summary(
     sources: list[ProjectSource],
     min_stars: int,
     total_analyzed: int | None = None,
-    out: TextIO = sys.stdout,
+    console=None,
 ) -> None:
-    """Print the analysis summary."""
+    """Print the analysis summary with colors."""
+    from collections import Counter
+
+    from rich.console import Console
+
+    if console is None:
+        console = Console(highlight=False)
+
     compatible_count = sum(1 for c in sources if c.compatible)
     analyzed = total_analyzed or len(sources)
 
     if analyzed != len(sources):
-        print(
-            f"📋 Analyzed {analyzed} repositories, {len(sources)} with ≥{min_stars}⭐",
-            file=out,
+        console.print(
+            f"Analyzed {analyzed} repositories, {len(sources)} with >={min_stars} stars",
         )
     else:
-        print(f"📋 Analyzed {len(sources)} repositories (min {min_stars}⭐)", file=out)
-    print("🔬 Results:\n", file=out)
+        console.print(f"Analyzed {len(sources)} repositories (min {min_stars} stars)")
+    console.print()
 
-    for i, source in enumerate(sources, 1):
-        print_source_line(source, i, len(sources), out)
+    for source in sources:
+        print_source_line(source, console)
 
-    print(f"\n{'=' * 70}", file=out)
-    print(f"📊 Results: {compatible_count} compatible / {len(sources)} listed", file=out)
-    print(f"{'=' * 70}\n", file=out)
+    separator = "\u2550" * 70
+    console.print(f"\n[dim]{separator}[/dim]")
+    console.print(
+        f"[green]{compatible_count} compatible[/green] / {len(sources)} listed",
+    )
 
+    # Breakdown of non-compatible statuses
+    status_counts = Counter(s.status for s in sources)
+    other_parts = []
+    for status in SourceStatus:
+        if status == SourceStatus.COMPATIBLE:
+            continue
+        count = status_counts.get(status, 0)
+        if count > 0:
+            color = format_status_color(status)
+            label = format_status_label(status)
+            other_parts.append(f"[{color}]{count} {label}[/{color}]")
+    if other_parts:
+        console.print(" \u00b7 ".join(other_parts))
 
-def print_compatible_projects(
-    sources: list[ProjectSource],
-    out: TextIO = sys.stdout,
-) -> None:
-    """Print details of compatible projects."""
-    compatible = [c for c in sources if c.compatible]
-    if not compatible:
-        return
-
-    print("🎯 Compatible Projects (ready for Heisenberg):\n", file=out)
-    for c in compatible:
-        print(f"  ⭐ {c.stars:>6} | {c.repo}", file=out)
-        print(f"            Artifacts: {', '.join(c.artifact_names[:5])}", file=out)
-        if c.run_url:
-            print(f"            Run: {c.run_url}", file=out)
-        print(file=out)
+    console.print(f"[dim]{separator}[/dim]\n")
 
 
 def save_results(sources: list[ProjectSource], output_path: str) -> None:
@@ -1030,7 +1191,7 @@ def save_results(sources: list[ProjectSource], output_path: str) -> None:
     ]
     with open(output_path, "w") as f:
         json.dump(output_data, f, indent=2)
-    print(f"💾 Results saved to {output_path}")
+    print(f"Results saved to {output_path}")
 
 
 # =============================================================================
@@ -1063,12 +1224,10 @@ def main() -> None:
     parser = create_argument_parser()
     args = parser.parse_args()
 
-    print("🔍 Searching GitHub for Playwright projects with artifacts...\n")
+    print("Searching GitHub for Playwright projects with artifacts...\n")
     if args.verify:
         cache_info = " (cache disabled)" if args.no_cache else ""
-        print(
-            f"📦 Verification enabled - downloading artifacts to check for failures{cache_info}\n"
-        )
+        print(f"Verification enabled - downloading artifacts to check for failures{cache_info}\n")
 
     # Determine cache_path: None to disable, or use default
     cache_path = None if args.no_cache else _USE_DEFAULT_CACHE
@@ -1084,7 +1243,6 @@ def main() -> None:
     sources = filter_by_min_stars(sources, min_stars=args.min_stars)
 
     print_summary(sources, args.min_stars, total_analyzed=total_analyzed)
-    print_compatible_projects(sources)
 
     if args.output:
         save_results(sources, args.output)
