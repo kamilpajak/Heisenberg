@@ -52,3 +52,13 @@ jobs:
           source .venv/bin/activate
           semantic-release version
           semantic-release publish
+
+      - name: Build package
+        if: github.event_name == 'push'
+        run: uv build
+
+      - name: Publish to PyPI
+        if: github.event_name == 'push'
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: uv publish
