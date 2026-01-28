@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from .analysis import analyze_source_with_status, sort_sources
-from .cache import RunCache, get_default_cache_path
+from .cache import QuarantineCache, RunCache, get_default_cache_path, get_default_quarantine_path
 from .client import search_repos
 from .models import (
     DEFAULT_QUERIES,
     KNOWN_GOOD_REPOS,
     ProgressInfo,
     ProjectSource,
+    SourceStatus,
 )
 from .ui import (
     COL_REPO,
@@ -21,6 +22,7 @@ from .ui import (
 )
 
 _USE_DEFAULT_CACHE = object()  # Sentinel for "use default cache path"
+_USE_DEFAULT_QUARANTINE = object()  # Sentinel for "use default quarantine path"
 
 
 def discover_sources(
@@ -30,6 +32,7 @@ def discover_sources(
     on_progress: callable | None = None,
     show_progress: bool = False,
     cache_path: str | None | object = _USE_DEFAULT_CACHE,
+    quarantine_path: str | None | object = _USE_DEFAULT_QUARANTINE,
 ) -> list[ProjectSource]:
     """Discover source projects from GitHub.
 
@@ -41,6 +44,8 @@ def discover_sources(
         show_progress: If True, show Rich progress display with spinners
         cache_path: Path to cache file for verified runs. Default uses
             ~/.cache/heisenberg/verified_runs.json. Set to None to disable caching.
+        quarantine_path: Path to quarantine cache file. Default uses
+            ~/.cache/heisenberg/quarantined_repos.json. Set to None to disable.
 
     Returns:
         List of analyzed ProjectSource objects, sorted by compatibility
@@ -63,17 +68,37 @@ def discover_sources(
     # Initialize verification cache (with 90-day TTL based on run creation time)
     cache = RunCache(cache_path=actual_cache_path) if actual_cache_path else None
 
+    # Initialize quarantine cache (24-hour wall-clock TTL)
+    actual_quarantine_path = None
+    if quarantine_path is _USE_DEFAULT_QUARANTINE:
+        actual_quarantine_path = get_default_quarantine_path()
+    elif quarantine_path is not None:
+        actual_quarantine_path = quarantine_path
+    quarantine = (
+        QuarantineCache(cache_path=actual_quarantine_path) if actual_quarantine_path else None
+    )
+
     # Start with known good repos (high probability of having failures)
     all_repos: set[str] = set(KNOWN_GOOD_REPOS)
 
-    # Add repos from search queries
+    # Add repos from search queries, skipping quarantined repos so the
+    # limit is filled with fresh (non-quarantined) repos instead.
+    quarantine_skipped = 0
     for query in queries:
         results = search_repos(query, limit=global_limit)
-        all_repos.update(results)
+        for repo in results:
+            if quarantine and repo not in KNOWN_GOOD_REPOS and quarantine.is_quarantined(repo):
+                quarantine_skipped += 1
+            else:
+                all_repos.add(repo)
         if len(all_repos) >= global_limit:
             break
 
     repos_to_analyze = list(all_repos)[:global_limit]
+
+    if show_progress and quarantine_skipped > 0:
+        print(f"  ({quarantine_skipped} repos quarantined, analyzing {len(repos_to_analyze)})\n")
+
     total = len(repos_to_analyze)
     sources: list[ProjectSource] = []
 
@@ -120,6 +145,18 @@ def discover_sources(
                 on_status=on_status if progress else None,
                 cache=cache,
             )
+
+            # Update quarantine based on analysis result
+            if quarantine and result:
+                if result.status == SourceStatus.COMPATIBLE:
+                    quarantine.remove(repo)
+                elif result.status in (
+                    SourceStatus.NO_ARTIFACTS,
+                    SourceStatus.NO_FAILED_RUNS,
+                    SourceStatus.HAS_ARTIFACTS,
+                    SourceStatus.NO_FAILURES,
+                ):
+                    quarantine.set(repo, result.status.value)
         except Exception:
             pass
 

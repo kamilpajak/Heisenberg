@@ -1,10 +1,15 @@
-"""Verification cache for discovered run results."""
+"""Verification cache for discovered run results and quarantine cache for incompatible repos."""
 
 from __future__ import annotations
 
 import json
 
-from .models import CACHE_SCHEMA_VERSION, CACHE_TTL_DAYS
+from .models import (
+    CACHE_SCHEMA_VERSION,
+    CACHE_TTL_DAYS,
+    QUARANTINE_SCHEMA_VERSION,
+    QUARANTINE_TTL_HOURS,
+)
 
 
 def get_default_cache_path():
@@ -139,3 +144,136 @@ class RunCache:
                 "run_created_at": run_created_at,
             }
             self.save()  # Auto-save to prevent data loss on crash
+
+
+def get_default_quarantine_path():
+    """Get the default quarantine cache path (XDG-compliant).
+
+    Returns:
+        Path to ~/.cache/heisenberg/quarantined_repos.json
+    """
+    from pathlib import Path
+
+    cache_dir = Path.home() / ".cache" / "heisenberg"
+    return cache_dir / "quarantined_repos.json"
+
+
+class QuarantineCache:
+    """Cache for repos that are known to be incompatible.
+
+    Stores repo -> status mappings with a 24-hour wall-clock TTL so
+    repos that had NO_ARTIFACTS or NO_FAILED_RUNS are not re-checked
+    on every invocation.
+
+    Thread-safe: uses a reentrant lock for concurrent access and auto-saves on write.
+    """
+
+    def __init__(self, cache_path: str | None = None):
+        """Initialize quarantine cache.
+
+        Args:
+            cache_path: Path to cache JSON file. If None, uses in-memory only.
+        """
+        import threading
+        from pathlib import Path
+
+        self._path = Path(cache_path) if cache_path else None
+        self._data: dict = {"schema_version": QUARANTINE_SCHEMA_VERSION, "repos": {}}
+        self._lock = threading.RLock()
+        self._load()
+
+    def _load(self) -> None:
+        """Load cache from disk if it exists, then prune expired entries."""
+        if not self._path or not self._path.exists():
+            return
+
+        try:
+            data = json.loads(self._path.read_text())
+            if data.get("schema_version") != QUARANTINE_SCHEMA_VERSION:
+                return
+            self._data = data
+            self._prune()
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    def _prune(self) -> None:
+        """Remove expired and corrupt entries from cache.
+
+        Called during load to prevent unbounded cache growth.
+        Saves to disk if any entries were pruned.
+        """
+        from datetime import datetime, timedelta
+
+        now = datetime.now()
+        cutoff = timedelta(hours=QUARANTINE_TTL_HOURS)
+        expired_repos = []
+
+        for repo, entry in self._data["repos"].items():
+            try:
+                quarantined_at = datetime.fromisoformat(entry["quarantined_at"])
+                if now - quarantined_at > cutoff:
+                    expired_repos.append(repo)
+            except (KeyError, ValueError, TypeError):
+                expired_repos.append(repo)
+
+        for repo in expired_repos:
+            del self._data["repos"][repo]
+
+        if expired_repos:
+            self.save()
+
+    def save(self) -> None:
+        """Save cache to disk (thread-safe)."""
+        if not self._path:
+            return
+
+        with self._lock:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            self._path.write_text(json.dumps(self._data, indent=2))
+
+    def is_quarantined(self, repo: str) -> bool:
+        """Check if a repo is quarantined (thread-safe).
+
+        Returns False for unknown repos or expired entries.
+        """
+        from datetime import datetime, timedelta
+
+        with self._lock:
+            entry = self._data["repos"].get(repo)
+            if not entry:
+                return False
+
+            try:
+                quarantined_at = datetime.fromisoformat(entry["quarantined_at"])
+                age = datetime.now() - quarantined_at
+                return age <= timedelta(hours=QUARANTINE_TTL_HOURS)
+            except (KeyError, ValueError, TypeError):
+                return False
+
+    def set(self, repo: str, status: str) -> None:
+        """Quarantine a repo with the given status and auto-save to disk.
+
+        Thread-safe: uses lock for concurrent access.
+
+        Args:
+            repo: Repository name (e.g. "owner/repo")
+            status: Reason for quarantine (e.g. "no_artifacts")
+        """
+        from datetime import datetime
+
+        with self._lock:
+            self._data["repos"][repo] = {
+                "status": status,
+                "quarantined_at": datetime.now().isoformat(),
+            }
+            self.save()
+
+    def remove(self, repo: str) -> None:
+        """Remove a repo from quarantine and auto-save to disk.
+
+        No-op if the repo is not quarantined. Thread-safe.
+        """
+        with self._lock:
+            if repo in self._data["repos"]:
+                del self._data["repos"][repo]
+                self.save()

@@ -22,7 +22,7 @@ from .analysis import (
     verify_has_failures,
     verify_has_failures_cached,
 )
-from .cache import RunCache, get_default_cache_path
+from .cache import QuarantineCache, RunCache, get_default_cache_path, get_default_quarantine_path
 from .cli import create_argument_parser, main
 from .client import (
     _gh_semaphore,  # noqa: F401
@@ -47,13 +47,15 @@ from .models import (
     KNOWN_GOOD_REPOS,
     MAX_RUNS_TO_CHECK,
     PLAYWRIGHT_PATTERNS,
+    QUARANTINE_SCHEMA_VERSION,
+    QUARANTINE_TTL_HOURS,
     TIMEOUT_API,
     TIMEOUT_DOWNLOAD,
     ProgressInfo,
     ProjectSource,
     SourceStatus,
 )
-from .service import _USE_DEFAULT_CACHE, discover_sources  # noqa: F401
+from .service import _USE_DEFAULT_CACHE, _USE_DEFAULT_QUARANTINE, discover_sources  # noqa: F401
 from .ui import (
     COL_REPO,
     COL_STATUS,
@@ -89,9 +91,13 @@ __all__ = [
     "SourceStatus",
     "ProgressInfo",
     "ProjectSource",
+    "QUARANTINE_TTL_HOURS",
+    "QUARANTINE_SCHEMA_VERSION",
     # cache
     "get_default_cache_path",
+    "get_default_quarantine_path",
     "RunCache",
+    "QuarantineCache",
     # client
     "gh_api",
     "search_repos",

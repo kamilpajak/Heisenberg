@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 
 from .analysis import filter_by_min_stars
-from .service import _USE_DEFAULT_CACHE, discover_sources
+from .service import _USE_DEFAULT_CACHE, _USE_DEFAULT_QUARANTINE, discover_sources
 from .ui import print_summary, save_results
 
 
@@ -26,6 +26,11 @@ def create_argument_parser() -> argparse.ArgumentParser:
         dest="no_cache",
         help="Disable verification cache (force re-download of artifacts)",
     )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Ignore quarantine cache (re-analyze all repos)",
+    )
     return parser
 
 
@@ -42,11 +47,15 @@ def main() -> None:
     # Determine cache_path: None to disable, or use default
     cache_path = None if args.no_cache else _USE_DEFAULT_CACHE
 
+    # Determine quarantine_path: None if --no-cache or --fresh, else default
+    quarantine_path = None if (args.no_cache or args.fresh) else _USE_DEFAULT_QUARANTINE
+
     sources = discover_sources(
         global_limit=args.limit,
         verify_failures=args.verify,
         show_progress=True,  # Use Rich progress display
         cache_path=cache_path,
+        quarantine_path=quarantine_path,
     )
 
     total_analyzed = len(sources)

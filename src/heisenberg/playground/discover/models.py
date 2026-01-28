@@ -28,6 +28,7 @@ PLAYWRIGHT_PATTERNS = [
     r"^playwright[-_]?traces?",  # playwright-trace, playwright-traces
     r"^trace\.zip$",  # trace.zip
     r"playwright.*report",  # any-playwright-report
+    r"playwright.*traces?",  # middleware-starter-playwright-traces
 ]
 
 _PLAYWRIGHT_REGEX = re.compile("|".join(PLAYWRIGHT_PATTERNS), re.IGNORECASE)
@@ -35,6 +36,8 @@ _PLAYWRIGHT_REGEX = re.compile("|".join(PLAYWRIGHT_PATTERNS), re.IGNORECASE)
 MAX_RUNS_TO_CHECK = 5
 CACHE_TTL_DAYS = 90
 CACHE_SCHEMA_VERSION = 1
+QUARANTINE_TTL_HOURS = 24
+QUARANTINE_SCHEMA_VERSION = 1
 TIMEOUT_API = 30  # seconds — for gh API calls
 TIMEOUT_DOWNLOAD = 120  # seconds — for artifact downloads
 GH_MAX_CONCURRENT = 4  # max concurrent gh CLI processes

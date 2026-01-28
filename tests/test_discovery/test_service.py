@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 from unittest.mock import patch
 
+from heisenberg.playground.discover.cache import QuarantineCache
 from heisenberg.playground.discover.models import (
     DEFAULT_QUERIES,
     ProgressInfo,
@@ -349,3 +350,143 @@ class TestNoCacheFlag:
 
         args2 = parser.parse_args(["--no-cache"])
         assert args2.no_cache is True
+
+
+# =============================================================================
+# QUARANTINE INTEGRATION TESTS
+# =============================================================================
+
+
+class TestQuarantineIntegration:
+    """Tests for quarantine cache integration with discover_sources."""
+
+    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
+    @patch("heisenberg.playground.discover.service.search_repos")
+    def test_quarantine_skips_non_compatible_repos(self, mock_search, mock_analyze, tmp_path):
+        """Quarantined repos should be skipped during analysis."""
+        from heisenberg.playground.discover.service import discover_sources
+
+        quarantine_file = tmp_path / "quarantine.json"
+        quarantine = QuarantineCache(cache_path=quarantine_file)
+        quarantine.set("bad/repo", "no_artifacts")
+
+        mock_search.return_value = ["bad/repo", "good/repo"]
+        mock_analyze.return_value = ProjectSource(
+            repo="good/repo",
+            stars=1000,
+            status=SourceStatus.COMPATIBLE,
+        )
+
+        discover_sources(
+            global_limit=50,
+            quarantine_path=quarantine_file,
+        )
+
+        analyzed_repos = [call[0][0] for call in mock_analyze.call_args_list]
+        assert "bad/repo" not in analyzed_repos
+        assert "good/repo" in analyzed_repos
+
+    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
+    @patch("heisenberg.playground.discover.service.search_repos")
+    def test_quarantine_never_skips_known_good_repos(self, mock_search, mock_analyze, tmp_path):
+        """KNOWN_GOOD_REPOS should never be skipped by quarantine."""
+        from heisenberg.playground.discover.service import discover_sources
+
+        quarantine_file = tmp_path / "quarantine.json"
+        quarantine = QuarantineCache(cache_path=quarantine_file)
+        quarantine.set("microsoft/playwright", "no_artifacts")
+
+        mock_search.return_value = ["other/repo"]
+        mock_analyze.return_value = ProjectSource(
+            repo="test/repo",
+            stars=1000,
+            status=SourceStatus.COMPATIBLE,
+        )
+
+        discover_sources(
+            global_limit=50,
+            quarantine_path=quarantine_file,
+        )
+
+        analyzed_repos = [call[0][0] for call in mock_analyze.call_args_list]
+        assert "microsoft/playwright" in analyzed_repos
+
+    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
+    @patch("heisenberg.playground.discover.service.search_repos")
+    def test_quarantine_updates_after_analysis(self, mock_search, mock_analyze, tmp_path):
+        """Non-compatible repos should be quarantined after analysis."""
+        from heisenberg.playground.discover.service import discover_sources
+
+        quarantine_file = tmp_path / "quarantine.json"
+
+        mock_search.return_value = ["no-artifacts/repo"]
+
+        mock_analyze.return_value = ProjectSource(
+            repo="no-artifacts/repo",
+            stars=1000,
+            status=SourceStatus.NO_ARTIFACTS,
+        )
+
+        with patch("heisenberg.playground.discover.service.KNOWN_GOOD_REPOS", []):
+            discover_sources(
+                global_limit=50,
+                quarantine_path=quarantine_file,
+            )
+
+        quarantine = QuarantineCache(cache_path=quarantine_file)
+        assert quarantine.is_quarantined("no-artifacts/repo") is True
+
+    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
+    @patch("heisenberg.playground.discover.service.search_repos")
+    def test_quarantine_disabled_when_path_is_none(self, mock_search, mock_analyze):
+        """quarantine_path=None should disable quarantine entirely."""
+        from heisenberg.playground.discover.service import discover_sources
+
+        mock_search.return_value = ["repo1"]
+        mock_analyze.return_value = ProjectSource(
+            repo="repo1",
+            stars=1000,
+            status=SourceStatus.NO_ARTIFACTS,
+        )
+
+        with patch("heisenberg.playground.discover.service.KNOWN_GOOD_REPOS", []):
+            result = discover_sources(
+                global_limit=50,
+                quarantine_path=None,
+            )
+
+        assert len(result) >= 1
+
+
+class TestFreshFlag:
+    """Tests for --fresh CLI flag."""
+
+    def test_cli_has_fresh_argument(self):
+        """CLI parser should have --fresh argument."""
+        from heisenberg.playground.discover.cli import create_argument_parser
+
+        parser = create_argument_parser()
+        args = parser.parse_args(["--fresh"])
+
+        assert args.fresh is True
+
+    def test_fresh_disables_quarantine(self):
+        """--fresh should set quarantine to disabled."""
+        from heisenberg.playground.discover.cli import create_argument_parser
+
+        parser = create_argument_parser()
+
+        args_default = parser.parse_args([])
+        assert args_default.fresh is False
+
+        args_fresh = parser.parse_args(["--fresh"])
+        assert args_fresh.fresh is True
+
+    def test_no_cache_disables_quarantine(self):
+        """--no-cache should also disable quarantine."""
+        from heisenberg.playground.discover.cli import create_argument_parser
+
+        parser = create_argument_parser()
+        args = parser.parse_args(["--no-cache"])
+
+        assert args.no_cache is True
