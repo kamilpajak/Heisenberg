@@ -43,10 +43,70 @@ def _extract_failure_count(data: dict) -> int | None:
     return None
 
 
+def _extract_failure_count_from_jsonl(jsonl_content: str) -> int | None:
+    """Extract failure count from Playwright JSONL blob report.
+
+    Counts onTestEnd events with 'failed' or 'timedOut' status.
+    Returns None if no onTestEnd events are found (not a valid JSONL report).
+    """
+    if not jsonl_content.strip():
+        return None
+
+    failures = 0
+    has_test_events = False
+
+    for line in jsonl_content.strip().split("\n"):
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if obj.get("method") == "onTestEnd":
+            has_test_events = True
+            status = obj.get("params", {}).get("result", {}).get("status")
+            if status in ("failed", "timedOut"):
+                failures += 1
+
+    return failures if has_test_events else None
+
+
+def _extract_failure_count_from_html(html_content: str) -> int | None:
+    """Extract failure count from Playwright HTML report.
+
+    Playwright's HTML reporter embeds a base64-encoded ZIP at the end of the file
+    containing report.json with test stats.
+    """
+    import base64
+    import io
+    import re
+    import zipfile
+
+    match = re.search(r"([A-Za-z0-9+/=]{100,})</script>", html_content)
+    if not match:
+        return None
+
+    try:
+        raw = base64.b64decode(match.group(1))
+        zf = zipfile.ZipFile(io.BytesIO(raw))
+        for name in zf.namelist():
+            if name.endswith(".json"):
+                data = json.loads(zf.read(name))
+                result = _extract_failure_count(data)
+                if result is not None:
+                    return result
+    except Exception:
+        return None
+
+    return None
+
+
 def extract_failure_count_from_dir(dir_path) -> int | None:
     """Extract failure count from files in an extracted artifact directory.
 
-    Handles both direct JSON files and nested ZIP files (blob reports).
+    Handles three Playwright report formats:
+    1. Nested ZIPs with JSON stats (blob report with report.json)
+    2. Nested ZIPs with JSONL events (blob report with report.jsonl)
+    3. HTML reports with embedded base64 ZIP (single-file HTML reporter)
+    4. Direct JSON files in artifact root
 
     Args:
         dir_path: Path to the extracted artifact directory
@@ -59,10 +119,11 @@ def extract_failure_count_from_dir(dir_path) -> int | None:
 
     dir_path = Path(dir_path)
 
-    # First, check nested ZIP files (blob reports)
+    # First, check nested ZIP files (blob reports: JSON then JSONL)
     for zip_file in dir_path.glob("*.zip"):
         try:
             with zipfile.ZipFile(zip_file) as zf:
+                # Try JSON files first (report.json with stats)
                 for name in zf.namelist():
                     if name.endswith(".json"):
                         content = zf.read(name)
@@ -70,10 +131,28 @@ def extract_failure_count_from_dir(dir_path) -> int | None:
                         failures = _extract_failure_count(data)
                         if failures is not None:
                             return failures
+
+                # Then try JSONL files (report.jsonl with events)
+                for name in zf.namelist():
+                    if name.endswith(".jsonl"):
+                        content = zf.read(name).decode()
+                        failures = _extract_failure_count_from_jsonl(content)
+                        if failures is not None:
+                            return failures
         except (zipfile.BadZipFile, json.JSONDecodeError):
             continue
 
-    # Then check direct JSON files
+    # Then check HTML files (embedded base64 ZIP with report.json)
+    for html_file in dir_path.glob("*.html"):
+        try:
+            content = html_file.read_text()
+            failures = _extract_failure_count_from_html(content)
+            if failures is not None:
+                return failures
+        except OSError:
+            continue
+
+    # Finally check direct JSON files
     for json_file in dir_path.rglob("*.json"):
         try:
             data = json.loads(json_file.read_text())

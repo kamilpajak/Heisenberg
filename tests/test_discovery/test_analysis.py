@@ -6,8 +6,11 @@ import json
 from unittest.mock import MagicMock, patch
 
 from heisenberg.playground.discover.analysis import (
+    _extract_failure_count_from_html,
+    _extract_failure_count_from_jsonl,
     determine_status,
     download_and_check_failures,
+    extract_failure_count_from_dir,
     filter_by_min_stars,
     filter_expired_artifacts,
     find_valid_artifacts,
@@ -696,3 +699,185 @@ class TestAnalyzeWithStatusUpdates:
         )
 
         assert any("dl" in s.lower() or "download" in s.lower() for s in stages_seen)
+
+
+# =============================================================================
+# JSONL BLOB REPORT PARSING TESTS
+# =============================================================================
+
+
+class TestExtractFailureCountFromJsonl:
+    """Tests for parsing JSONL blob report format (Playwright merge-reports)."""
+
+    def test_extracts_failures_from_onend(self):
+        """Should extract failure count from onEnd event with 'failed' status."""
+        jsonl = "\n".join(
+            [
+                json.dumps({"method": "onTestEnd", "params": {"result": {"status": "failed"}}}),
+                json.dumps({"method": "onTestEnd", "params": {"result": {"status": "passed"}}}),
+                json.dumps({"method": "onEnd", "params": {"result": {"status": "failed"}}}),
+            ]
+        )
+
+        result = _extract_failure_count_from_jsonl(jsonl)
+
+        assert result == 1
+
+    def test_returns_zero_when_all_pass(self):
+        """Should return 0 when all tests pass."""
+        jsonl = "\n".join(
+            [
+                json.dumps({"method": "onTestEnd", "params": {"result": {"status": "passed"}}}),
+                json.dumps({"method": "onTestEnd", "params": {"result": {"status": "skipped"}}}),
+                json.dumps({"method": "onEnd", "params": {"result": {"status": "passed"}}}),
+            ]
+        )
+
+        result = _extract_failure_count_from_jsonl(jsonl)
+
+        assert result == 0
+
+    def test_counts_failed_and_timed_out(self):
+        """Should count both 'failed' and 'timedOut' as failures."""
+        jsonl = "\n".join(
+            [
+                json.dumps({"method": "onTestEnd", "params": {"result": {"status": "failed"}}}),
+                json.dumps({"method": "onTestEnd", "params": {"result": {"status": "timedOut"}}}),
+                json.dumps({"method": "onTestEnd", "params": {"result": {"status": "passed"}}}),
+            ]
+        )
+
+        result = _extract_failure_count_from_jsonl(jsonl)
+
+        assert result == 2
+
+    def test_returns_none_for_empty(self):
+        """Should return None for empty input."""
+        result = _extract_failure_count_from_jsonl("")
+
+        assert result is None
+
+    def test_returns_none_for_no_test_events(self):
+        """Should return None when no onTestEnd events found."""
+        jsonl = json.dumps({"method": "onBegin", "params": {}})
+
+        result = _extract_failure_count_from_jsonl(jsonl)
+
+        assert result is None
+
+
+# =============================================================================
+# HTML REPORT PARSING TESTS
+# =============================================================================
+
+
+class TestExtractFailureCountFromHtml:
+    """Tests for parsing Playwright HTML report with embedded base64 ZIP."""
+
+    def _make_html_report(self, stats: dict) -> str:
+        """Create a minimal Playwright HTML report with embedded stats."""
+        import base64
+        import io
+        import zipfile
+
+        report_json = json.dumps({"stats": stats})
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("report.json", report_json)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        return f"<html><body><script>{b64}</script></body></html>"
+
+    def test_extracts_failures_from_embedded_zip(self):
+        """Should find stats in base64-encoded ZIP inside HTML."""
+        html = self._make_html_report({"unexpected": 3, "flaky": 1, "expected": 10})
+
+        result = _extract_failure_count_from_html(html)
+
+        assert result == 4
+
+    def test_returns_zero_when_no_failures(self):
+        """Should return 0 when stats show no failures."""
+        html = self._make_html_report({"unexpected": 0, "flaky": 0, "expected": 16})
+
+        result = _extract_failure_count_from_html(html)
+
+        assert result == 0
+
+    def test_returns_none_for_non_report_html(self):
+        """Should return None for HTML without embedded ZIP."""
+        result = _extract_failure_count_from_html("<html><body>Hello</body></html>")
+
+        assert result is None
+
+
+# =============================================================================
+# INTEGRATION: extract_failure_count_from_dir WITH NEW FORMATS
+# =============================================================================
+
+
+class TestExtractFromDirJsonl:
+    """Tests for extract_failure_count_from_dir with JSONL blob reports."""
+
+    def test_reads_jsonl_inside_nested_zip(self, tmp_path):
+        """Should parse JSONL from nested ZIP files (blob report format)."""
+        import zipfile
+
+        jsonl = "\n".join(
+            [
+                json.dumps({"method": "onTestEnd", "params": {"result": {"status": "failed"}}}),
+                json.dumps({"method": "onTestEnd", "params": {"result": {"status": "passed"}}}),
+                json.dumps({"method": "onEnd", "params": {"result": {"status": "failed"}}}),
+            ]
+        )
+
+        zip_path = tmp_path / "report.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("report.jsonl", jsonl)
+
+        result = extract_failure_count_from_dir(tmp_path)
+
+        assert result == 1
+
+    def test_json_takes_precedence_over_jsonl_in_zip(self, tmp_path):
+        """If a nested ZIP has both .json and .jsonl, JSON with stats wins."""
+        import zipfile
+
+        report_json = json.dumps({"stats": {"unexpected": 5, "flaky": 0}})
+        jsonl = "\n".join(
+            [
+                json.dumps({"method": "onTestEnd", "params": {"result": {"status": "failed"}}}),
+            ]
+        )
+
+        zip_path = tmp_path / "report.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("report.json", report_json)
+            zf.writestr("report.jsonl", jsonl)
+
+        result = extract_failure_count_from_dir(tmp_path)
+
+        assert result == 5
+
+
+class TestExtractFromDirHtml:
+    """Tests for extract_failure_count_from_dir with HTML reports."""
+
+    def test_reads_html_report_with_embedded_zip(self, tmp_path):
+        """Should parse HTML report with embedded base64 ZIP."""
+        import base64
+        import io
+        import zipfile
+
+        stats = {"unexpected": 2, "flaky": 0, "expected": 10}
+        report_json = json.dumps({"stats": stats})
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("report.json", report_json)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        html = f"<html><body><script>{b64}</script></body></html>"
+
+        (tmp_path / "index.html").write_text(html)
+
+        result = extract_failure_count_from_dir(tmp_path)
+
+        assert result == 2
