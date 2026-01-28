@@ -59,6 +59,45 @@ class PlaywrightHandler(ReportHandler):
 
         return False
 
+    def _find_report_root(self, namelist: list[str]) -> str | None:
+        """Find directory prefix containing a valid Playwright report.
+
+        GitHub Actions wraps artifacts in subdirectories, so we need to search
+        recursively rather than only checking the root.
+
+        Returns:
+            Directory prefix (e.g., "playwright-report/") or empty string for root,
+            or None if no valid report structure found.
+        """
+        # Look for HTML report structure (index.html + data/ sibling)
+        for name in namelist:
+            if name.endswith(INDEX_HTML):
+                # Extract prefix: "subdir/index.html" -> "subdir/"
+                prefix = name[: -len(INDEX_HTML)]
+                data_dir = f"{prefix}data/"
+                if any(n.startswith(data_dir) for n in namelist):
+                    return prefix
+
+        # Look for blob report structure (.zip files without index.html)
+        # Group files by their parent directory
+        dirs_with_zips: dict[str, list[str]] = {}
+        for name in namelist:
+            if name.endswith(".zip"):
+                # Get parent dir: "subdir/file.zip" -> "subdir/"
+                if "/" in name:
+                    parent = name.rsplit("/", 1)[0] + "/"
+                else:
+                    parent = ""
+                dirs_with_zips.setdefault(parent, []).append(name)
+
+        # Find a directory with .zip files but no index.html
+        for prefix, zips in dirs_with_zips.items():
+            index_path = f"{prefix}{INDEX_HTML}" if prefix else INDEX_HTML
+            if index_path not in namelist and zips:
+                return prefix
+
+        return None
+
     def _is_html_report(self, namelist: list[str]) -> bool:
         """Check if ZIP contains Playwright HTML report structure."""
         has_index = any(name == INDEX_HTML or name.endswith(f"/{INDEX_HTML}") for name in namelist)
@@ -73,12 +112,36 @@ class PlaywrightHandler(ReportHandler):
         - NO index.html (distinguishes from HTML reports)
 
         These can be merged with `npx playwright merge-reports`.
+        Supports both root-level and nested blob reports.
         """
-        # Must have .zip files at root level
-        has_root_zips = any(name.endswith(".zip") and "/" not in name for name in namelist)
-        # Must NOT have index.html (that would be HTML report)
-        has_index = any(name == INDEX_HTML or name.endswith(f"/{INDEX_HTML}") for name in namelist)
-        return has_root_zips and not has_index
+        # First, check if this is an HTML report - if so, it's not a blob
+        if self._is_html_report(namelist):
+            return False
+
+        # Find directories containing .zip files (excluding data/ subdirs of HTML reports)
+        # HTML reports have data/*.zip which are internal files, not blob shards
+        dirs_with_zips: set[str] = set()
+        for name in namelist:
+            if name.endswith(".zip"):
+                if "/" in name:
+                    parent = name.rsplit("/", 1)[0] + "/"
+                    # Skip data/ directories - these are HTML report internal files
+                    if parent.endswith("data/"):
+                        continue
+                else:
+                    parent = ""
+                dirs_with_zips.add(parent)
+
+        if not dirs_with_zips:
+            return False
+
+        # Check if any directory with .zip files has NO index.html sibling
+        for prefix in dirs_with_zips:
+            index_path = f"{prefix}{INDEX_HTML}" if prefix else INDEX_HTML
+            if index_path not in namelist:
+                return True
+
+        return False
 
     def _is_json_report(self, zip_file: ZipFile, namelist: list[str]) -> bool:
         """Check if ZIP contains Playwright JSON report."""
@@ -143,11 +206,35 @@ class PlaywrightHandler(ReportHandler):
                     self._merge_stats(combined_data["stats"], data["stats"])
         return has_data
 
+    def _find_blob_root(self, namelist: list[str]) -> str:
+        """Find the directory containing blob report .zip files.
+
+        Returns the prefix (e.g., "blob-report/") or empty string for root.
+        """
+        # Group .zip files by parent directory
+        dirs_with_zips: dict[str, int] = {}
+        for name in namelist:
+            if name.endswith(".zip"):
+                if "/" in name:
+                    parent = name.rsplit("/", 1)[0] + "/"
+                else:
+                    parent = ""
+                dirs_with_zips[parent] = dirs_with_zips.get(parent, 0) + 1
+
+        # Return directory with most .zip files that's not an HTML report
+        for prefix in sorted(dirs_with_zips, key=lambda p: dirs_with_zips[p], reverse=True):
+            index_path = f"{prefix}{INDEX_HTML}" if prefix else INDEX_HTML
+            data_path = f"{prefix}data/"
+            if index_path not in namelist and not any(n.startswith(data_path) for n in namelist):
+                return prefix
+        return ""
+
     def _extract_blob_report(self, zip_file: ZipFile, output_dir: Path) -> ExtractedReport:
         """Extract blob format report.
 
         Blob reports contain .zip files with test data that can be merged.
         Supports both JSON format and JSONL (event stream) format.
+        Handles both root-level and nested blob reports.
         """
         import zipfile as zf_module
 
@@ -158,9 +245,27 @@ class PlaywrightHandler(ReportHandler):
         }
         has_data = False
 
+        # Find the blob report root directory
+        blob_root = self._find_blob_root(zip_file.namelist())
+
         for name in zip_file.namelist():
-            if not (name.endswith(".zip") and "/" not in name):
+            # Check if this .zip is in the blob root directory
+            if not name.endswith(".zip"):
                 continue
+            # For nested: "blob-report/file.zip" with blob_root="blob-report/"
+            # For root: "file.zip" with blob_root=""
+            if blob_root:
+                if not name.startswith(blob_root):
+                    continue
+                # Make sure it's directly in blob_root, not deeper
+                remainder = name[len(blob_root) :]
+                if "/" in remainder:
+                    continue
+            else:
+                # Root level - no "/" allowed
+                if "/" in name:
+                    continue
+
             try:
                 blob_data = zip_file.read(name)
                 with zf_module.ZipFile(io.BytesIO(blob_data)) as inner_zip:
