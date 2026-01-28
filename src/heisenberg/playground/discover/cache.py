@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 
 from .models import (
     CACHE_SCHEMA_VERSION,
@@ -10,6 +11,23 @@ from .models import (
     QUARANTINE_SCHEMA_VERSION,
     QUARANTINE_TTL_HOURS,
 )
+
+
+def _ensure_utc(iso_string: str) -> datetime:
+    """Parse an ISO datetime string into a UTC-aware datetime.
+
+    Handles both timezone-aware strings from GitHub (e.g. "2026-01-28T10:30:00Z")
+    and naive strings from older cache entries (treated as UTC).
+    """
+    dt = datetime.fromisoformat(iso_string)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt
+
+
+def _utcnow() -> datetime:
+    """Return current time as UTC-aware datetime."""
+    return datetime.now(tz=UTC)
 
 
 def get_default_cache_path():
@@ -72,15 +90,13 @@ class RunCache:
         Called during load to prevent unbounded cache growth.
         Saves to disk if any entries were pruned.
         """
-        from datetime import datetime, timedelta
-
-        now = datetime.now()
+        now = _utcnow()
         cutoff = timedelta(days=CACHE_TTL_DAYS)
         expired_ids = []
 
         for run_id, entry in self._data["runs"].items():
             try:
-                created_at = datetime.fromisoformat(entry["run_created_at"])
+                created_at = _ensure_utc(entry["run_created_at"])
                 if now - created_at > cutoff:
                     expired_ids.append(run_id)
             except (KeyError, ValueError):
@@ -110,8 +126,6 @@ class RunCache:
         Returns None if not in cache or if run is older than 90 days
         (GitHub artifacts would have expired).
         """
-        from datetime import datetime, timedelta
-
         with self._lock:
             entry = self._data["runs"].get(run_id)
             if not entry:
@@ -120,8 +134,8 @@ class RunCache:
             # Check TTL based on when the RUN was created (not when we cached it)
             # This ensures artifacts are still available on GitHub for demo users
             try:
-                run_created_at = datetime.fromisoformat(entry["run_created_at"])
-                run_age = datetime.now() - run_created_at
+                run_created_at = _ensure_utc(entry["run_created_at"])
+                run_age = _utcnow() - run_created_at
                 if run_age > timedelta(days=CACHE_TTL_DAYS):
                     return None  # Expired - GitHub artifacts gone
                 return entry["failure_count"]
@@ -202,15 +216,13 @@ class QuarantineCache:
         Called during load to prevent unbounded cache growth.
         Saves to disk if any entries were pruned.
         """
-        from datetime import datetime, timedelta
-
-        now = datetime.now()
+        now = _utcnow()
         cutoff = timedelta(hours=QUARANTINE_TTL_HOURS)
         expired_repos = []
 
         for repo, entry in self._data["repos"].items():
             try:
-                quarantined_at = datetime.fromisoformat(entry["quarantined_at"])
+                quarantined_at = _ensure_utc(entry["quarantined_at"])
                 if now - quarantined_at > cutoff:
                     expired_repos.append(repo)
             except (KeyError, ValueError, TypeError):
@@ -236,16 +248,14 @@ class QuarantineCache:
 
         Returns False for unknown repos or expired entries.
         """
-        from datetime import datetime, timedelta
-
         with self._lock:
             entry = self._data["repos"].get(repo)
             if not entry:
                 return False
 
             try:
-                quarantined_at = datetime.fromisoformat(entry["quarantined_at"])
-                age = datetime.now() - quarantined_at
+                quarantined_at = _ensure_utc(entry["quarantined_at"])
+                age = _utcnow() - quarantined_at
                 return age <= timedelta(hours=QUARANTINE_TTL_HOURS)
             except (KeyError, ValueError, TypeError):
                 return False
@@ -259,12 +269,10 @@ class QuarantineCache:
             repo: Repository name (e.g. "owner/repo")
             status: Reason for quarantine (e.g. "no_artifacts")
         """
-        from datetime import datetime
-
         with self._lock:
             self._data["repos"][repo] = {
                 "status": status,
-                "quarantined_at": datetime.now().isoformat(),
+                "quarantined_at": _utcnow().isoformat(),
             }
             self.save()
 

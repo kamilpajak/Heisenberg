@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from heisenberg.playground.discover.cache import RunCache, get_default_cache_path
@@ -92,6 +92,93 @@ class TestRunCacheTTL:
         result = cache.get("boundary-run")
 
         assert result == 2
+
+
+class TestRunCacheTimezoneAware:
+    """Tests for RunCache handling timezone-aware ISO strings from GitHub."""
+
+    def test_get_handles_utc_suffix(self):
+        """get() should handle GitHub-style UTC timestamps ('Z' suffix)."""
+        cache = RunCache()
+        utc_date = "2026-01-15T10:30:00Z"
+        cache._data["runs"]["tz-run"] = {
+            "failure_count": 5,
+            "run_created_at": utc_date,
+        }
+
+        result = cache.get("tz-run")
+
+        assert result == 5
+
+    def test_get_handles_utc_offset(self):
+        """get() should handle timestamps with explicit +00:00 offset."""
+        cache = RunCache()
+        utc_date = "2026-01-15T10:30:00+00:00"
+        cache._data["runs"]["tz-run"] = {
+            "failure_count": 3,
+            "run_created_at": utc_date,
+        }
+
+        result = cache.get("tz-run")
+
+        assert result == 3
+
+    def test_prune_handles_utc_suffix(self, tmp_path):
+        """_prune() should handle GitHub-style UTC timestamps without crashing."""
+        cache_file = tmp_path / "cache.json"
+
+        old_date = "2024-01-01T00:00:00Z"  # Well past 90 days
+        recent_date = datetime.now(UTC).isoformat()
+
+        cache_file.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "runs": {
+                        "old-run": {"failure_count": 5, "run_created_at": old_date},
+                        "recent-run": {"failure_count": 3, "run_created_at": recent_date},
+                    },
+                }
+            )
+        )
+
+        cache = RunCache(cache_path=cache_file)
+
+        assert "old-run" not in cache._data["runs"]
+        assert "recent-run" in cache._data["runs"]
+
+    def test_set_and_get_with_github_timestamp(self):
+        """Full round-trip: set() with GitHub timestamp, get() returns value."""
+        cache = RunCache()
+        github_ts = "2026-01-28T10:30:00Z"
+
+        cache.set("gh-run", 7, github_ts)
+
+        assert cache.get("gh-run") == 7
+
+    def test_mixed_naive_and_aware_timestamps(self, tmp_path):
+        """Cache with both naive and aware timestamps should load correctly."""
+        cache_file = tmp_path / "cache.json"
+
+        naive_date = datetime.now().isoformat()
+        aware_date = datetime.now(UTC).isoformat()
+
+        cache_file.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "runs": {
+                        "naive-run": {"failure_count": 1, "run_created_at": naive_date},
+                        "aware-run": {"failure_count": 2, "run_created_at": aware_date},
+                    },
+                }
+            )
+        )
+
+        cache = RunCache(cache_path=cache_file)
+
+        assert cache.get("naive-run") == 1
+        assert cache.get("aware-run") == 2
 
 
 class TestRunCachePersistence:

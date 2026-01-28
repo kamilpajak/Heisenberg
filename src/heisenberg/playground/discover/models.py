@@ -17,11 +17,6 @@ DEFAULT_QUERIES = [
     '"blob-report" path:.github extension:yml',  # Repos with custom upload actions
 ]
 
-# Curated list of repos known to have Playwright tests with frequent failures
-KNOWN_GOOD_REPOS = [
-    "microsoft/playwright",  # The Playwright project itself - always has test failures
-]
-
 PLAYWRIGHT_PATTERNS = [
     r"^playwright[-_]?report",  # playwright-report, playwright_report
     r"^blob[-_]?report",  # blob-report (Playwright sharding)

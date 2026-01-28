@@ -40,48 +40,6 @@ class TestDiscoverSources:
         assert mock_search.call_count == len(DEFAULT_QUERIES)
 
 
-class TestDiscoverWithKnownGoodRepos:
-    """Tests for discover_sources including known good repos."""
-
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
-    def test_includes_known_good_repos(self, mock_search, mock_analyze):
-        """Should include KNOWN_GOOD_REPOS in addition to search results."""
-        from heisenberg.playground.discover.models import KNOWN_GOOD_REPOS
-        from heisenberg.playground.discover.service import discover_sources
-
-        mock_search.return_value = ["other/repo"]
-        mock_analyze.return_value = ProjectSource(
-            repo="test/repo",
-            stars=1000,
-            status=SourceStatus.COMPATIBLE,
-        )
-
-        discover_sources(global_limit=50)
-
-        analyzed_repos = [call[0][0] for call in mock_analyze.call_args_list]
-        for known_repo in KNOWN_GOOD_REPOS:
-            assert known_repo in analyzed_repos
-
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
-    def test_deduplicates_known_good_repos(self, mock_search, mock_analyze):
-        """Should not analyze known good repo twice if also in search results."""
-        from heisenberg.playground.discover.service import discover_sources
-
-        mock_search.return_value = ["microsoft/playwright", "other/repo"]
-        mock_analyze.return_value = ProjectSource(
-            repo="test/repo",
-            stars=1000,
-            status=SourceStatus.COMPATIBLE,
-        )
-
-        discover_sources(global_limit=50)
-
-        analyzed_repos = [call[0][0] for call in mock_analyze.call_args_list]
-        assert analyzed_repos.count("microsoft/playwright") == 1
-
-
 class TestParallelProcessing:
     """Tests for parallel source analysis."""
 
@@ -229,7 +187,6 @@ class TestThreadSafeProgress:
                 patch(
                     "heisenberg.playground.discover.service.analyze_source_with_status"
                 ) as mock_analyze,
-                patch("heisenberg.playground.discover.service.KNOWN_GOOD_REPOS", []),
             ):
                 mock_search.return_value = ["repo1", "repo2", "repo3", "repo4"]
 
@@ -388,31 +345,6 @@ class TestQuarantineIntegration:
 
     @patch("heisenberg.playground.discover.service.analyze_source_with_status")
     @patch("heisenberg.playground.discover.service.search_repos")
-    def test_quarantine_never_skips_known_good_repos(self, mock_search, mock_analyze, tmp_path):
-        """KNOWN_GOOD_REPOS should never be skipped by quarantine."""
-        from heisenberg.playground.discover.service import discover_sources
-
-        quarantine_file = tmp_path / "quarantine.json"
-        quarantine = QuarantineCache(cache_path=quarantine_file)
-        quarantine.set("microsoft/playwright", "no_artifacts")
-
-        mock_search.return_value = ["other/repo"]
-        mock_analyze.return_value = ProjectSource(
-            repo="test/repo",
-            stars=1000,
-            status=SourceStatus.COMPATIBLE,
-        )
-
-        discover_sources(
-            global_limit=50,
-            quarantine_path=quarantine_file,
-        )
-
-        analyzed_repos = [call[0][0] for call in mock_analyze.call_args_list]
-        assert "microsoft/playwright" in analyzed_repos
-
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
     def test_quarantine_updates_after_analysis(self, mock_search, mock_analyze, tmp_path):
         """Non-compatible repos should be quarantined after analysis."""
         from heisenberg.playground.discover.service import discover_sources
@@ -427,11 +359,10 @@ class TestQuarantineIntegration:
             status=SourceStatus.NO_ARTIFACTS,
         )
 
-        with patch("heisenberg.playground.discover.service.KNOWN_GOOD_REPOS", []):
-            discover_sources(
-                global_limit=50,
-                quarantine_path=quarantine_file,
-            )
+        discover_sources(
+            global_limit=50,
+            quarantine_path=quarantine_file,
+        )
 
         quarantine = QuarantineCache(cache_path=quarantine_file)
         assert quarantine.is_quarantined("no-artifacts/repo") is True
@@ -449,11 +380,10 @@ class TestQuarantineIntegration:
             status=SourceStatus.NO_ARTIFACTS,
         )
 
-        with patch("heisenberg.playground.discover.service.KNOWN_GOOD_REPOS", []):
-            result = discover_sources(
-                global_limit=50,
-                quarantine_path=None,
-            )
+        result = discover_sources(
+            global_limit=50,
+            quarantine_path=None,
+        )
 
         assert len(result) >= 1
 

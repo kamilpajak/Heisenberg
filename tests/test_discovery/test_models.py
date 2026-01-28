@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from heisenberg.playground.discover.models import (
     DEFAULT_QUERIES,
-    KNOWN_GOOD_REPOS,
     ProgressInfo,
     ProjectSource,
     SourceStatus,
@@ -83,26 +82,6 @@ class TestProjectSource:
         )
         assert with_artifacts.has_artifacts is True
         assert without_artifacts.has_artifacts is False
-
-
-class TestKnownGoodRepos:
-    """Tests for KNOWN_GOOD_REPOS - curated list of repos with Playwright failures."""
-
-    def test_known_good_repos_exists(self):
-        """KNOWN_GOOD_REPOS should be defined at module level."""
-        assert KNOWN_GOOD_REPOS is not None
-        assert isinstance(KNOWN_GOOD_REPOS, list)
-
-    def test_known_good_repos_contains_microsoft_playwright(self):
-        """microsoft/playwright should be in KNOWN_GOOD_REPOS."""
-        assert "microsoft/playwright" in KNOWN_GOOD_REPOS
-
-    def test_known_good_repos_are_strings(self):
-        """All entries should be owner/repo format strings."""
-        for repo in KNOWN_GOOD_REPOS:
-            assert isinstance(repo, str)
-            assert "/" in repo
-            assert len(repo.split("/")) == 2
 
 
 class TestProgressInfo:

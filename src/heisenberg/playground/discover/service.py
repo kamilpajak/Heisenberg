@@ -7,7 +7,6 @@ from .cache import QuarantineCache, RunCache, get_default_cache_path, get_defaul
 from .client import search_repos
 from .models import (
     DEFAULT_QUERIES,
-    KNOWN_GOOD_REPOS,
     ProgressInfo,
     ProjectSource,
     SourceStatus,
@@ -78,8 +77,7 @@ def discover_sources(
         QuarantineCache(cache_path=actual_quarantine_path) if actual_quarantine_path else None
     )
 
-    # Start with known good repos (high probability of having failures)
-    all_repos: set[str] = set(KNOWN_GOOD_REPOS)
+    all_repos: set[str] = set()
 
     # Add repos from search queries, skipping quarantined repos so the
     # limit is filled with fresh (non-quarantined) repos instead.
@@ -87,7 +85,7 @@ def discover_sources(
     for query in queries:
         results = search_repos(query, limit=global_limit)
         for repo in results:
-            if quarantine and repo not in KNOWN_GOOD_REPOS and quarantine.is_quarantined(repo):
+            if quarantine and quarantine.is_quarantined(repo):
                 quarantine_skipped += 1
             else:
                 all_repos.add(repo)
@@ -135,10 +133,6 @@ def discover_sources(
                 )
 
         try:
-            # Check if this is a known good repo (for message)
-            if verify_failures and repo in KNOWN_GOOD_REPOS:
-                message = "skipped verify"
-
             result = analyze_source_with_status(
                 repo,
                 verify_failures=verify_failures,

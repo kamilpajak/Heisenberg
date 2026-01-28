@@ -13,7 +13,6 @@ from .client import (
 )
 from .models import (
     _PLAYWRIGHT_REGEX,
-    KNOWN_GOOD_REPOS,
     ProjectSource,
     SourceStatus,
 )
@@ -266,27 +265,23 @@ def analyze_source_with_status(
     # Optionally verify that artifact has actual failures
     failure_count = None
     if verify_failures and playwright_artifacts and run_id:
-        # Skip verification for KNOWN_GOOD_REPOS (they're trusted to have failures)
-        if repo in KNOWN_GOOD_REPOS:
-            failure_count = 1  # Trust that it has failures
-        else:
-            artifact_to_check = playwright_artifacts[0]
-            if not cache or not cache.get(run_id):
-                size = artifact_sizes.get(artifact_to_check, 0)
-                # Lazy import to avoid circular dependency
-                from .ui import format_size
+        artifact_to_check = playwright_artifacts[0]
+        if not cache or not cache.get(run_id):
+            size = artifact_sizes.get(artifact_to_check, 0)
+            # Lazy import to avoid circular dependency
+            from .ui import format_size
 
-                report(f"dl {format_size(size)}" if size > 0 else "downloading...")
-            else:
-                report("checking cache")
-            # Try the first Playwright artifact
-            if cache and run_created_at:
-                has_failures = verify_has_failures_cached(
-                    repo, run_id, playwright_artifacts[0], cache, run_created_at
-                )
-            else:
-                has_failures = verify_has_failures(repo, run_id, playwright_artifacts[0])
-            failure_count = 1 if has_failures else 0
+            report(f"dl {format_size(size)}" if size > 0 else "downloading...")
+        else:
+            report("checking cache")
+        # Try the first Playwright artifact
+        if cache and run_created_at:
+            has_failures = verify_has_failures_cached(
+                repo, run_id, playwright_artifacts[0], cache, run_created_at
+            )
+        else:
+            has_failures = verify_has_failures(repo, run_id, playwright_artifacts[0])
+        failure_count = 1 if has_failures else 0
 
     status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
 
@@ -322,14 +317,8 @@ def analyze_source(
     # Optionally verify that artifact has actual failures
     failure_count = None
     if verify_failures and playwright_artifacts and run_id:
-        # Skip verification for KNOWN_GOOD_REPOS (they're trusted to have failures)
-        # This avoids downloading massive artifacts (50-200MB) for microsoft/playwright
-        if repo in KNOWN_GOOD_REPOS:
-            failure_count = 1  # Trust that it has failures
-        else:
-            # Try the first Playwright artifact
-            has_failures = verify_has_failures(repo, run_id, playwright_artifacts[0])
-            failure_count = 1 if has_failures else 0
+        has_failures = verify_has_failures(repo, run_id, playwright_artifacts[0])
+        failure_count = 1 if has_failures else 0
 
     status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
 

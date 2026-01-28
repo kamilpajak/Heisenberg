@@ -44,7 +44,6 @@ from .models import (
     GH_MAX_CONCURRENT,
     GH_MAX_RETRIES,
     GH_RETRY_BASE_DELAY,
-    KNOWN_GOOD_REPOS,
     MAX_RUNS_TO_CHECK,
     PLAYWRIGHT_PATTERNS,
     QUARANTINE_SCHEMA_VERSION,
@@ -78,7 +77,6 @@ from .ui import (
 __all__ = [
     # models
     "DEFAULT_QUERIES",
-    "KNOWN_GOOD_REPOS",
     "PLAYWRIGHT_PATTERNS",
     "MAX_RUNS_TO_CHECK",
     "CACHE_TTL_DAYS",

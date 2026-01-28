@@ -629,57 +629,6 @@ class TestFindValidArtifactsReturnsRunCreatedAt:
         assert run_created_at == "2024-01-15T10:30:00Z"
 
 
-class TestSkipVerificationForKnownGoodRepos:
-    """Tests for skipping verification on KNOWN_GOOD_REPOS."""
-
-    @patch("heisenberg.playground.discover.analysis.verify_has_failures")
-    @patch("heisenberg.playground.discover.analysis.find_valid_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_repo_stars")
-    def test_skips_verification_for_known_good_repos(self, mock_stars, mock_artifacts, mock_verify):
-        """Should NOT call verify_has_failures for repos in KNOWN_GOOD_REPOS."""
-        from heisenberg.playground.discover.analysis import analyze_source
-        from heisenberg.playground.discover.models import KNOWN_GOOD_REPOS
-
-        mock_stars.return_value = 80000
-        mock_artifacts.return_value = (
-            "123",
-            "url",
-            ["blob-report-1"],
-            "2024-01-15T10:00:00Z",
-            {"blob-report-1": 200_000_000},
-        )
-
-        source = analyze_source(
-            KNOWN_GOOD_REPOS[0],
-            verify_failures=True,
-        )
-
-        mock_verify.assert_not_called()
-        assert source.status == SourceStatus.COMPATIBLE
-
-    @patch("heisenberg.playground.discover.analysis.verify_has_failures")
-    @patch("heisenberg.playground.discover.analysis.find_valid_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_repo_stars")
-    def test_still_verifies_unknown_repos(self, mock_stars, mock_artifacts, mock_verify):
-        """Should still verify repos NOT in KNOWN_GOOD_REPOS."""
-        from heisenberg.playground.discover.analysis import analyze_source
-
-        mock_stars.return_value = 1000
-        mock_artifacts.return_value = (
-            "123",
-            "url",
-            ["playwright-report"],
-            "2024-01-15T10:00:00Z",
-            {"playwright-report": 50_000_000},
-        )
-        mock_verify.return_value = True
-
-        source = analyze_source("unknown/repo", verify_failures=True)
-
-        mock_verify.assert_called_once()
-        assert source.status == SourceStatus.COMPATIBLE
-
-
 class TestAnalyzeWithStatusUpdates:
     """Tests for analyze_source_with_status showing current operation."""
 
