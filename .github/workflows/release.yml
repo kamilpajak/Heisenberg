@@ -53,12 +53,14 @@ jobs:
           semantic-release version
           semantic-release publish
 
-      - name: Build package
-        if: github.event_name == 'push'
-        run: uv build
-
-      - name: Publish to PyPI
-        if: github.event_name == 'push'
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: uv publish
+      # PyPI publishing disabled until PEP 541 request is approved
+      # See: https://github.com/pypi/support/issues/XXXX
+      # - name: Build package
+      #   if: github.event_name == 'push'
+      #   run: uv build
+      #
+      # - name: Publish to PyPI
+      #   if: github.event_name == 'push'
+      #   env:
+      #     UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+      #   run: uv publish
