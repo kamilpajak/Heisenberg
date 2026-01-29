@@ -369,7 +369,7 @@ def analyze_source_with_status(
 
     report("fetching info")
     if stars is None:
-        stars = get_repo_stars(repo)
+        stars = get_repo_stars(repo) or 0
 
     report("fetching runs")
     run_id, run_url, artifact_names, run_created_at, artifact_sizes = find_valid_artifacts(repo)
@@ -409,7 +409,7 @@ def analyze_source(
         verify_failures: If True, download artifact to verify it has failures
     """
     if stars is None:
-        stars = get_repo_stars(repo)
+        stars = get_repo_stars(repo) or 0
 
     run_id, run_url, artifact_names, _, _ = find_valid_artifacts(repo)
     playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]

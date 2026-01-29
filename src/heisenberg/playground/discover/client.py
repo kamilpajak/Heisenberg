@@ -129,12 +129,17 @@ def search_repos(query: str, limit: int = 30) -> list[str]:
     return list(seen)
 
 
-def get_repo_stars(repo: str) -> int:
-    """Get star count for a repository."""
+def get_repo_stars(repo: str) -> int | None:
+    """Get star count for a repository.
+
+    Returns:
+        int: Star count (0 or higher) on success
+        None: If API call failed (timeout, rate limit, 404, etc.)
+    """
     data = gh_api(f"/repos/{repo}")
     if isinstance(data, dict):
         return data.get("stargazers_count", 0)
-    return 0
+    return None
 
 
 def get_failed_runs(repo: str, limit: int = MAX_RUNS_TO_CHECK) -> list[dict]:
