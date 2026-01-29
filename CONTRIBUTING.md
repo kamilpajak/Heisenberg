@@ -291,7 +291,7 @@ To add support for a new LLM (e.g., Mistral):
 1. Create `src/heisenberg/backend/llm/mistral.py`:
 
 ```python
-from heisenberg.backend.llm.base import LLMProvider
+from heisenberg.llm.providers.base import LLMProvider
 from heisenberg.llm.models import LLMAnalysis
 
 class MistralProvider(LLMProvider):

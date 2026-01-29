@@ -220,9 +220,9 @@ class TestGeminiProvider:
 
     def test_gemini_provider_in_all(self):
         """GeminiProvider should be in __all__."""
-        from heisenberg.backend import llm
+        from heisenberg.llm import providers
 
-        assert "GeminiProvider" in llm.__all__
+        assert "GeminiProvider" in providers.__all__
 
     def test_gemini_provider_requires_api_key(self):
         """GeminiProvider should require api_key."""
