@@ -115,7 +115,7 @@ class GeminiProvider:
         input_tokens, output_tokens = self._extract_token_counts(response)
 
         result = LLMAnalysis(
-            content=response.text,
+            content=response.text or "",
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             model=self._model,
@@ -164,7 +164,7 @@ class GeminiProvider:
         input_tokens, output_tokens = self._extract_token_counts(response)
 
         result = LLMAnalysis(
-            content=response.text,
+            content=response.text or "",
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             model=self._model,
@@ -227,7 +227,7 @@ class GeminiProvider:
         input_tokens, output_tokens = self._extract_token_counts(response)
 
         result = LLMAnalysis(
-            content=response.text,
+            content=response.text or "",
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             model=self._model,

@@ -148,10 +148,18 @@ dev = [
     "greenlet>=3.3.1",
     "pre-commit>=4.0.0",
     "tach>=0.25.0",
+    "ty>=0.0.14",
 ]
 
 # Mutation Testing Configuration (mutmut 2.x)
 # Note: mutmut 2.x uses setup.cfg format, see setup.cfg for config
+
+# Type Checking (ty)
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.src]
+include = ["src"]
 
 # Dead Code Detection (vulture)
 [tool.vulture]

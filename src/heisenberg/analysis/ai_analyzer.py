@@ -182,7 +182,7 @@ def analyze_with_ai(
 
     analyzer = AIAnalyzer(
         report=report,
-        container_logs=logs_dict,
+        container_logs=logs_dict,  # type: ignore[arg-type]
         api_key=api_key,
         provider=provider,
         model=model,

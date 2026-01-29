@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from typing import Any
 
 from .analysis import analyze_source_with_status, sort_sources
 from .cache import QuarantineCache, RunCache, get_default_cache_path, get_default_quarantine_path
@@ -45,18 +48,24 @@ def _resolve_cache_path(cache_path: str | None | object, verify_failures: bool) 
         return None
     if cache_path is _USE_DEFAULT_CACHE:
         return get_default_cache_path()
-    if cache_path is not None:
-        return cache_path
-    return None
+    if cache_path is None:
+        return None
+    try:
+        return os.fspath(cache_path)  # type: ignore[arg-type]
+    except TypeError:
+        return None
 
 
 def _resolve_quarantine_path(quarantine_path: str | None | object) -> str | None:
     """Resolve quarantine path from sentinel, explicit path, or None."""
     if quarantine_path is _USE_DEFAULT_QUARANTINE:
         return get_default_quarantine_path()
-    if quarantine_path is not None:
-        return quarantine_path
-    return None
+    if quarantine_path is None:
+        return None
+    try:
+        return os.fspath(quarantine_path)  # type: ignore[arg-type]
+    except TypeError:
+        return None
 
 
 def _collect_repos_from_queries(
@@ -131,8 +140,8 @@ class _DiscoveryRunner:
     verify_failures: bool
     cache: RunCache | None
     quarantine: QuarantineCache | None
-    progress: object | None  # Rich Progress or None
-    on_progress: callable | None
+    progress: Any  # Rich Progress or None
+    on_progress: Callable[[ProgressInfo], None] | None
 
     # Mutable state
     sources: list[ProjectSource] = field(default_factory=list)
@@ -237,7 +246,7 @@ def discover_sources(
     global_limit: int = 30,
     queries: list[str] | None = None,
     verify_failures: bool = False,
-    on_progress: callable | None = None,
+    on_progress: Callable[[ProgressInfo], None] | None = None,
     show_progress: bool = False,
     cache_path: str | None | object = _USE_DEFAULT_CACHE,
     quarantine_path: str | None | object = _USE_DEFAULT_QUARANTINE,

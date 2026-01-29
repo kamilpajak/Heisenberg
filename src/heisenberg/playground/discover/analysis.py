@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 
 from .cache import RunCache
 from .client import (
@@ -323,7 +324,7 @@ def _report_verification_stage(
     run_id: str,
     artifact_sizes: dict[str, int],
     artifact_name: str,
-    report: callable,
+    report: Callable[[str], None],
 ) -> None:
     """Report the appropriate status message for verification stage."""
     if cache and cache.get(run_id):
@@ -357,7 +358,7 @@ def analyze_source_with_status(
     repo: str,
     stars: int | None = None,
     verify_failures: bool = False,
-    on_status: callable | None = None,
+    on_status: Callable[[str], None] | None = None,
     cache: RunCache | None = None,
 ) -> ProjectSource:
     """Analyze a repository with status updates for each stage."""

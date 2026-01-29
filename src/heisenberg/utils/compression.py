@@ -289,6 +289,8 @@ class LogCompressor:
 
     def _enforce_token_limit(self, result: CompressedLogs) -> CompressedLogs:
         """Reduce logs further if they exceed token limit."""
+        if self.max_tokens is None:
+            return result
         while result.estimated_tokens > self.max_tokens and result.total_lines > 10:
             # Reduce each container by 20%
             new_logs = {}

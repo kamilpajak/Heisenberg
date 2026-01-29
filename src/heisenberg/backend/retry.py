@@ -56,7 +56,7 @@ def retry_with_backoff(
                     if attempt == max_retries:
                         logger.error(
                             "retry_exhausted",
-                            function=func.__name__,
+                            function=getattr(func, "__name__", str(func)),
                             attempt=attempt + 1,
                             max_retries=max_retries,
                             error=str(e),
@@ -74,7 +74,7 @@ def retry_with_backoff(
 
                     logger.warning(
                         "retry_attempt",
-                        function=func.__name__,
+                        function=getattr(func, "__name__", str(func)),
                         attempt=attempt + 1,
                         max_retries=max_retries,
                         delay_seconds=round(delay, 2),

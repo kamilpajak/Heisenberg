@@ -20,6 +20,16 @@ repos:
         language: system
         pass_filenames: false
 
+  # ty - Type checking
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty
+        entry: uv run ty check
+        language: system
+        pass_filenames: false
+        types: [python]
+
   # Conventional Commits validation
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.6.0

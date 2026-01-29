@@ -27,7 +27,7 @@ LLM_RECOVERABLE_ERRORS: tuple[type[Exception], ...] = (
 
 # Try to import Google API error if available
 try:
-    from google.api_core.exceptions import GoogleAPIError
+    from google.api_core.exceptions import GoogleAPIError  # type: ignore[import-unresolved]
 
     LLM_RECOVERABLE_ERRORS = (*LLM_RECOVERABLE_ERRORS, GoogleAPIError)
 except ImportError:

@@ -132,7 +132,9 @@ def search_repos(query: str, limit: int = 30) -> list[str]:
 def get_repo_stars(repo: str) -> int:
     """Get star count for a repository."""
     data = gh_api(f"/repos/{repo}")
-    return data.get("stargazers_count", 0) if data else 0
+    if isinstance(data, dict):
+        return data.get("stargazers_count", 0)
+    return 0
 
 
 def get_failed_runs(repo: str, limit: int = MAX_RUNS_TO_CHECK) -> list[dict]:
@@ -150,9 +152,9 @@ def get_failed_runs(repo: str, limit: int = MAX_RUNS_TO_CHECK) -> list[dict]:
 def get_run_artifacts(repo: str, run_id: str) -> list[dict]:
     """Get artifacts for a specific workflow run."""
     data = gh_api(f"/repos/{repo}/actions/runs/{run_id}/artifacts")
-    if not data or not data.get("artifacts"):
+    if not isinstance(data, dict):
         return []
-    return data["artifacts"]
+    return data.get("artifacts", [])
 
 
 def download_artifact_to_dir(repo: str, artifact_name: str, target_dir: str) -> bool:
