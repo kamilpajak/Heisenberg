@@ -49,6 +49,7 @@ dev = [
     "asgi-lifespan>=2.1.0",
     "python-semantic-release>=9.0.0",
     "mutmut>=2.5,<3.0",  # 3.x has stability issues (SIGSEGV crashes)
+    "vulture>=2.11",  # dead code detection
 ]
 
 [project.scripts]
@@ -149,3 +150,21 @@ dev = [
 
 # Mutation Testing Configuration (mutmut 2.x)
 # Note: mutmut 2.x uses setup.cfg format, see setup.cfg for config
+
+# Dead Code Detection (vulture)
+[tool.vulture]
+min_confidence = 80
+paths = ["src/heisenberg"]
+exclude = ["**/migrations/"]
+ignore_names = [
+    # pytest fixtures
+    "tmp_path",
+    "mock_*",
+    # FastAPI/Pydantic
+    "model_config",
+    "model_validator",
+    # CLI arguments
+    "args",
+    # Dataclass fields with defaults
+    "field",
+]

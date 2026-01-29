@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 request_id_ctx: ContextVar[str] = ContextVar("request_id", default="")
 
 
-def add_request_id(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
+def add_request_id(logger: WrappedLogger, _method_name: str, event_dict: EventDict) -> EventDict:
     """Add request_id to log event if set in context."""
     request_id = request_id_ctx.get()
     if request_id:
