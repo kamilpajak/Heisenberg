@@ -5,11 +5,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-ACTION_FILE = PROJECT_ROOT / "action" / "action.yml"
-CLI_FILE = PROJECT_ROOT / "src" / "heisenberg" / "cli.py"
+
+@pytest.fixture(scope="module")
+def action_file(project_root: Path) -> Path:
+    """Path to action.yml file."""
+    return project_root / "action" / "action.yml"
 
 
 class TestCLIArguments:
@@ -117,9 +120,9 @@ class TestCLIJSONOutput:
 class TestActionYMLCorrectness:
     """Test that action.yml uses correct CLI arguments."""
 
-    def test_action_uses_output_format_not_output(self):
+    def test_action_uses_output_format_not_output(self, action_file: Path):
         """Action should use --output-format, not --output."""
-        content = ACTION_FILE.read_text()
+        content = action_file.read_text()
         action = yaml.safe_load(content)
 
         steps = action.get("runs", {}).get("steps", [])
@@ -129,9 +132,9 @@ class TestActionYMLCorrectness:
                 # Should use --output-format, not --output
                 assert "--output json" not in run_cmd or "--output-format" in run_cmd
 
-    def test_action_passes_ai_analysis_flag(self):
+    def test_action_passes_ai_analysis_flag(self, action_file: Path):
         """Action should pass --ai-analysis flag to enable AI."""
-        content = ACTION_FILE.read_text()
+        content = action_file.read_text()
         action = yaml.safe_load(content)
 
         steps = action.get("runs", {}).get("steps", [])
@@ -144,9 +147,9 @@ class TestActionYMLCorrectness:
 
         assert analysis_step_found, "No heisenberg analyze step found"
 
-    def test_action_passes_provider_argument(self):
+    def test_action_passes_provider_argument(self, action_file: Path):
         """Action should pass --provider argument."""
-        content = ACTION_FILE.read_text()
+        content = action_file.read_text()
         action = yaml.safe_load(content)
 
         steps = action.get("runs", {}).get("steps", [])
@@ -155,9 +158,9 @@ class TestActionYMLCorrectness:
             if "heisenberg analyze" in run_cmd:
                 assert "--provider" in run_cmd
 
-    def test_action_does_not_mask_errors(self):
+    def test_action_does_not_mask_errors(self, action_file: Path):
         """Action should not use || true to mask errors."""
-        content = ACTION_FILE.read_text()
+        content = action_file.read_text()
         action = yaml.safe_load(content)
 
         steps = action.get("runs", {}).get("steps", [])
@@ -171,25 +174,25 @@ class TestActionYMLCorrectness:
 class TestActionPRCommenting:
     """Test that action supports PR commenting."""
 
-    def test_action_has_post_comment_input(self):
+    def test_action_has_post_comment_input(self, action_file: Path):
         """Action should have post-comment input option."""
-        content = ACTION_FILE.read_text()
+        content = action_file.read_text()
         action = yaml.safe_load(content)
 
         inputs = action.get("inputs", {})
         assert "post-comment" in inputs
 
-    def test_action_has_github_token_input(self):
+    def test_action_has_github_token_input(self, action_file: Path):
         """Action should accept github-token input for PR commenting."""
-        content = ACTION_FILE.read_text()
+        content = action_file.read_text()
         action = yaml.safe_load(content)
 
         inputs = action.get("inputs", {})
         assert "github-token" in inputs
 
-    def test_action_uses_github_token_env(self):
+    def test_action_uses_github_token_env(self, action_file: Path):
         """Action should set GITHUB_TOKEN env when commenting."""
-        content = ACTION_FILE.read_text()
+        content = action_file.read_text()
         action = yaml.safe_load(content)
 
         steps = action.get("runs", {}).get("steps", [])
@@ -240,25 +243,25 @@ class TestCLIProviderIntegration:
 class TestActionOutputs:
     """Test that action outputs are correctly defined."""
 
-    def test_action_has_analysis_output(self):
+    def test_action_has_analysis_output(self, action_file: Path):
         """Action should have analysis output."""
-        content = ACTION_FILE.read_text()
+        content = action_file.read_text()
         action = yaml.safe_load(content)
 
         outputs = action.get("outputs", {})
         assert "analysis" in outputs
 
-    def test_action_has_flaky_detected_output(self):
+    def test_action_has_flaky_detected_output(self, action_file: Path):
         """Action should have flaky-detected output."""
-        content = ACTION_FILE.read_text()
+        content = action_file.read_text()
         action = yaml.safe_load(content)
 
         outputs = action.get("outputs", {})
         assert "flaky-detected" in outputs
 
-    def test_action_has_failed_tests_count_output(self):
+    def test_action_has_failed_tests_count_output(self, action_file: Path):
         """Action should have failed-tests-count output."""
-        content = ACTION_FILE.read_text()
+        content = action_file.read_text()
         action = yaml.safe_load(content)
 
         outputs = action.get("outputs", {})

@@ -180,9 +180,9 @@ Purpose: Stable, predictable source of real Playwright failures
        path: test-results.json
    ```
 
-3. **Integration test in Heisenberg CI**:
+3. **E2E test in Heisenberg CI**:
    ```python
-   @pytest.mark.integration
+   @pytest.mark.e2e
    async def test_fetch_from_canary_repo():
        """Validate fetch-github against live canary repository."""
        report = await client.fetch_latest_report("kamilpajak", "heisenberg-canary")
@@ -205,7 +205,7 @@ Purpose: Stable, predictable source of real Playwright failures
 3. ~~**Improve error messages**~~ ✅ DONE - all errors now suggest `heisenberg analyze` as alternative
 
 #### Medium-Term
-1. ~~**Integration test suite**~~ ✅ DONE - 8 tests in `test_integration_github.py` (`pytest -m integration --run-integration`)
+1. ~~**E2E test suite**~~ ✅ DONE - 8 tests in `test_integration_github.py` (`pytest -m e2e --run-e2e`)
 2. **Re-position README** - promote local `analyze` as primary, `fetch-github` as convenience
 3. **HTML report parsing** - many teams only upload HTML reports
 

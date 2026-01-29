@@ -71,7 +71,7 @@ pythonpath = ["src"]
 addopts = "-v --tb=short"
 asyncio_mode = "strict"
 markers = [
-    "integration: marks tests as integration tests (require API keys, use --run-integration)",
+    "e2e: marks tests as e2e tests (require API keys, use --run-e2e)",
     "fuzz: marks tests as fuzz tests (slower, use --run-fuzz)",
 ]
 
