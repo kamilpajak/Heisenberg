@@ -73,7 +73,7 @@ def _run_ai_analysis(args, result, container_logs):
         return analyze_with_ai(
             report=result.report,
             container_logs=container_logs,
-            provider=getattr(args, "provider", "anthropic"),
+            provider=getattr(args, "provider", "google"),
             model=getattr(args, "model", None),
         )
     except Exception as e:
@@ -127,7 +127,7 @@ def run_analyze(args: argparse.Namespace) -> int:
 
     # Validate API key early if AI analysis is requested (fail fast)
     if getattr(args, "ai_analysis", False):
-        provider = getattr(args, "provider", "anthropic")
+        provider = getattr(args, "provider", "google")
         error = validate_api_key_for_provider(provider)
         if error:
             print(f"Error: {error}", file=sys.stderr)
@@ -225,7 +225,7 @@ def _analyze_report_data(
                     unified_run = convert_to_unified(result.report)
                     ai_result = analyze_unified_run(
                         unified_run,
-                        provider=getattr(args, "provider", "anthropic"),
+                        provider=getattr(args, "provider", "google"),
                         model=getattr(args, "model", None),
                         job_logs_context=job_logs_context,
                         screenshot_context=screenshot_context,
@@ -234,7 +234,7 @@ def _analyze_report_data(
                 else:
                     ai_result = analyze_with_ai(
                         report=result.report,
-                        provider=getattr(args, "provider", "anthropic"),
+                        provider=getattr(args, "provider", "google"),
                         model=getattr(args, "model", None),
                     )
             except Exception as e:
@@ -258,7 +258,7 @@ def _validate_fetch_github_args(args: argparse.Namespace) -> tuple[str, str, str
         return None
 
     if getattr(args, "ai_analysis", False):
-        provider = getattr(args, "provider", "anthropic")
+        provider = getattr(args, "provider", "google")
         error = validate_api_key_for_provider(provider)
         if error:
             print(f"Error: {error}", file=sys.stderr)
@@ -405,7 +405,7 @@ async def run_freeze(args: argparse.Namespace) -> int:
 def run_analyze_case(args: argparse.Namespace) -> int:
     """Run the analyze-case command."""
     # Validate API key early
-    provider = getattr(args, "provider", "anthropic")
+    provider = getattr(args, "provider", "google")
     error = validate_api_key_for_provider(provider)
     if error:
         print(f"Error: {error}", file=sys.stderr)

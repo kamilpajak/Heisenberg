@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 # Shared help text constants
-_PROVIDER_HELP = "LLM provider to use (default: anthropic)"
+_PROVIDER_HELP = "LLM provider to use (default: google)"
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -76,7 +76,7 @@ def _add_analyze_parser(subparsers) -> None:
         "--provider",
         "-p",
         choices=["anthropic", "openai", "google"],
-        default="anthropic",
+        default="google",
         help=_PROVIDER_HELP,
     )
     analyze_parser.add_argument(
@@ -149,7 +149,7 @@ def _add_fetch_github_parser(subparsers) -> None:
         "--provider",
         "-p",
         choices=["anthropic", "openai", "google"],
-        default="anthropic",
+        default="google",
         help=_PROVIDER_HELP,
     )
     fetch_parser.add_argument(
@@ -229,7 +229,7 @@ def _add_analyze_case_parser(subparsers) -> None:
         "--provider",
         "-p",
         choices=["anthropic", "openai", "google"],
-        default="anthropic",
+        default="google",
         help=_PROVIDER_HELP,
     )
     parser.add_argument(

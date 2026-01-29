@@ -289,7 +289,7 @@ class TestCliAIAnalysis:
     ):
         """Given --ai-analysis flag, should include AI diagnosis."""
         # Given
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
         args = argparse.Namespace(
             report=sample_report_path,
             output_format="github-comment",
@@ -330,7 +330,7 @@ class TestCliAIAnalysis:
     ):
         """AI analysis should work with text output format."""
         # Given
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
         args = argparse.Namespace(
             report=sample_report_path,
             output_format="text",
@@ -352,7 +352,7 @@ class TestCliAIAnalysis:
     ):
         """AI analysis should include diagnosis in JSON output."""
         # Given
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
         args = argparse.Namespace(
             report=sample_report_path,
             output_format="json",

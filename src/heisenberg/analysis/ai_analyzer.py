@@ -27,7 +27,7 @@ class AIAnalysisResult:
     diagnosis: Diagnosis
     input_tokens: int
     output_tokens: int
-    provider: str = "anthropic"
+    provider: str = "google"
     model: str | None = None
 
     @property
@@ -47,7 +47,7 @@ class AIAnalysisResult:
         if not model:
             # Fall back to provider's default model
             config = PROVIDER_CONFIGS.get(self.provider)
-            model = config.default_model if config else "claude-sonnet-4-20250514"
+            model = config.default_model if config else "gemini-3-pro-preview"
 
         return float(calculate_cost(model, self.input_tokens, self.output_tokens))
 
@@ -95,7 +95,7 @@ def analyze_with_ai(
     report: PlaywrightReport,
     container_logs: dict[str, ContainerLogs] | str | None = None,
     api_key: str | None = None,
-    provider: str = "anthropic",
+    provider: str = "google",
     model: str | None = None,
 ) -> AIAnalysisResult:
     """
@@ -139,7 +139,7 @@ def analyze_unified_run(
     run: UnifiedTestRun,
     container_logs: dict[str, ContainerLogs] | None = None,
     api_key: str | None = None,
-    provider: str = "anthropic",
+    provider: str = "google",
     model: str | None = None,
     job_logs_context: str | None = None,
     screenshot_context: str | None = None,

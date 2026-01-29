@@ -16,7 +16,7 @@ inputs:
   provider:
     description: "LLM provider to use (claude, openai, or gemini)"
     required: false
-    default: "claude"
+    default: "gemini"
   fail-on-flaky:
     description: "Fail the workflow if flaky tests are detected"
     required: false

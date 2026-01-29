@@ -19,7 +19,7 @@ class TestLLMSettings:
             secret_key="test-secret-key",
         )
         assert hasattr(settings, "llm_primary_provider")
-        assert settings.llm_primary_provider == "anthropic"  # default
+        assert settings.llm_primary_provider == "google"  # default
 
     def test_settings_has_fallback_provider(self):
         """Settings should have llm_fallback_provider field."""
