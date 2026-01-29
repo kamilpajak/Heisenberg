@@ -7,8 +7,6 @@ This package searches GitHub for repositories that:
 """
 
 from .analysis import (
-    _artifact_sizes,  # noqa: F401
-    _extract_failure_count,  # noqa: F401
     analyze_source,
     analyze_source_with_status,
     determine_status,
@@ -25,9 +23,6 @@ from .analysis import (
 from .cache import QuarantineCache, RunCache, get_default_cache_path, get_default_quarantine_path
 from .cli import create_argument_parser, main
 from .client import (
-    _gh_semaphore,  # noqa: F401
-    _gh_subprocess,  # noqa: F401
-    _is_rate_limit_error,  # noqa: F401
     download_artifact_to_dir,
     get_failed_runs,
     get_repo_stars,
@@ -37,7 +32,6 @@ from .client import (
     search_repos,
 )
 from .models import (
-    _PLAYWRIGHT_REGEX,  # noqa: F401
     CACHE_SCHEMA_VERSION,
     CACHE_TTL_DAYS,
     DEFAULT_QUERIES,
@@ -54,7 +48,7 @@ from .models import (
     ProjectSource,
     SourceStatus,
 )
-from .service import _USE_DEFAULT_CACHE, _USE_DEFAULT_QUARANTINE, discover_sources  # noqa: F401
+from .service import discover_sources
 from .ui import (
     COL_REPO,
     COL_STATUS,
