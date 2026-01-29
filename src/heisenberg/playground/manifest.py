@@ -226,7 +226,7 @@ class ManifestGenerator:
             Path to saved manifest file.
         """
         output_path = self.config.output_path
-        assert output_path is not None  # Set in __post_init__
+        assert output_path is not None  # noqa: S101 - invariant from __post_init__
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(manifest.to_json())
         return output_path

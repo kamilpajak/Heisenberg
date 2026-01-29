@@ -72,7 +72,7 @@ class JUnitParser:
         Returns:
             JUnitReport with parsed data.
         """
-        root = ET.fromstring(xml_content)
+        root = ET.fromstring(xml_content)  # noqa: S314 - trusted test report data
         return JUnitParser._parse_root(root)
 
     @staticmethod
@@ -85,7 +85,7 @@ class JUnitParser:
         Returns:
             JUnitReport with parsed data.
         """
-        tree = ET.parse(file_path)
+        tree = ET.parse(file_path)  # noqa: S314 - trusted test report data
         return JUnitParser._parse_root(tree.getroot())
 
     @staticmethod

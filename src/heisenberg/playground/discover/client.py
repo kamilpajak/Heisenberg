@@ -62,7 +62,7 @@ def _gh_subprocess(
     last_error = None
     for attempt in range(GH_MAX_RETRIES + 1):
         with _gh_semaphore:
-            time.sleep(random.uniform(0.05, 0.5))
+            time.sleep(random.uniform(0.05, 0.5))  # noqa: S311 - backoff jitter
             try:
                 return subprocess.run(
                     cmd,
@@ -78,7 +78,7 @@ def _gh_subprocess(
             # Note: TimeoutExpired is not caught - it propagates immediately (not retried)
 
         # Semaphore released — exponential backoff before retry
-        delay = GH_RETRY_BASE_DELAY * (2**attempt) + random.uniform(0, 1)
+        delay = GH_RETRY_BASE_DELAY * (2**attempt) + random.uniform(0, 1)  # noqa: S311
         time.sleep(delay)
 
     raise last_error  # type: ignore[misc]

@@ -121,7 +121,7 @@ def _extract_from_nested_zip(zip_file) -> int | None:
                     failures = _extract_failure_count_from_jsonl(content)
                     if failures is not None:
                         return failures
-    except Exception:
+    except Exception:  # noqa: S110 - intentionally silent, returns None
         pass
     return None
 

@@ -89,8 +89,21 @@ select = [
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
     "UP",  # pyupgrade
+    "S",   # flake8-bandit (security)
 ]
-ignore = ["E501"]  # line too long (handled by formatter)
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "S603",  # subprocess calls - we control all inputs
+    "S607",  # partial executable paths - docker/gh are expected in PATH
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",  # assert is expected in tests
+    "S105",  # hardcoded passwords in test assertions
+    "S106",  # hardcoded passwords in test fixtures
+    "S108",  # /tmp usage in tests is fine
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["heisenberg"]

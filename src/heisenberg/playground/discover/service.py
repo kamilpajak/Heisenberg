@@ -212,7 +212,7 @@ class _DiscoveryRunner:
                 cache=self.cache,
             )
             _update_quarantine(self.quarantine, result)
-        except Exception:
+        except Exception:  # noqa: S110 - graceful degradation
             pass
 
         elapsed_ms = int((time.time() - start_time) * 1000)
