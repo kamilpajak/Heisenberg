@@ -118,7 +118,9 @@ class RunCache:
         with self._lock:
             # Create parent directory if needed
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(json.dumps(self._data, indent=2))
+            self._path.write_text(
+                json.dumps(self._data, indent=2)
+            )  # NOSONAR - CLI tool, path from user args
 
     def get(self, run_id: str) -> int | None:
         """Get cached failure count for a run (thread-safe).
@@ -241,7 +243,9 @@ class QuarantineCache:
 
         with self._lock:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(json.dumps(self._data, indent=2))
+            self._path.write_text(
+                json.dumps(self._data, indent=2)
+            )  # NOSONAR - CLI tool, path from user args
 
     def is_quarantined(self, repo: str) -> bool:
         """Check if a repo is quarantined (thread-safe).
