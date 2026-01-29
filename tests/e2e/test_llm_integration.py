@@ -3,15 +3,15 @@
 These tests require actual API keys and make real API calls.
 They are skipped by default unless API keys are set.
 
-Run with: pytest tests/test_llm_integration.py -v --run-integration
+Run with: pytest tests/e2e/test_llm_integration.py -v --run-e2e
 """
 
 import os
 
 import pytest
 
-# Skip all tests in this module if --run-integration not provided
-pytestmark = pytest.mark.integration
+# Skip all tests in this module if --run-e2e not provided
+pytestmark = pytest.mark.e2e
 
 
 def has_anthropic_key() -> bool:

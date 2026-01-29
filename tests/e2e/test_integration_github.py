@@ -1,7 +1,7 @@
-"""Integration tests for GitHub API - requires real network access.
+"""E2E tests for GitHub API - requires real network access.
 
-These tests are marked with @pytest.mark.integration and are skipped by default.
-To run them: pytest -m integration --run-integration
+These tests are marked with @pytest.mark.e2e and are skipped by default.
+To run them: pytest -m e2e --run-e2e
 
 Requires GITHUB_TOKEN environment variable to be set.
 """
@@ -12,12 +12,12 @@ import os
 
 import pytest
 
-# Skip all tests in this module if no token or if integration tests not requested
+# Skip all tests in this module if no token or if e2e tests not requested
 pytestmark = [
-    pytest.mark.integration,
+    pytest.mark.e2e,
     pytest.mark.skipif(
         not os.environ.get("GITHUB_TOKEN"),
-        reason="GITHUB_TOKEN not set - skipping integration tests",
+        reason="GITHUB_TOKEN not set - skipping e2e tests",
     ),
 ]
 

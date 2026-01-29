@@ -6,8 +6,8 @@ tests/
 ├── conftest.py          # Shared fixtures and pytest configuration
 ├── factories.py         # Factory functions for test data
 ├── fixtures/            # Static test fixtures (JSON, XML, etc.)
-├── integration/         # Integration tests (require external services)
-│   ├── conftest.py      # Auto-marks all tests as @pytest.mark.integration
+├── e2e/                 # End-to-end tests (require external services)
+│   ├── conftest.py      # Auto-marks all tests as @pytest.mark.e2e
 │   └── test_*.py        # Tests requiring API keys, DB, GitHub, etc.
 ├── analysis/            # Tests for heisenberg.analysis module
 ├── backend/             # Tests for heisenberg.backend module
@@ -28,14 +28,14 @@ Running Tests
 # Unit tests only (fast, no external dependencies)
 pytest tests/ -x
 
-# Include integration tests (requires API keys)
-pytest tests/ --run-integration
+# Include e2e tests (requires API keys)
+pytest tests/ --run-e2e
 
 # Include fuzz tests (slow, uses schemathesis)
 pytest tests/ --run-fuzz
 
-# Run only integration tests
-pytest tests/integration/ --run-integration
+# Run only e2e tests
+pytest tests/e2e/ --run-e2e
 """
 
 from __future__ import annotations
@@ -68,10 +68,10 @@ if TYPE_CHECKING:
 def pytest_addoption(parser):
     """Add custom command line options."""
     parser.addoption(
-        "--run-integration",
+        "--run-e2e",
         action="store_true",
         default=False,
-        help="Run integration tests (requires API keys)",
+        help="Run e2e tests (requires API keys)",
     )
     parser.addoption(
         "--run-fuzz",
@@ -85,7 +85,7 @@ def pytest_configure(config):
     """Configure pytest markers."""
     config.addinivalue_line(
         "markers",
-        "integration: marks tests as integration tests (require API keys)",
+        "e2e: marks tests as e2e tests (require API keys)",
     )
     config.addinivalue_line(
         "markers",
@@ -94,16 +94,16 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip integration and fuzz tests unless explicitly enabled."""
-    run_integration = config.getoption("--run-integration")
+    """Skip e2e and fuzz tests unless explicitly enabled."""
+    run_e2e = config.getoption("--run-e2e")
     run_fuzz = config.getoption("--run-fuzz")
 
-    skip_integration = pytest.mark.skip(reason="need --run-integration option to run")
+    skip_e2e = pytest.mark.skip(reason="need --run-e2e option to run")
     skip_fuzz = pytest.mark.skip(reason="need --run-fuzz option to run")
 
     for item in items:
-        if "integration" in item.keywords and not run_integration:
-            item.add_marker(skip_integration)
+        if "e2e" in item.keywords and not run_e2e:
+            item.add_marker(skip_e2e)
         if "fuzz" in item.keywords and not run_fuzz:
             item.add_marker(skip_fuzz)
 
@@ -127,12 +127,12 @@ def setup_test_database(
 
     Only activates when:
     - DATABASE_URL is set
-    - Running integration tests
+    - Running e2e tests
     """
-    run_integration = request.config.getoption("--run-integration", default=False)
+    run_e2e = request.config.getoption("--run-e2e", default=False)
 
-    # Skip if not running integration tests or no DATABASE_URL
-    if not run_integration or not database_url:
+    # Skip if not running e2e tests or no DATABASE_URL
+    if not run_e2e or not database_url:
         yield
         return
 
@@ -193,6 +193,12 @@ def sample_result() -> AIAnalysisResult:
 # Path Fixtures
 # =============================================================================
 # Use these fixtures instead of defining local Path fixtures in test files.
+
+
+@pytest.fixture(scope="session")
+def project_root() -> Path:
+    """Path to the project root directory."""
+    return Path(__file__).parent.parent
 
 
 @pytest.fixture(scope="session")
