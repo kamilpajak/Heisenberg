@@ -116,7 +116,7 @@ async def fetch_and_analyze_screenshots(
         Formatted screenshot analysis string, or None if no screenshots.
     """
     from heisenberg.integrations.github_artifacts import GitHubArtifactClient
-    from heisenberg.parsers.screenshots import (
+    from heisenberg.llm.vision import (
         ScreenshotAnalyzer,
         extract_screenshots_from_artifact,
         format_screenshots_for_prompt,

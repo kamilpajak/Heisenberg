@@ -264,7 +264,7 @@ class TestCliAIAnalysis:
         """Mock the AI analyzer for testing."""
         from unittest.mock import MagicMock
 
-        from heisenberg.core.analyzer import AIAnalysisResult
+        from heisenberg.analysis import AIAnalysisResult
         from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
         mock_result = AIAnalysisResult(
@@ -735,7 +735,7 @@ class TestAIAnalysisAPIKeyValidation:
         """Mock the AI analyzer for testing."""
         from unittest.mock import MagicMock
 
-        from heisenberg.core.analyzer import AIAnalysisResult
+        from heisenberg.analysis import AIAnalysisResult
         from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
         mock_result = AIAnalysisResult(

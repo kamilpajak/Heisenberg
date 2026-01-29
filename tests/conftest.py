@@ -45,7 +45,7 @@ from tests.factories import (
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-    from heisenberg.core.analyzer import AIAnalysisResult
+    from heisenberg.analysis import AIAnalysisResult
     from heisenberg.core.diagnosis import Diagnosis
     from heisenberg.integrations.docker import ContainerLogs
     from heisenberg.llm.models import LLMAnalysis

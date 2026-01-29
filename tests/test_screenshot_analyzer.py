@@ -9,7 +9,7 @@ from __future__ import annotations
 import base64
 from unittest.mock import MagicMock, patch
 
-from heisenberg.parsers.screenshots import (
+from heisenberg.llm.vision import (
     ScreenshotAnalyzer,
     ScreenshotContext,
     extract_screenshots_from_artifact,
@@ -198,7 +198,7 @@ class TestScreenshotPromptIntegration:
 
     def test_format_screenshots_for_prompt(self):
         """Format multiple screenshot descriptions for AI prompt."""
-        from heisenberg.parsers.screenshots import format_screenshots_for_prompt
+        from heisenberg.llm.vision import format_screenshots_for_prompt
 
         screenshots = [
             ScreenshotContext(
@@ -225,7 +225,7 @@ class TestScreenshotPromptIntegration:
 
     def test_format_empty_screenshots(self):
         """Return empty string when no screenshots."""
-        from heisenberg.parsers.screenshots import format_screenshots_for_prompt
+        from heisenberg.llm.vision import format_screenshots_for_prompt
 
         formatted = format_screenshots_for_prompt([])
 

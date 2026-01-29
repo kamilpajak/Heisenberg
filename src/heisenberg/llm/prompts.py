@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from heisenberg.integrations.docker import ContainerLogs
-from heisenberg.parsers.playwright import PlaywrightReport
 from heisenberg.utils.compression import compress_logs_for_llm
 
 if TYPE_CHECKING:
     from heisenberg.core.models import TestFailure, UnifiedTestRun
+    from heisenberg.parsers.playwright import PlaywrightReport
 
 
 def get_system_prompt() -> str:

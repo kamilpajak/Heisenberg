@@ -9,9 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from heisenberg.analysis import analyze_unified_run, analyze_with_ai, run_analysis
 from heisenberg.cli import formatters, github_fetch
-from heisenberg.core.analyzer import analyze_unified_run, analyze_with_ai
-from heisenberg.core.legacy_analyzer import run_analysis
 from heisenberg.core.models import PlaywrightTransformer, UnifiedTestRun
 from heisenberg.integrations.github_client import post_pr_comment
 from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer

@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from heisenberg.core.legacy_analyzer import format_pr_comment
+from heisenberg.analysis import format_pr_comment
 from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
 
 

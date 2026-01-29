@@ -13,13 +13,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from heisenberg.core.analyzer import (
+from heisenberg.analysis import (
     AIAnalysisResult,
     AIAnalyzer,
-    _get_llm_client_for_provider,
     analyze_unified_run,
     analyze_with_ai,
 )
+from heisenberg.analysis.ai_analyzer import _get_llm_client_for_provider
 from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 from heisenberg.core.models import (
     ErrorInfo,
@@ -57,7 +57,7 @@ class TestAIAnalyzer:
         analyzer = AIAnalyzer(report=sample_report, api_key="test-key")
         assert analyzer.api_key == "test-key"
 
-    @patch("heisenberg.core.analyzer._get_llm_client_for_provider")
+    @patch("heisenberg.analysis.ai_analyzer._get_llm_client_for_provider")
     def test_analyzer_calls_llm(self, mock_get_client: MagicMock, sample_report: PlaywrightReport):
         """Analyzer should call LLM with prompt."""
         mock_llm = MagicMock()
@@ -75,7 +75,7 @@ class TestAIAnalyzer:
 
         mock_llm.analyze.assert_called_once()
 
-    @patch("heisenberg.core.analyzer._get_llm_client_for_provider")
+    @patch("heisenberg.analysis.ai_analyzer._get_llm_client_for_provider")
     def test_analyzer_returns_ai_analysis_result(
         self, mock_get_client: MagicMock, sample_report: PlaywrightReport
     ):
@@ -95,7 +95,7 @@ class TestAIAnalyzer:
 
         assert isinstance(result, AIAnalysisResult)
 
-    @patch("heisenberg.core.analyzer._get_llm_client_for_provider")
+    @patch("heisenberg.analysis.ai_analyzer._get_llm_client_for_provider")
     def test_result_contains_diagnosis(
         self, mock_get_client: MagicMock, sample_report: PlaywrightReport
     ):
@@ -116,7 +116,7 @@ class TestAIAnalyzer:
         assert isinstance(result.diagnosis, Diagnosis)
         assert result.diagnosis.confidence == ConfidenceLevel.HIGH
 
-    @patch("heisenberg.core.analyzer._get_llm_client_for_provider")
+    @patch("heisenberg.analysis.ai_analyzer._get_llm_client_for_provider")
     def test_result_contains_token_usage(
         self, mock_get_client: MagicMock, sample_report: PlaywrightReport
     ):
@@ -137,7 +137,7 @@ class TestAIAnalyzer:
         assert result.input_tokens == 500
         assert result.output_tokens == 200
 
-    @patch("heisenberg.core.analyzer._get_llm_client_for_provider")
+    @patch("heisenberg.analysis.ai_analyzer._get_llm_client_for_provider")
     def test_analyzer_uses_system_prompt(
         self, mock_get_client: MagicMock, sample_report: PlaywrightReport
     ):
@@ -159,7 +159,7 @@ class TestAIAnalyzer:
         assert "system_prompt" in call_kwargs
         assert call_kwargs["system_prompt"] is not None
 
-    @patch("heisenberg.core.analyzer._get_llm_client_for_provider")
+    @patch("heisenberg.analysis.ai_analyzer._get_llm_client_for_provider")
     def test_analyzer_includes_logs_in_prompt(
         self,
         mock_get_client: MagicMock,
@@ -322,7 +322,7 @@ class TestAIAnalysisResult:
 class TestConvenienceFunction:
     """Test suite for analyze_with_ai helper."""
 
-    @patch("heisenberg.core.analyzer._get_llm_client_for_provider")
+    @patch("heisenberg.analysis.ai_analyzer._get_llm_client_for_provider")
     def test_analyze_with_ai_returns_result(
         self, mock_get_client: MagicMock, sample_report: PlaywrightReport
     ):
@@ -341,7 +341,7 @@ class TestConvenienceFunction:
 
         assert isinstance(result, AIAnalysisResult)
 
-    @patch("heisenberg.core.analyzer._get_llm_client_for_provider")
+    @patch("heisenberg.analysis.ai_analyzer._get_llm_client_for_provider")
     def test_analyze_with_ai_from_environment(
         self, mock_get_client: MagicMock, sample_report: PlaywrightReport, monkeypatch
     ):
@@ -507,7 +507,7 @@ CONFIDENCE_EXPLANATION: Clear error pattern
         mock_llm.analyze.return_value = mock_response
 
         mocker.patch(
-            "heisenberg.core.analyzer._get_llm_client_for_provider",
+            "heisenberg.analysis.ai_analyzer._get_llm_client_for_provider",
             return_value=mock_llm,
         )
 
@@ -536,7 +536,7 @@ CONFIDENCE: MEDIUM
         mock_llm.analyze.return_value = mock_response
 
         mocker.patch(
-            "heisenberg.core.analyzer._get_llm_client_for_provider",
+            "heisenberg.analysis.ai_analyzer._get_llm_client_for_provider",
             return_value=mock_llm,
         )
 
@@ -722,7 +722,9 @@ class TestUnifiedAIAnalyzer:
             ],
         )
 
-        with patch("heisenberg.core.analyzer._get_llm_client_for_provider") as mock_get_client:
+        with patch(
+            "heisenberg.analysis.ai_analyzer._get_llm_client_for_provider"
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.analyze.return_value = MagicMock(
                 content="""
@@ -767,7 +769,9 @@ class TestUnifiedAIAnalyzer:
             ],
         )
 
-        with patch("heisenberg.core.analyzer._get_llm_client_for_provider") as mock_get_client:
+        with patch(
+            "heisenberg.analysis.ai_analyzer._get_llm_client_for_provider"
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.analyze.return_value = MagicMock(
                 content="## Root Cause\nTest\n## Evidence\n- E\n## Suggested Fix\nF\n## Confidence\nHIGH",
@@ -826,7 +830,9 @@ class TestEndToEndUnifiedFlow:
         assert unified_run.failures[0].error.message == "Payment button not clickable"
 
         # 3. Analyze with AI (mocked)
-        with patch("heisenberg.core.analyzer._get_llm_client_for_provider") as mock_get_client:
+        with patch(
+            "heisenberg.analysis.ai_analyzer._get_llm_client_for_provider"
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.analyze.return_value = MagicMock(
                 content="""
