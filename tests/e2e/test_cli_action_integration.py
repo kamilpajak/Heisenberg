@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 ACTION_FILE = PROJECT_ROOT / "action" / "action.yml"
 CLI_FILE = PROJECT_ROOT / "src" / "heisenberg" / "cli.py"
 

@@ -1,15 +1,15 @@
-"""Pytest configuration for integration tests.
+"""Pytest configuration for end-to-end tests.
 
-Integration tests in this directory require external services:
+E2E tests in this directory require external services:
 - LLM API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY)
 - Database (DATABASE_URL)
 - GitHub API (GITHUB_TOKEN)
 
-Run integration tests with:
-    pytest tests/integration/ --run-integration
+Run e2e tests with:
+    pytest tests/e2e/ --run-integration
 
 Or run specific test files:
-    pytest tests/integration/test_llm_integration.py --run-integration
+    pytest tests/e2e/test_llm_integration.py --run-integration
 """
 
 from __future__ import annotations

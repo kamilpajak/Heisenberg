@@ -6,7 +6,7 @@ tests/
 ├── conftest.py          # Shared fixtures and pytest configuration
 ├── factories.py         # Factory functions for test data
 ├── fixtures/            # Static test fixtures (JSON, XML, etc.)
-├── integration/         # Integration tests (require external services)
+├── e2e/                 # End-to-end tests (require external services)
 │   ├── conftest.py      # Auto-marks all tests as @pytest.mark.integration
 │   └── test_*.py        # Tests requiring API keys, DB, GitHub, etc.
 ├── analysis/            # Tests for heisenberg.analysis module
@@ -34,8 +34,8 @@ pytest tests/ --run-integration
 # Include fuzz tests (slow, uses schemathesis)
 pytest tests/ --run-fuzz
 
-# Run only integration tests
-pytest tests/integration/ --run-integration
+# Run only e2e tests
+pytest tests/e2e/ --run-integration
 """
 
 from __future__ import annotations
