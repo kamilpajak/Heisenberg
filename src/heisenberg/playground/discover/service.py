@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+
 from .analysis import analyze_source_with_status, sort_sources
 from .cache import QuarantineCache, RunCache, get_default_cache_path, get_default_quarantine_path
 from .client import search_repos
@@ -59,10 +64,7 @@ def _collect_repos_from_queries(
     global_limit: int,
     quarantine: QuarantineCache | None,
 ) -> tuple[list[str], int]:
-    """Collect repos from search queries, skipping quarantined ones.
-
-    Returns tuple of (repos_to_analyze, quarantine_skipped_count).
-    """
+    """Collect repos from search queries, skipping quarantined ones."""
     all_repos: set[str] = set()
     quarantine_skipped = 0
 
@@ -121,6 +123,116 @@ def _format_complete_description(
     )
 
 
+@dataclass
+class _DiscoveryRunner:
+    """Encapsulates state and methods for running discovery."""
+
+    repos: list[str]
+    verify_failures: bool
+    cache: RunCache | None
+    quarantine: QuarantineCache | None
+    progress: object | None  # Rich Progress or None
+    on_progress: callable | None
+
+    # Mutable state
+    sources: list[ProjectSource] = field(default_factory=list)
+    task_ids: dict[str, int] = field(default_factory=dict)
+    completion_counter: list[int] = field(default_factory=lambda: [0])
+    counter_lock: threading.Lock = field(default_factory=threading.Lock)
+
+    @property
+    def total(self) -> int:
+        return len(self.repos)
+
+    def _start_task(self, repo: str) -> None:
+        """Start the Rich timer for a task."""
+        if self.progress and repo in self.task_ids:
+            self.progress.start_task(self.task_ids[repo])
+
+    def _update_task_stage(self, repo: str, stage: str) -> None:
+        """Update Rich progress with current stage."""
+        if self.progress and repo in self.task_ids:
+            self.progress.update(
+                self.task_ids[repo], description=_format_stage_description(repo, stage)
+            )
+
+    def _complete_task(self, repo: str, result: ProjectSource | None, message: str | None) -> None:
+        """Mark task as complete in Rich progress."""
+        if self.progress and repo in self.task_ids:
+            self.progress.update(
+                self.task_ids[repo],
+                description=_format_complete_description(repo, result, message),
+                completed=1,
+            )
+
+    def _report_progress(
+        self, repo: str, result: ProjectSource | None, elapsed_ms: int, message: str | None
+    ) -> None:
+        """Report progress via legacy callback."""
+        if not self.on_progress:
+            return
+        status = result.status.value if result else "error"
+        with self.counter_lock:
+            self.completion_counter[0] += 1
+            info = ProgressInfo(
+                completed=self.completion_counter[0],
+                total=self.total,
+                repo=repo,
+                status=status,
+                elapsed_ms=elapsed_ms,
+                message=message,
+            )
+            self.on_progress(info)
+
+    def analyze_repo(self, repo: str) -> ProjectSource | None:
+        """Analyze a single repo and report progress."""
+        start_time = time.time()
+        result = None
+        message = None
+
+        self._start_task(repo)
+
+        def on_status(stage: str) -> None:
+            self._update_task_stage(repo, stage)
+
+        try:
+            result = analyze_source_with_status(
+                repo,
+                verify_failures=self.verify_failures,
+                on_status=on_status if self.progress else None,
+                cache=self.cache,
+            )
+            _update_quarantine(self.quarantine, result)
+        except Exception:
+            pass
+
+        elapsed_ms = int((time.time() - start_time) * 1000)
+        self._complete_task(repo, result, message)
+        self._report_progress(repo, result, elapsed_ms, message)
+
+        return result
+
+    def add_progress_tasks(self) -> None:
+        """Add all repos as tasks to Rich progress."""
+        if not self.progress:
+            return
+        for repo in self.repos:
+            task_id = self.progress.add_task(
+                _format_waiting_description(repo), total=1, start=False
+            )
+            self.task_ids[repo] = task_id
+
+    def run(self) -> None:
+        """Run parallel discovery."""
+        self.add_progress_tasks()
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(self.analyze_repo, repo): repo for repo in self.repos}
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    self.sources.append(result)
+
+
 def discover_sources(
     global_limit: int = 30,
     queries: list[str] | None = None,
@@ -130,24 +242,7 @@ def discover_sources(
     cache_path: str | None | object = _USE_DEFAULT_CACHE,
     quarantine_path: str | None | object = _USE_DEFAULT_QUARANTINE,
 ) -> list[ProjectSource]:
-    """Discover source projects from GitHub.
-
-    Args:
-        global_limit: Maximum total repos to analyze across all queries
-        queries: Custom search queries (uses DEFAULT_QUERIES if None)
-        verify_failures: If True, download artifacts to verify they have failures
-        on_progress: Optional callback(ProgressInfo) for progress updates (legacy)
-        show_progress: If True, show Rich progress display with spinners
-        cache_path: Path to cache file for verified runs. Set to None to disable.
-        quarantine_path: Path to quarantine cache file. Set to None to disable.
-
-    Returns:
-        List of analyzed ProjectSource objects, sorted by compatibility
-    """
-    import threading
-    import time
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
+    """Discover source projects from GitHub."""
     queries = queries or DEFAULT_QUERIES
 
     # Initialize caches
@@ -159,7 +254,7 @@ def discover_sources(
         QuarantineCache(cache_path=actual_quarantine_path) if actual_quarantine_path else None
     )
 
-    # Collect repos to analyze
+    # Collect repos
     repos_to_analyze, quarantine_skipped = _collect_repos_from_queries(
         queries, global_limit, quarantine
     )
@@ -167,91 +262,27 @@ def discover_sources(
     if show_progress and quarantine_skipped > 0:
         print(f"  ({quarantine_skipped} repos quarantined, analyzing {len(repos_to_analyze)})\n")
 
-    total = len(repos_to_analyze)
-    sources: list[ProjectSource] = []
-
-    # Thread-safe counter for sequential completion numbers
-    completion_counter = [0]
-    counter_lock = threading.Lock()
-
-    # Rich progress display (if enabled)
+    # Create progress display
     progress = create_progress_display() if show_progress else None
-    task_ids: dict[str, int] = {}
 
-    def analyze_with_progress(repo: str) -> ProjectSource | None:
-        """Analyze a repo and report progress."""
-        start_time = time.time()
-        result = None
-        message = None
-
-        if progress and repo in task_ids:
-            progress.start_task(task_ids[repo])
-
-        def on_status(stage: str) -> None:
-            if progress and repo in task_ids:
-                progress.update(task_ids[repo], description=_format_stage_description(repo, stage))
-
-        try:
-            result = analyze_source_with_status(
-                repo,
-                verify_failures=verify_failures,
-                on_status=on_status if progress else None,
-                cache=cache,
-            )
-            _update_quarantine(quarantine, result)
-        except Exception:
-            pass
-
-        elapsed_ms = int((time.time() - start_time) * 1000)
-
-        if progress and repo in task_ids:
-            progress.update(
-                task_ids[repo],
-                description=_format_complete_description(repo, result, message),
-                completed=1,
-            )
-
-        if on_progress:
-            status = result.status.value if result else "error"
-            with counter_lock:
-                completion_counter[0] += 1
-                info = ProgressInfo(
-                    completed=completion_counter[0],
-                    total=total,
-                    repo=repo,
-                    status=status,
-                    elapsed_ms=elapsed_ms,
-                    message=message,
-                )
-                on_progress(info)
-
-        return result
-
-    def run_discovery() -> None:
-        """Run the actual discovery with ThreadPoolExecutor."""
-        nonlocal sources
-
-        if progress:
-            for repo in repos_to_analyze:
-                task_id = progress.add_task(_format_waiting_description(repo), total=1, start=False)
-                task_ids[repo] = task_id
-
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {
-                executor.submit(analyze_with_progress, repo): repo for repo in repos_to_analyze
-            }
-            for future in as_completed(futures):
-                result = future.result()
-                if result is not None:
-                    sources.append(result)
+    # Run discovery
+    runner = _DiscoveryRunner(
+        repos=repos_to_analyze,
+        verify_failures=verify_failures,
+        cache=cache,
+        quarantine=quarantine,
+        progress=progress,
+        on_progress=on_progress,
+    )
 
     if progress:
         with progress:
-            run_discovery()
+            runner.run()
     else:
-        run_discovery()
+        runner.run()
 
+    # Save cache
     if cache:
         cache.save()
 
-    return sort_sources(sources)
+    return sort_sources(runner.sources)
