@@ -147,6 +147,7 @@ upload_to_vcs_release = true
 [dependency-groups]
 dev = [
     "greenlet>=3.3.1",
+    "pydeps>=3.0.2",
 ]
 
 # Mutation Testing Configuration (mutmut 2.x)
