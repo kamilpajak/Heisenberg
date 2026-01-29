@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from heisenberg.analysis import AIAnalyzer
+from heisenberg.analysis import analyze_with_ai
 from heisenberg.parsers.playwright import parse_playwright_report
 
 
@@ -127,13 +127,12 @@ class ScenarioAnalyzer:
         report = parse_playwright_report(report_path)
 
         # Run AI analysis
-        ai_analyzer = AIAnalyzer(
+        ai_result = analyze_with_ai(
             report=report,
             provider=self.config.provider,
             model=self.config.model,
             api_key=self.config.api_key,
         )
-        ai_result = ai_analyzer.analyze()
 
         # Build result
         analyzed_at = datetime.now(UTC).isoformat()

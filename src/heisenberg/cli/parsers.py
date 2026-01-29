@@ -93,12 +93,6 @@ def _add_analyze_parser(subparsers) -> None:
         default=None,
         help="Path to container logs file for additional context",
     )
-    # Deprecated: --use-unified is no longer needed as unified model is always used
-    analyze_parser.add_argument(
-        "--use-unified",
-        action="store_true",
-        help="[DEPRECATED] This flag is no longer needed - unified model is always used",
-    )
     analyze_parser.add_argument(
         "--report-format",
         choices=["playwright", "junit"],

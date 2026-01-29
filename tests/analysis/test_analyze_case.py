@@ -243,27 +243,27 @@ class TestScenarioAnalyzerAnalyze:
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
-            MockAI.return_value.analyze.return_value = mock_ai_result
+        with patch("heisenberg.playground.analyze.analyze_with_ai") as mock_analyze:
+            mock_analyze.return_value = mock_ai_result
 
             result = analyzer.analyze()
 
             assert isinstance(result, AnalysisResult)
 
-    def test_analyze_creates_ai_analyzer_with_report(self, frozen_scenario, mock_ai_result):
-        """analyze() should create AIAnalyzer with parsed PlaywrightReport."""
+    def test_analyze_calls_analyze_with_ai_with_report(self, frozen_scenario, mock_ai_result):
+        """analyze() should call analyze_with_ai with parsed PlaywrightReport."""
         from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
-            MockAI.return_value.analyze.return_value = mock_ai_result
+        with patch("heisenberg.playground.analyze.analyze_with_ai") as mock_analyze:
+            mock_analyze.return_value = mock_ai_result
 
             analyzer.analyze()
 
-            # Check AIAnalyzer was called with a PlaywrightReport
-            call_kwargs = MockAI.call_args.kwargs
+            # Check analyze_with_ai was called with a PlaywrightReport
+            call_kwargs = mock_analyze.call_args.kwargs
             assert "report" in call_kwargs
             # Report should be a PlaywrightReport, not raw dict
             from heisenberg.parsers.playwright import PlaywrightReport
@@ -277,12 +277,12 @@ class TestScenarioAnalyzerAnalyze:
         config = AnalyzeConfig(case_dir=frozen_scenario, provider="openai")
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
-            MockAI.return_value.analyze.return_value = mock_ai_result
+        with patch("heisenberg.playground.analyze.analyze_with_ai") as mock_analyze:
+            mock_analyze.return_value = mock_ai_result
 
             analyzer.analyze()
 
-            call_kwargs = MockAI.call_args.kwargs
+            call_kwargs = mock_analyze.call_args.kwargs
             assert call_kwargs["provider"] == "openai"
 
     def test_analyze_uses_config_model(self, frozen_scenario, mock_ai_result):
@@ -295,12 +295,12 @@ class TestScenarioAnalyzerAnalyze:
         )
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
-            MockAI.return_value.analyze.return_value = mock_ai_result
+        with patch("heisenberg.playground.analyze.analyze_with_ai") as mock_analyze:
+            mock_analyze.return_value = mock_ai_result
 
             analyzer.analyze()
 
-            call_kwargs = MockAI.call_args.kwargs
+            call_kwargs = mock_analyze.call_args.kwargs
             assert call_kwargs["model"] == "gpt-5-turbo"
 
     def test_analyze_result_contains_diagnosis(
@@ -312,8 +312,8 @@ class TestScenarioAnalyzerAnalyze:
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
-            MockAI.return_value.analyze.return_value = mock_ai_result
+        with patch("heisenberg.playground.analyze.analyze_with_ai") as mock_analyze:
+            mock_analyze.return_value = mock_ai_result
 
             result = analyzer.analyze()
 
@@ -331,8 +331,8 @@ class TestScenarioAnalyzerAnalyze:
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
-            MockAI.return_value.analyze.return_value = mock_ai_result
+        with patch("heisenberg.playground.analyze.analyze_with_ai") as mock_analyze:
+            mock_analyze.return_value = mock_ai_result
 
             result = analyzer.analyze()
 
@@ -412,8 +412,8 @@ class TestSaveDiagnosis:
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
-            MockAI.return_value.analyze.return_value = mock_ai_result
+        with patch("heisenberg.playground.analyze.analyze_with_ai") as mock_analyze:
+            mock_analyze.return_value = mock_ai_result
 
             analyzer.analyze()
 
@@ -427,8 +427,8 @@ class TestSaveDiagnosis:
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
-            MockAI.return_value.analyze.return_value = mock_ai_result
+        with patch("heisenberg.playground.analyze.analyze_with_ai") as mock_analyze:
+            mock_analyze.return_value = mock_ai_result
 
             analyzer.analyze()
 
@@ -445,8 +445,8 @@ class TestSaveDiagnosis:
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
-            MockAI.return_value.analyze.return_value = mock_ai_result
+        with patch("heisenberg.playground.analyze.analyze_with_ai") as mock_analyze:
+            mock_analyze.return_value = mock_ai_result
 
             analyzer.analyze()
 
@@ -486,8 +486,8 @@ class TestAnalyzeErrorHandling:
         config = AnalyzeConfig(case_dir=frozen_scenario)
         analyzer = ScenarioAnalyzer(config)
 
-        with patch("heisenberg.playground.analyze.AIAnalyzer") as MockAI:
-            MockAI.return_value.analyze.side_effect = ValueError("API key not set")
+        with patch("heisenberg.playground.analyze.analyze_with_ai") as mock_analyze:
+            mock_analyze.side_effect = ValueError("API key not set")
 
             with pytest.raises(ValueError, match="API key"):
                 analyzer.analyze()

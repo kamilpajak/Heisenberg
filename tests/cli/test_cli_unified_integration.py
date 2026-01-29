@@ -11,25 +11,12 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from heisenberg.cli import main
 from heisenberg.cli.commands import convert_to_unified, run_analyze
 
 
-class TestAnalyzeWithUnifiedFlag:
-    """Tests for 'heisenberg analyze --use-unified'."""
-
-    def test_analyze_parser_has_use_unified_flag(self):
-        """Analyze subparser includes --use-unified flag."""
-        import sys
-
-        # Check that --use-unified is recognized
-        with patch.object(sys, "argv", ["heisenberg", "analyze", "--help"]):
-            with pytest.raises(SystemExit) as exc_info:
-                main()
-            # Help exits with 0
-            assert exc_info.value.code == 0
+class TestAnalyzeOutputFormats:
+    """Tests for analyze command output formats."""
 
     def test_analyze_parser_has_output_format_unified(self):
         """Analyze subparser supports unified-json output format."""
@@ -272,7 +259,6 @@ class TestUnifiedAnalysisInCLI:
             ai_analysis=True,
             provider="anthropic",
             model=None,
-            use_unified=False,  # Flag is deprecated; unified is always used
             post_comment=False,
             container_logs=None,
         )
