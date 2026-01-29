@@ -50,7 +50,6 @@ dev = [
     "python-semantic-release>=9.0.0",
     "mutmut>=2.5,<3.0",  # 3.x has stability issues (SIGSEGV crashes)
     "vulture>=2.11",  # dead code detection
-    "import-linter>=2.0",  # architecture/import enforcement
 ]
 
 [project.scripts]
@@ -148,77 +147,11 @@ upload_to_vcs_release = true
 dev = [
     "greenlet>=3.3.1",
     "pre-commit>=4.0.0",
-    "pydeps>=3.0.2",
+    "tach>=0.25.0",
 ]
 
 # Mutation Testing Configuration (mutmut 2.x)
 # Note: mutmut 2.x uses setup.cfg format, see setup.cfg for config
-
-# Import Linter (architecture enforcement)
-[tool.importlinter]
-root_package = "heisenberg"
-include_external_packages = false
-
-# Layered architecture: core -> parsers/reports -> integrations/llm -> cli/backend/playground
-# Each layer can only import from layers below it
-
-[[tool.importlinter.contracts]]
-name = "Backend does not import CLI or Playground"
-type = "forbidden"
-source_modules = ["heisenberg.backend"]
-forbidden_modules = [
-    "heisenberg.cli",
-    "heisenberg.playground",
-]
-
-[[tool.importlinter.contracts]]
-name = "CLI does not import Backend"
-type = "forbidden"
-source_modules = ["heisenberg.cli"]
-forbidden_modules = ["heisenberg.backend"]
-
-[[tool.importlinter.contracts]]
-name = "Core is foundational"
-type = "forbidden"
-source_modules = ["heisenberg.core"]
-forbidden_modules = [
-    "heisenberg.backend",
-    "heisenberg.cli",
-    "heisenberg.playground",
-]
-
-[[tool.importlinter.contracts]]
-name = "Parsers isolation"
-type = "forbidden"
-source_modules = ["heisenberg.parsers"]
-forbidden_modules = [
-    "heisenberg.backend",
-    "heisenberg.cli",
-    "heisenberg.playground",
-]
-
-[[tool.importlinter.contracts]]
-name = "Reports isolation"
-type = "forbidden"
-source_modules = ["heisenberg.reports"]
-forbidden_modules = [
-    "heisenberg.backend",
-    "heisenberg.cli",
-    "heisenberg.playground",
-]
-
-[[tool.importlinter.contracts]]
-name = "Playground.discover is self-contained"
-type = "forbidden"
-source_modules = ["heisenberg.playground.discover"]
-forbidden_modules = [
-    "heisenberg.backend",
-    "heisenberg.cli",
-    "heisenberg.core",
-    "heisenberg.integrations",
-    "heisenberg.llm",
-    "heisenberg.parsers",
-]
 
 # Dead Code Detection (vulture)
 [tool.vulture]

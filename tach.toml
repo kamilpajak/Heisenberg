@@ -1,0 +1,52 @@
+# Tach - Architecture enforcement
+# Docs: https://docs.gauge.sh/usage/configuration
+
+exclude = ["**/__pycache__", "build/", "dist/", "**/*.pyc"]
+source_roots = ["src"]
+exact = false
+# TODO: Enable after fixing cycles: core <-> parsers <-> llm
+forbid_circular_dependencies = false
+root_module = "ignore"
+
+# Layered architecture (highest to lowest):
+# - applications: cli, backend, playground (entry points, no cross-imports)
+# - integrations: integrations, llm (external service wrappers)
+# - domain: parsers, reports (business logic)
+# - foundation: core (shared types and utilities)
+
+[[modules]]
+path = "heisenberg.core"
+depends_on = ["heisenberg.integrations", "heisenberg.llm", "heisenberg.parsers"]
+
+[[modules]]
+path = "heisenberg.parsers"
+depends_on = ["heisenberg.core", "heisenberg.llm"]
+
+[[modules]]
+path = "heisenberg.reports"
+depends_on = []
+
+[[modules]]
+path = "heisenberg.integrations"
+depends_on = []
+
+[[modules]]
+path = "heisenberg.llm"
+depends_on = [ "heisenberg.parsers", "heisenberg.integrations"]
+
+[[modules]]
+path = "heisenberg.cli"
+depends_on = ["heisenberg.core", "heisenberg.parsers", "heisenberg.integrations", "heisenberg.playground"]
+
+[[modules]]
+path = "heisenberg.backend"
+depends_on = ["heisenberg.core", "heisenberg.llm"]
+
+# Playground is experimental - discover submodule is self-contained
+[[modules]]
+path = "heisenberg.playground.discover"
+depends_on = []
+
+[[modules]]
+path = "heisenberg.playground"
+depends_on = [ "heisenberg.core", "heisenberg.integrations", "heisenberg.reports", "heisenberg.parsers"]
