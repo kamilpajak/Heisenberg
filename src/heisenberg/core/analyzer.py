@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from heisenberg.core.diagnosis import Diagnosis, parse_diagnosis
 from heisenberg.integrations.docker import ContainerLogs
-from heisenberg.llm.config import PROVIDER_CONFIGS
+from heisenberg.llm.config import PROVIDER_CONFIGS, calculate_cost
 from heisenberg.llm.prompts import build_analysis_prompt
 
 if TYPE_CHECKING:
@@ -30,18 +30,6 @@ class AIAnalysisResult:
     provider: str = "anthropic"
     model: str | None = None
 
-    # Cost rates per 1M tokens by provider
-    _COST_RATES: dict[str, dict[str, float]] | None = None
-
-    def __post_init__(self) -> None:
-        """Initialize cost rates."""
-        # Rates per 1M tokens (input, output)
-        self._COST_RATES = {
-            "anthropic": {"input": 3.0, "output": 15.0},
-            "openai": {"input": 5.0, "output": 15.0},
-            "google": {"input": 2.0, "output": 12.0},
-        }
-
     @property
     def total_tokens(self) -> int:
         """Total tokens used."""
@@ -49,11 +37,19 @@ class AIAnalysisResult:
 
     @property
     def estimated_cost(self) -> float:
-        """Estimate cost in USD based on provider rates."""
-        rates = self._COST_RATES.get(self.provider, self._COST_RATES["anthropic"])
-        input_cost = self.input_tokens * rates["input"] / 1_000_000
-        output_cost = self.output_tokens * rates["output"] / 1_000_000
-        return input_cost + output_cost
+        """Estimate cost in USD based on model pricing.
+
+        Uses centralized pricing from llm/config.py. Falls back to provider's
+        default model if specific model not set.
+        """
+        # Determine model for pricing lookup
+        model = self.model
+        if not model:
+            # Fall back to provider's default model
+            config = PROVIDER_CONFIGS.get(self.provider)
+            model = config.default_model if config else "claude-sonnet-4-20250514"
+
+        return float(calculate_cost(model, self.input_tokens, self.output_tokens))
 
     def to_markdown(self) -> str:
         """Format result as markdown for PR comment."""

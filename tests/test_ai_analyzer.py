@@ -243,7 +243,7 @@ class TestAIAnalysisResult:
         assert result.estimated_cost == pytest.approx(expected_cost)
 
     def test_estimated_cost_openai_provider(self):
-        """Should calculate estimated cost with OpenAI rates."""
+        """Should calculate estimated cost with OpenAI default model rates."""
         result = AIAnalysisResult(
             diagnosis=MagicMock(),
             input_tokens=1000,
@@ -251,12 +251,12 @@ class TestAIAnalysisResult:
             provider="openai",
         )
 
-        # OpenAI: $5/M input, $15/M output
-        expected_cost = (1000 * 5 / 1_000_000) + (500 * 15 / 1_000_000)
+        # OpenAI gpt-5 (default): $2.50/M input, $10/M output
+        expected_cost = (1000 * 2.50 / 1_000_000) + (500 * 10 / 1_000_000)
         assert result.estimated_cost == pytest.approx(expected_cost)
 
     def test_estimated_cost_google_provider(self):
-        """Should calculate estimated cost with Google rates."""
+        """Should calculate estimated cost with Google default model rates."""
         result = AIAnalysisResult(
             diagnosis=MagicMock(),
             input_tokens=1000,
@@ -264,8 +264,8 @@ class TestAIAnalysisResult:
             provider="google",
         )
 
-        # Google: $2/M input, $12/M output
-        expected_cost = (1000 * 2 / 1_000_000) + (500 * 12 / 1_000_000)
+        # Google gemini-3-pro-preview (default): $1.25/M input, $5/M output
+        expected_cost = (1000 * 1.25 / 1_000_000) + (500 * 5 / 1_000_000)
         assert result.estimated_cost == pytest.approx(expected_cost)
 
     def test_to_markdown_basic(self):
