@@ -29,7 +29,7 @@ from heisenberg.llm.models import LLMAnalysis
 from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
 
 if TYPE_CHECKING:
-    from heisenberg.core.analyzer import AIAnalysisResult
+    from heisenberg.analysis import AIAnalysisResult
 
 
 def make_llm_analysis(
@@ -218,7 +218,7 @@ def make_ai_analysis_result(
     Returns:
         AIAnalysisResult instance.
     """
-    from heisenberg.core.analyzer import AIAnalysisResult
+    from heisenberg.analysis import AIAnalysisResult
 
     if diagnosis is None:
         diagnosis = make_diagnosis()

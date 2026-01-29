@@ -195,7 +195,7 @@ class TestRunJunitAnalyze:
 
     def test_run_junit_analyze_with_ai_analysis(self, sample_junit_xml: Path, capsys, monkeypatch):
         """Should include AI analysis when flag is set."""
-        from heisenberg.core.analyzer import AIAnalysisResult
+        from heisenberg.analysis import AIAnalysisResult
         from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
         mock_result = AIAnalysisResult(

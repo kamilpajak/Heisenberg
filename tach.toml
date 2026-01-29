@@ -1,0 +1,56 @@
+# Tach - Architecture enforcement
+# Docs: https://docs.gauge.sh/usage/configuration
+
+exclude = ["**/__pycache__", "build/", "dist/", "**/*.pyc"]
+source_roots = ["src"]
+exact = false
+forbid_circular_dependencies = true
+root_module = "ignore"
+
+# Layered architecture (highest to lowest):
+# - applications: cli, backend, playground (entry points)
+# - orchestration: analysis (combines multiple layers)
+# - services: llm, integrations (external service wrappers)
+# - domain: parsers, reports (business logic)
+# - foundation: core (models, shared types)
+
+[[modules]]
+path = "heisenberg.core"
+depends_on = []
+
+[[modules]]
+path = "heisenberg.parsers"
+depends_on = ["heisenberg.core"]
+
+[[modules]]
+path = "heisenberg.reports"
+depends_on = []
+
+[[modules]]
+path = "heisenberg.integrations"
+depends_on = []
+
+[[modules]]
+path = "heisenberg.llm"
+depends_on = ["heisenberg.integrations"]
+
+[[modules]]
+path = "heisenberg.analysis"
+depends_on = ["heisenberg.core", "heisenberg.llm", "heisenberg.integrations", "heisenberg.parsers"]
+
+[[modules]]
+path = "heisenberg.cli"
+depends_on = ["heisenberg.core", "heisenberg.analysis", "heisenberg.parsers", "heisenberg.integrations", "heisenberg.playground", "heisenberg.llm"]
+
+[[modules]]
+path = "heisenberg.backend"
+depends_on = ["heisenberg.core", "heisenberg.llm"]
+
+# Playground is experimental - discover submodule is self-contained
+[[modules]]
+path = "heisenberg.playground.discover"
+depends_on = []
+
+[[modules]]
+path = "heisenberg.playground"
+depends_on = ["heisenberg.analysis", "heisenberg.integrations", "heisenberg.reports", "heisenberg.parsers"]

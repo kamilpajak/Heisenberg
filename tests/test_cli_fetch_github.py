@@ -753,7 +753,7 @@ class TestFetchAndAnalyzeScreenshots:
             mock_client_cls.return_value = mock_client
 
             with patch(
-                "heisenberg.parsers.screenshots.extract_screenshots_from_artifact",
+                "heisenberg.llm.vision.extract_screenshots_from_artifact",
                 return_value=[],
             ):
                 result = await fetch_and_analyze_screenshots(
@@ -783,12 +783,12 @@ class TestFetchAndAnalyzeScreenshots:
 
             with (
                 patch(
-                    "heisenberg.parsers.screenshots.extract_screenshots_from_artifact",
+                    "heisenberg.llm.vision.extract_screenshots_from_artifact",
                     return_value=[mock_screenshot],
                 ),
-                patch("heisenberg.parsers.screenshots.ScreenshotAnalyzer") as mock_analyzer_cls,
+                patch("heisenberg.llm.vision.ScreenshotAnalyzer") as mock_analyzer_cls,
                 patch(
-                    "heisenberg.parsers.screenshots.format_screenshots_for_prompt",
+                    "heisenberg.llm.vision.format_screenshots_for_prompt",
                     return_value="screenshot analysis",
                 ),
             ):

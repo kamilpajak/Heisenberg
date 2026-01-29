@@ -103,7 +103,7 @@ def mock_diagnosis():
 @pytest.fixture
 def mock_ai_result(mock_diagnosis):
     """Create a mock AIAnalysisResult."""
-    from heisenberg.core.analyzer import AIAnalysisResult
+    from heisenberg.analysis import AIAnalysisResult
 
     return AIAnalysisResult(
         diagnosis=mock_diagnosis,

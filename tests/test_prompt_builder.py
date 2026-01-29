@@ -10,7 +10,7 @@ from heisenberg.llm.prompts import (
     build_analysis_prompt,
     get_system_prompt,
 )
-from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
+from heisenberg.parsers.playwright import PlaywrightReport
 
 
 class TestPromptBuilder:
@@ -247,35 +247,6 @@ class TestConvenienceFunction:
 
 
 # Fixtures
-
-
-@pytest.fixture
-def sample_report() -> PlaywrightReport:
-    """Sample Playwright report with one failed test."""
-    return PlaywrightReport(
-        total_passed=4,
-        total_failed=1,
-        total_skipped=0,
-        total_flaky=0,
-        failed_tests=[
-            FailedTest(
-                title="Login test",
-                file="tests/login.spec.ts",
-                suite="Authentication",
-                project="chromium",
-                status="failed",
-                duration_ms=5000,
-                start_time=datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC),
-                errors=[
-                    ErrorDetail(
-                        message="TimeoutError: locator.click: Timeout 30000ms exceeded",
-                        stack="Error: TimeoutError\n    at login.spec.ts:15:10\n    at test.step",
-                    )
-                ],
-                trace_path="trace.zip",
-            )
-        ],
-    )
 
 
 @pytest.fixture

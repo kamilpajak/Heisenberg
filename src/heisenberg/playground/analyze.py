@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from heisenberg.core.analyzer import AIAnalyzer
+from heisenberg.analysis import AIAnalyzer
 from heisenberg.parsers.playwright import parse_playwright_report
 
 
