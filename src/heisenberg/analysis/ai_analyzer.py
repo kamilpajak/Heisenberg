@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import warnings
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
@@ -90,66 +89,6 @@ class AIAnalysisResult:
         )
 
         return "\n".join(lines)
-
-
-class AIAnalyzer:
-    """AI-powered analyzer for test failures.
-
-    .. deprecated::
-        Use :func:`analyze_unified_run` directly with :class:`UnifiedTestRun` instead.
-        This class will be removed in a future version.
-    """
-
-    def __init__(
-        self,
-        report: PlaywrightReport,
-        container_logs: dict[str, ContainerLogs] | None = None,
-        api_key: str | None = None,
-        provider: str = "anthropic",
-        model: str | None = None,
-    ):
-        """
-        Initialize AI analyzer.
-
-        Args:
-            report: Playwright test report.
-            container_logs: Optional container logs for context.
-            api_key: API key. If None, uses from_environment().
-            provider: LLM provider (anthropic, openai, google).
-            model: Specific model to use.
-        """
-        warnings.warn(
-            "AIAnalyzer is deprecated. Use analyze_unified_run() with UnifiedTestRun instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.report = report
-        self.container_logs = container_logs or {}
-        self.api_key = api_key
-        self.provider = provider
-        self.model = model
-
-    def analyze(self) -> AIAnalysisResult:
-        """
-        Run AI analysis on test failures.
-
-        Returns:
-            AIAnalysisResult with diagnosis and token usage.
-
-        Note:
-            Internally converts to UnifiedTestRun and delegates to analyze_unified_run().
-        """
-        # Convert PlaywrightReport to UnifiedTestRun
-        unified_run = PlaywrightTransformer.transform_report(self.report)
-
-        # Delegate to unified analysis
-        return analyze_unified_run(
-            unified_run,
-            container_logs=self.container_logs,
-            api_key=self.api_key,
-            provider=self.provider,
-            model=self.model,
-        )
 
 
 def analyze_with_ai(

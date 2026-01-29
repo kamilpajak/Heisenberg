@@ -23,7 +23,6 @@ class TestCliUnifiedJsonOutput:
             log_window=30,
             post_comment=False,
             ai_analysis=False,
-            use_unified=False,
             provider="anthropic",
             model=None,
         )
@@ -46,7 +45,6 @@ class TestCliUnifiedJsonOutput:
             log_window=30,
             post_comment=False,
             ai_analysis=False,
-            use_unified=False,
             provider="anthropic",
             model=None,
         )
@@ -61,64 +59,13 @@ class TestCliUnifiedJsonOutput:
             assert "error" in failure
 
 
-class TestCliUseUnifiedFlag:
-    """Tests for --use-unified flag behavior.
-
-    Note: --use-unified flag is now deprecated. The unified model is always used.
-    analyze_with_ai() internally delegates to analyze_unified_run().
-    """
+class TestCliAIAnalysis:
+    """Tests for AI analysis in CLI."""
 
     # sample_report_path fixture is provided by conftest.py
 
-    def test_ai_analysis_always_uses_unified_model(
-        self, sample_report_path: Path, capsys, monkeypatch
-    ):
-        """AI analysis always uses unified model (via analyze_with_ai which delegates)."""
-        from heisenberg.analysis import AIAnalysisResult
-        from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
-
-        mock_result = AIAnalysisResult(
-            diagnosis=Diagnosis(
-                root_cause="Test error",
-                evidence=["Evidence"],
-                suggested_fix="Fix it",
-                confidence=ConfidenceLevel.MEDIUM,
-                confidence_explanation="Medium confidence",
-                raw_response="raw",
-            ),
-            input_tokens=100,
-            output_tokens=50,
-        )
-
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
-        # Mock analyze_with_ai (which internally uses unified model)
-        with patch(
-            "heisenberg.cli.commands.analyze_with_ai", return_value=mock_result
-        ) as mock_analyze:
-            args = argparse.Namespace(
-                report=sample_report_path,
-                report_format="playwright",
-                output_format="text",
-                docker_services="",
-                log_window=30,
-                post_comment=False,
-                ai_analysis=True,
-                use_unified=True,  # Flag is deprecated but still accepted
-                provider="anthropic",
-                model=None,
-                container_logs=None,
-            )
-
-            run_analyze(args)
-
-            # analyze_with_ai is called (it internally uses unified model)
-            mock_analyze.assert_called_once()
-
-    def test_use_unified_false_still_uses_unified_internally(
-        self, sample_report_path: Path, capsys, monkeypatch
-    ):
-        """Even when use_unified=False, analyze_with_ai uses unified model internally."""
+    def test_ai_analysis_uses_unified_model(self, sample_report_path: Path, capsys, monkeypatch):
+        """AI analysis uses unified model via analyze_with_ai."""
         from heisenberg.analysis import AIAnalysisResult
         from heisenberg.core.diagnosis import ConfidenceLevel, Diagnosis
 
@@ -148,7 +95,6 @@ class TestCliUseUnifiedFlag:
                 log_window=30,
                 post_comment=False,
                 ai_analysis=True,
-                use_unified=False,  # Deprecated flag has no effect
                 provider="anthropic",
                 model=None,
                 container_logs=None,
@@ -156,7 +102,6 @@ class TestCliUseUnifiedFlag:
 
             run_analyze(args)
 
-            # analyze_with_ai is always called (internally uses unified model)
             mock_analyze.assert_called_once()
 
 

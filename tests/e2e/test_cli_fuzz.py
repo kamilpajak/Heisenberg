@@ -208,7 +208,6 @@ class TestAnalyzeCommandFuzz:
         log_window=log_windows(),
         docker_services=docker_services(),
         ai_analysis=st.booleans(),
-        use_unified=st.booleans(),
         post_comment=st.booleans(),
     )
     def test_analyze_with_valid_report_no_crash(
@@ -218,7 +217,6 @@ class TestAnalyzeCommandFuzz:
         log_window: int,
         docker_services: str,
         ai_analysis: bool,
-        use_unified: bool,
         post_comment: bool,
     ):
         """Analyze command should not crash with valid report and various args."""
@@ -234,7 +232,6 @@ class TestAnalyzeCommandFuzz:
                 log_window=log_window,
                 docker_services=docker_services,
                 ai_analysis=ai_analysis,
-                use_unified=use_unified,
                 post_comment=post_comment,
                 model=None,
                 container_logs=None,
@@ -269,7 +266,6 @@ class TestAnalyzeCommandFuzz:
                 log_window=30,
                 docker_services="",
                 ai_analysis=False,
-                use_unified=False,
                 post_comment=False,
                 model=None,
                 container_logs=None,
@@ -654,7 +650,6 @@ class TestMalformedInputFuzz:
                 log_window=30,
                 docker_services="",
                 ai_analysis=False,
-                use_unified=False,
                 post_comment=False,
                 model=None,
                 container_logs=None,
@@ -689,7 +684,6 @@ class TestMalformedInputFuzz:
                 log_window=30,
                 docker_services="",
                 ai_analysis=False,
-                use_unified=False,
                 post_comment=False,
                 model=None,
                 container_logs=None,
@@ -728,7 +722,6 @@ class TestMalformedInputFuzz:
                 log_window=30,
                 docker_services="",
                 ai_analysis=False,
-                use_unified=False,
                 post_comment=False,
                 model=None,
                 container_logs=None,
@@ -816,7 +809,6 @@ class TestUnicodeHandlingFuzz:
                 log_window=30,
                 docker_services="",
                 ai_analysis=False,
-                use_unified=False,
                 post_comment=False,
                 model=None,
                 container_logs=None,

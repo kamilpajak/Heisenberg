@@ -9,8 +9,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from heisenberg.core.diagnosis import ConfidenceLevel, parse_diagnosis
+from heisenberg.core.models import PlaywrightTransformer
 from heisenberg.integrations.docker import ContainerLogs, LogEntry
-from heisenberg.llm.prompts import PromptBuilder, get_system_prompt
+from heisenberg.llm.prompts import build_unified_prompt, get_system_prompt
 from heisenberg.parsers.playwright import ErrorDetail, FailedTest, PlaywrightReport
 
 
@@ -106,8 +107,8 @@ class TestDatabaseTimeoutScenario:
     def test_prompt_includes_relevant_context(self, scenario):
         """Prompt should include all relevant failure context."""
         report, logs = scenario
-        builder = PromptBuilder(report=report, container_logs=logs)
-        prompt = builder.build()
+        unified_run = PlaywrightTransformer.transform_report(report)
+        _, prompt = build_unified_prompt(unified_run, container_logs=logs)
 
         # Should include test info
         assert "User Registration" in prompt
@@ -214,8 +215,8 @@ class TestNetworkLatencyScenario:
     def test_prompt_includes_timing_info(self, scenario):
         """Prompt should include timing information."""
         report, logs = scenario
-        builder = PromptBuilder(report=report, container_logs=logs)
-        prompt = builder.build()
+        unified_run = PlaywrightTransformer.transform_report(report)
+        _, prompt = build_unified_prompt(unified_run, container_logs=logs)
 
         assert "62000" in prompt or "60000" in prompt  # Timeout values
         assert "WebSocket" in prompt
@@ -289,8 +290,8 @@ class TestRaceConditionScenario:
     def test_prompt_shows_timing_mismatch(self, scenario):
         """Prompt should show events that indicate race condition."""
         report, logs = scenario
-        builder = PromptBuilder(report=report, container_logs=logs)
-        prompt = builder.build()
+        unified_run = PlaywrightTransformer.transform_report(report)
+        _, prompt = build_unified_prompt(unified_run, container_logs=logs)
 
         assert "cart" in prompt.lower()
         assert "cache" in prompt.lower()
@@ -364,8 +365,8 @@ class TestAuthenticationFailureScenario:
     def test_prompt_includes_auth_context(self, scenario):
         """Prompt should include authentication context."""
         report, logs = scenario
-        builder = PromptBuilder(report=report, container_logs=logs)
-        prompt = builder.build()
+        unified_run = PlaywrightTransformer.transform_report(report)
+        _, prompt = build_unified_prompt(unified_run, container_logs=logs)
 
         assert "login" in prompt.lower()
         assert "session" in prompt.lower() or "auth" in prompt.lower()
@@ -423,8 +424,8 @@ class TestElementNotFoundScenario:
     def test_prompt_shows_selector_issue(self, scenario):
         """Prompt should indicate selector/element issue."""
         report, logs = scenario
-        builder = PromptBuilder(report=report, container_logs=logs)
-        prompt = builder.build()
+        unified_run = PlaywrightTransformer.transform_report(report)
+        _, prompt = build_unified_prompt(unified_run, container_logs=logs)
 
         assert "locator" in prompt.lower()
         assert "0 elements" in prompt or "resolved to 0" in prompt
@@ -513,8 +514,8 @@ class TestAPIErrorScenario:
     def test_prompt_includes_api_error(self, scenario):
         """Prompt should include API error details."""
         report, logs = scenario
-        builder = PromptBuilder(report=report, container_logs=logs)
-        prompt = builder.build()
+        unified_run = PlaywrightTransformer.transform_report(report)
+        _, prompt = build_unified_prompt(unified_run, container_logs=logs)
 
         assert "500" in prompt or "error" in prompt.lower()
         assert "payment" in prompt.lower()
@@ -580,8 +581,8 @@ class TestResourceExhaustionScenario:
     def test_prompt_shows_resource_issue(self, scenario):
         """Prompt should indicate resource exhaustion."""
         report, logs = scenario
-        builder = PromptBuilder(report=report, container_logs=logs)
-        prompt = builder.build()
+        unified_run = PlaywrightTransformer.transform_report(report)
+        _, prompt = build_unified_prompt(unified_run, container_logs=logs)
 
         assert "memory" in prompt.lower()
         assert "browser" in prompt.lower() or "closed" in prompt.lower()
@@ -649,8 +650,8 @@ class TestThirdPartyServiceScenario:
     def test_prompt_includes_external_service(self, scenario):
         """Prompt should indicate external service issue."""
         report, logs = scenario
-        builder = PromptBuilder(report=report, container_logs=logs)
-        prompt = builder.build()
+        unified_run = PlaywrightTransformer.transform_report(report)
+        _, prompt = build_unified_prompt(unified_run, container_logs=logs)
 
         assert "google" in prompt.lower() or "maps" in prompt.lower()
         assert "network" in prompt.lower() or "timeout" in prompt.lower()
@@ -717,8 +718,8 @@ class TestConcurrencyScenario:
     def test_prompt_shows_data_conflict(self, scenario):
         """Prompt should show data mismatch indicating concurrency."""
         report, logs = scenario
-        builder = PromptBuilder(report=report, container_logs=logs)
-        prompt = builder.build()
+        unified_run = PlaywrightTransformer.transform_report(report)
+        _, prompt = build_unified_prompt(unified_run, container_logs=logs)
 
         assert "user" in prompt.lower()
         assert "abc" in prompt.lower() and "xyz" in prompt.lower()
@@ -778,8 +779,8 @@ class TestFlakySelectorScenario:
     def test_prompt_shows_stability_issue(self, scenario):
         """Prompt should indicate element stability issue."""
         report, logs = scenario
-        builder = PromptBuilder(report=report, container_logs=logs)
-        prompt = builder.build()
+        unified_run = PlaywrightTransformer.transform_report(report)
+        _, prompt = build_unified_prompt(unified_run, container_logs=logs)
 
         assert "stable" in prompt.lower() or "viewport" in prompt.lower()
         assert "nth-child" in prompt.lower() or "notification" in prompt.lower()
