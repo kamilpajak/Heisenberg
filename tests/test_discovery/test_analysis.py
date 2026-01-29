@@ -344,7 +344,7 @@ class TestDownloadAndCheckFailures:
         mock_download.return_value = True
         mock_extract.return_value = 3
 
-        result = download_and_check_failures("owner/repo", "123", "blob-report")
+        result = download_and_check_failures("owner/repo", "blob-report")
 
         assert result == 3
 
@@ -355,7 +355,7 @@ class TestDownloadAndCheckFailures:
         mock_download.return_value = True
         mock_extract.return_value = 2
 
-        result = download_and_check_failures("owner/repo", "123", "playwright-report")
+        result = download_and_check_failures("owner/repo", "playwright-report")
 
         assert result == 2
 
@@ -364,7 +364,7 @@ class TestDownloadAndCheckFailures:
         """Should return None if download fails."""
         mock_download.return_value = False
 
-        result = download_and_check_failures("owner/repo", "123", "playwright-report")
+        result = download_and_check_failures("owner/repo", "playwright-report")
 
         assert result is None
 
@@ -594,7 +594,7 @@ class TestOptimizedDownloadAndCheck:
         mock_download.return_value = True
         mock_extract.return_value = 5
 
-        result = download_and_check_failures("owner/repo", "123", "blob-report")
+        result = download_and_check_failures("owner/repo", "blob-report")
 
         assert result == 5
         mock_download.assert_called_once()
@@ -605,7 +605,7 @@ class TestOptimizedDownloadAndCheck:
         """Should return None if download fails."""
         mock_download.return_value = False
 
-        result = download_and_check_failures("owner/repo", "123", "blob-report")
+        result = download_and_check_failures("owner/repo", "blob-report")
 
         assert result is None
 

@@ -99,73 +99,84 @@ def _extract_failure_count_from_html(html_content: str) -> int | None:
     return None
 
 
+def _extract_from_nested_zip(zip_file) -> int | None:
+    """Extract failure count from a single nested ZIP file."""
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(zip_file) as zf:
+            # Try JSON files first (report.json with stats)
+            for name in zf.namelist():
+                if name.endswith(".json"):
+                    data = json.loads(zf.read(name))
+                    failures = _extract_failure_count(data)
+                    if failures is not None:
+                        return failures
+
+            # Then try JSONL files (report.jsonl with events)
+            for name in zf.namelist():
+                if name.endswith(".jsonl"):
+                    content = zf.read(name).decode()
+                    failures = _extract_failure_count_from_jsonl(content)
+                    if failures is not None:
+                        return failures
+    except Exception:
+        pass
+    return None
+
+
+def _extract_from_html_file(html_file) -> int | None:
+    """Extract failure count from a single HTML file."""
+    try:
+        content = html_file.read_text()
+        return _extract_failure_count_from_html(content)
+    except OSError:
+        return None
+
+
+def _extract_from_json_file(json_file) -> int | None:
+    """Extract failure count from a single JSON file."""
+    try:
+        data = json.loads(json_file.read_text())
+        return _extract_failure_count(data)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
 def extract_failure_count_from_dir(dir_path) -> int | None:
     """Extract failure count from files in an extracted artifact directory.
 
-    Handles three Playwright report formats:
-    1. Nested ZIPs with JSON stats (blob report with report.json)
-    2. Nested ZIPs with JSONL events (blob report with report.jsonl)
-    3. HTML reports with embedded base64 ZIP (single-file HTML reporter)
-    4. Direct JSON files in artifact root
-
-    Args:
-        dir_path: Path to the extracted artifact directory
-
-    Returns:
-        Number of failures found, or None if no stats found.
+    Handles Playwright report formats in priority order:
+    1. Nested ZIPs (blob reports with JSON/JSONL)
+    2. HTML reports with embedded base64 ZIP
+    3. Direct JSON files in artifact root
     """
-    import zipfile
     from pathlib import Path
 
     dir_path = Path(dir_path)
 
-    # First, check nested ZIP files (blob reports: JSON then JSONL)
+    # Try nested ZIP files (blob reports)
     for zip_file in dir_path.glob("*.zip"):
-        try:
-            with zipfile.ZipFile(zip_file) as zf:
-                # Try JSON files first (report.json with stats)
-                for name in zf.namelist():
-                    if name.endswith(".json"):
-                        content = zf.read(name)
-                        data = json.loads(content)
-                        failures = _extract_failure_count(data)
-                        if failures is not None:
-                            return failures
+        failures = _extract_from_nested_zip(zip_file)
+        if failures is not None:
+            return failures
 
-                # Then try JSONL files (report.jsonl with events)
-                for name in zf.namelist():
-                    if name.endswith(".jsonl"):
-                        content = zf.read(name).decode()
-                        failures = _extract_failure_count_from_jsonl(content)
-                        if failures is not None:
-                            return failures
-        except (zipfile.BadZipFile, json.JSONDecodeError):
-            continue
-
-    # Then check HTML files (embedded base64 ZIP with report.json)
+    # Try HTML files (embedded base64 ZIP)
     for html_file in dir_path.glob("*.html"):
-        try:
-            content = html_file.read_text()
-            failures = _extract_failure_count_from_html(content)
-            if failures is not None:
-                return failures
-        except OSError:
-            continue
+        failures = _extract_from_html_file(html_file)
+        if failures is not None:
+            return failures
 
-    # Finally check direct JSON files
+    # Try direct JSON files
     for json_file in dir_path.rglob("*.json"):
-        try:
-            data = json.loads(json_file.read_text())
-            failures = _extract_failure_count(data)
-            if failures is not None:
-                return failures
-        except (json.JSONDecodeError, OSError):
-            continue
+        failures = _extract_from_json_file(json_file)
+        if failures is not None:
+            return failures
 
     return None
 
 
-def download_and_check_failures(repo: str, run_id: str, artifact_name: str) -> int | None:
+def download_and_check_failures(repo: str, artifact_name: str) -> int | None:
     """Download artifact and extract failure count.
 
     Uses optimized direct file reading instead of re-zipping.
@@ -187,7 +198,7 @@ def verify_has_failures(repo: str, run_id: str, artifact_name: str) -> bool:
 
     Downloads the artifact and checks if it has non-zero failure count.
     """
-    failure_count = download_and_check_failures(repo, run_id, artifact_name)
+    failure_count = download_and_check_failures(repo, artifact_name)
     return failure_count is not None and failure_count > 0
 
 
@@ -216,7 +227,7 @@ def verify_has_failures_cached(
         return cached_count > 0
 
     # Cache miss - download and verify
-    failure_count = download_and_check_failures(repo, run_id, artifact_name)
+    failure_count = download_and_check_failures(repo, artifact_name)
 
     # Store result in cache (even if None or 0)
     if failure_count is not None:
@@ -307,6 +318,41 @@ def determine_status(
     return SourceStatus.COMPATIBLE
 
 
+def _report_verification_stage(
+    cache: RunCache | None,
+    run_id: str,
+    artifact_sizes: dict[str, int],
+    artifact_name: str,
+    report: callable,
+) -> None:
+    """Report the appropriate status message for verification stage."""
+    if cache and cache.get(run_id):
+        report("checking cache")
+        return
+    # Lazy import to avoid circular dependency
+    from .ui import format_size
+
+    size = artifact_sizes.get(artifact_name, 0)
+    report(f"dl {format_size(size)}" if size > 0 else "downloading...")
+
+
+def _verify_artifact_failures(
+    repo: str,
+    run_id: str,
+    artifact_name: str,
+    cache: RunCache | None,
+    run_created_at: str | None,
+) -> int:
+    """Verify failures in artifact, using cache if available."""
+    if cache and run_created_at:
+        has_failures = verify_has_failures_cached(
+            repo, run_id, artifact_name, cache, run_created_at
+        )
+    else:
+        has_failures = verify_has_failures(repo, run_id, artifact_name)
+    return 1 if has_failures else 0
+
+
 def analyze_source_with_status(
     repo: str,
     stars: int | None = None,
@@ -314,53 +360,27 @@ def analyze_source_with_status(
     on_status: callable | None = None,
     cache: RunCache | None = None,
 ) -> ProjectSource:
-    """Analyze a repository with status updates for each stage.
-
-    Args:
-        repo: Repository in owner/repo format
-        stars: Star count (fetched if None)
-        verify_failures: If True, download artifact to verify it has failures
-        on_status: Optional callback(stage_description) for status updates
-        cache: Optional RunCache for caching verification results
-
-    Returns:
-        ProjectSource with analysis results
-    """
+    """Analyze a repository with status updates for each stage."""
 
     def report(stage: str) -> None:
         if on_status:
             on_status(stage)
 
     report("fetching info")
-
     if stars is None:
         stars = get_repo_stars(repo)
 
     report("fetching runs")
-
     run_id, run_url, artifact_names, run_created_at, artifact_sizes = find_valid_artifacts(repo)
     playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
 
-    # Optionally verify that artifact has actual failures
     failure_count = None
     if verify_failures and playwright_artifacts and run_id:
         artifact_to_check = playwright_artifacts[0]
-        if not cache or not cache.get(run_id):
-            size = artifact_sizes.get(artifact_to_check, 0)
-            # Lazy import to avoid circular dependency
-            from .ui import format_size
-
-            report(f"dl {format_size(size)}" if size > 0 else "downloading...")
-        else:
-            report("checking cache")
-        # Try the first Playwright artifact
-        if cache and run_created_at:
-            has_failures = verify_has_failures_cached(
-                repo, run_id, playwright_artifacts[0], cache, run_created_at
-            )
-        else:
-            has_failures = verify_has_failures(repo, run_id, playwright_artifacts[0])
-        failure_count = 1 if has_failures else 0
+        _report_verification_stage(cache, run_id, artifact_sizes, artifact_to_check, report)
+        failure_count = _verify_artifact_failures(
+            repo, run_id, artifact_to_check, cache, run_created_at
+        )
 
     status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
 
@@ -390,7 +410,7 @@ def analyze_source(
     if stars is None:
         stars = get_repo_stars(repo)
 
-    run_id, run_url, artifact_names, run_created_at, _ = find_valid_artifacts(repo)
+    run_id, run_url, artifact_names, _, _ = find_valid_artifacts(repo)
     playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
 
     # Optionally verify that artifact has actual failures
