@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 
-from heisenberg.playground.discover.cache import QuarantineCache, get_default_quarantine_path
-from heisenberg.playground.discover.models import QUARANTINE_TTL_HOURS
+from heisenberg.discovery.cache import QuarantineCache, get_default_quarantine_path
+from heisenberg.discovery.models import QUARANTINE_TTL_HOURS
 
 # =============================================================================
 # QUARANTINE CACHE TESTS

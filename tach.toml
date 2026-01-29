@@ -46,9 +46,9 @@ depends_on = ["heisenberg.core", "heisenberg.analysis", "heisenberg.parsers", "h
 path = "heisenberg.backend"
 depends_on = ["heisenberg.core", "heisenberg.llm"]
 
-# Playground is experimental - discover submodule is self-contained
+# Discovery is a foundation-layer module for finding Playwright repos
 [[modules]]
-path = "heisenberg.playground.discover"
+path = "heisenberg.discovery"
 depends_on = []
 
 [[modules]]

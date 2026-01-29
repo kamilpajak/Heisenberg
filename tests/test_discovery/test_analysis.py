@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-from heisenberg.playground.discover.analysis import (
+from heisenberg.discovery.analysis import (
     _extract_failure_count_from_html,
     _extract_failure_count_from_jsonl,
     determine_status,
@@ -18,7 +18,7 @@ from heisenberg.playground.discover.analysis import (
     sort_sources,
     verify_has_failures,
 )
-from heisenberg.playground.discover.models import (
+from heisenberg.discovery.models import (
     ProjectSource,
     SourceStatus,
 )
@@ -176,8 +176,8 @@ class TestSortSources:
 class TestFindValidArtifacts:
     """Tests for find_valid_artifacts function."""
 
-    @patch("heisenberg.playground.discover.analysis.get_run_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_failed_runs")
+    @patch("heisenberg.discovery.analysis.get_run_artifacts")
+    @patch("heisenberg.discovery.analysis.get_failed_runs")
     def test_checks_multiple_runs(self, mock_get_runs, mock_get_artifacts):
         """Should check multiple runs until valid artifacts found."""
         mock_get_runs.return_value = [
@@ -198,8 +198,8 @@ class TestFindValidArtifacts:
         assert "playwright-report" in artifacts
         assert run_created_at == "2024-01-02T00:00:00Z"
 
-    @patch("heisenberg.playground.discover.analysis.get_run_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_failed_runs")
+    @patch("heisenberg.discovery.analysis.get_run_artifacts")
+    @patch("heisenberg.discovery.analysis.get_failed_runs")
     def test_skips_expired_artifacts(self, mock_get_runs, mock_get_artifacts):
         """Should skip expired artifacts."""
         mock_get_runs.return_value = [
@@ -219,11 +219,11 @@ class TestFindValidArtifacts:
 class TestAnalyzeCandidate:
     """Tests for analyze_source function."""
 
-    @patch("heisenberg.playground.discover.analysis.find_valid_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_repo_stars")
+    @patch("heisenberg.discovery.analysis.find_valid_artifacts")
+    @patch("heisenberg.discovery.analysis.get_repo_stars")
     def test_uses_provided_stars(self, mock_get_stars, mock_find_artifacts):
         """Should use stars provided as argument, not make API call."""
-        from heisenberg.playground.discover.analysis import analyze_source
+        from heisenberg.discovery.analysis import analyze_source
 
         mock_find_artifacts.return_value = (
             "123",
@@ -239,11 +239,11 @@ class TestAnalyzeCandidate:
         assert source.stars == 5000
         mock_get_stars.assert_not_called()
 
-    @patch("heisenberg.playground.discover.analysis.find_valid_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_repo_stars")
+    @patch("heisenberg.discovery.analysis.find_valid_artifacts")
+    @patch("heisenberg.discovery.analysis.get_repo_stars")
     def test_fetches_stars_when_not_provided(self, mock_get_stars, mock_find_artifacts):
         """Should fetch stars via API when not provided."""
-        from heisenberg.playground.discover.analysis import analyze_source
+        from heisenberg.discovery.analysis import analyze_source
 
         mock_find_artifacts.return_value = (
             "123",
@@ -259,11 +259,11 @@ class TestAnalyzeCandidate:
         assert source.stars == 1234
         mock_get_stars.assert_called_once_with("owner/repo")
 
-    @patch("heisenberg.playground.discover.analysis.find_valid_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_repo_stars")
+    @patch("heisenberg.discovery.analysis.find_valid_artifacts")
+    @patch("heisenberg.discovery.analysis.get_repo_stars")
     def test_sets_correct_status(self, mock_get_stars, mock_find_artifacts):
         """Should set correct status based on artifacts."""
-        from heisenberg.playground.discover.analysis import analyze_source
+        from heisenberg.discovery.analysis import analyze_source
 
         mock_find_artifacts.return_value = (
             "123",
@@ -306,7 +306,7 @@ class TestSourceStatusNoFailures:
 class TestVerifyHasFailures:
     """Tests for verify_has_failures function."""
 
-    @patch("heisenberg.playground.discover.analysis.download_and_check_failures")
+    @patch("heisenberg.discovery.analysis.download_and_check_failures")
     def test_returns_true_when_failures_found(self, mock_download):
         """Should return True when artifact contains test failures."""
         mock_download.return_value = 5
@@ -315,7 +315,7 @@ class TestVerifyHasFailures:
 
         assert result is True
 
-    @patch("heisenberg.playground.discover.analysis.download_and_check_failures")
+    @patch("heisenberg.discovery.analysis.download_and_check_failures")
     def test_returns_false_when_zero_failures(self, mock_download):
         """Should return False when artifact has zero failures."""
         mock_download.return_value = 0
@@ -324,7 +324,7 @@ class TestVerifyHasFailures:
 
         assert result is False
 
-    @patch("heisenberg.playground.discover.analysis.download_and_check_failures")
+    @patch("heisenberg.discovery.analysis.download_and_check_failures")
     def test_returns_false_on_download_error(self, mock_download):
         """Should return False if artifact can't be downloaded/parsed."""
         mock_download.return_value = None
@@ -337,8 +337,8 @@ class TestVerifyHasFailures:
 class TestDownloadAndCheckFailures:
     """Tests for download_and_check_failures function (legacy tests updated)."""
 
-    @patch("heisenberg.playground.discover.analysis.extract_failure_count_from_dir")
-    @patch("heisenberg.playground.discover.analysis.download_artifact_to_dir")
+    @patch("heisenberg.discovery.analysis.extract_failure_count_from_dir")
+    @patch("heisenberg.discovery.analysis.download_artifact_to_dir")
     def test_extracts_failure_count_from_blob_report(self, mock_download, mock_extract):
         """Should extract failure count from blob report stats."""
         mock_download.return_value = True
@@ -348,8 +348,8 @@ class TestDownloadAndCheckFailures:
 
         assert result == 3
 
-    @patch("heisenberg.playground.discover.analysis.extract_failure_count_from_dir")
-    @patch("heisenberg.playground.discover.analysis.download_artifact_to_dir")
+    @patch("heisenberg.discovery.analysis.extract_failure_count_from_dir")
+    @patch("heisenberg.discovery.analysis.download_artifact_to_dir")
     def test_extracts_failure_count_from_json_report(self, mock_download, mock_extract):
         """Should extract failure count from JSON report stats."""
         mock_download.return_value = True
@@ -359,7 +359,7 @@ class TestDownloadAndCheckFailures:
 
         assert result == 2
 
-    @patch("heisenberg.playground.discover.analysis.download_artifact_to_dir")
+    @patch("heisenberg.discovery.analysis.download_artifact_to_dir")
     def test_returns_none_on_download_failure(self, mock_download):
         """Should return None if download fails."""
         mock_download.return_value = False
@@ -406,12 +406,12 @@ class TestDetermineStatusWithFailures:
 class TestAnalyzeSourceWithVerification:
     """Tests for analyze_source with failure verification."""
 
-    @patch("heisenberg.playground.discover.analysis.verify_has_failures")
-    @patch("heisenberg.playground.discover.analysis.find_valid_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_repo_stars")
+    @patch("heisenberg.discovery.analysis.verify_has_failures")
+    @patch("heisenberg.discovery.analysis.find_valid_artifacts")
+    @patch("heisenberg.discovery.analysis.get_repo_stars")
     def test_verifies_failures_when_enabled(self, mock_stars, mock_artifacts, mock_verify):
         """Should verify failures when verify_failures=True."""
-        from heisenberg.playground.discover.analysis import analyze_source
+        from heisenberg.discovery.analysis import analyze_source
 
         mock_stars.return_value = 100
         mock_artifacts.return_value = (
@@ -428,14 +428,14 @@ class TestAnalyzeSourceWithVerification:
         mock_verify.assert_called_once()
         assert source.status == SourceStatus.COMPATIBLE
 
-    @patch("heisenberg.playground.discover.analysis.verify_has_failures")
-    @patch("heisenberg.playground.discover.analysis.find_valid_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_repo_stars")
+    @patch("heisenberg.discovery.analysis.verify_has_failures")
+    @patch("heisenberg.discovery.analysis.find_valid_artifacts")
+    @patch("heisenberg.discovery.analysis.get_repo_stars")
     def test_sets_no_failures_when_verification_fails(
         self, mock_stars, mock_artifacts, mock_verify
     ):
         """Should set NO_FAILURES when verification finds no failures."""
-        from heisenberg.playground.discover.analysis import analyze_source
+        from heisenberg.discovery.analysis import analyze_source
 
         mock_stars.return_value = 100
         mock_artifacts.return_value = (
@@ -451,12 +451,12 @@ class TestAnalyzeSourceWithVerification:
 
         assert source.status == SourceStatus.NO_FAILURES
 
-    @patch("heisenberg.playground.discover.analysis.verify_has_failures")
-    @patch("heisenberg.playground.discover.analysis.find_valid_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_repo_stars")
+    @patch("heisenberg.discovery.analysis.verify_has_failures")
+    @patch("heisenberg.discovery.analysis.find_valid_artifacts")
+    @patch("heisenberg.discovery.analysis.get_repo_stars")
     def test_skips_verification_when_disabled(self, mock_stars, mock_artifacts, mock_verify):
         """Should skip verification when verify_failures=False (default)."""
-        from heisenberg.playground.discover.analysis import analyze_source
+        from heisenberg.discovery.analysis import analyze_source
 
         mock_stars.return_value = 100
         mock_artifacts.return_value = (
@@ -476,8 +476,8 @@ class TestAnalyzeSourceWithVerification:
 class TestCheckMultipleRuns:
     """Tests for checking multiple failed runs to find one with failures."""
 
-    @patch("heisenberg.playground.discover.analysis.get_run_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_failed_runs")
+    @patch("heisenberg.discovery.analysis.get_run_artifacts")
+    @patch("heisenberg.discovery.analysis.get_failed_runs")
     def test_find_valid_artifacts_returns_run_with_playwright_artifacts(
         self, mock_get_runs, mock_get_artifacts
     ):
@@ -516,7 +516,7 @@ class TestDirectFileReading:
     @patch("subprocess.run")
     def test_download_artifact_to_dir_extracts_to_path(self, mock_run, _mock_sleep):
         """download_artifact_to_dir should extract artifact directly to given path."""
-        from heisenberg.playground.discover.client import download_artifact_to_dir
+        from heisenberg.discovery.client import download_artifact_to_dir
 
         mock_run.return_value = MagicMock(returncode=0)
 
@@ -533,7 +533,7 @@ class TestDirectFileReading:
         """download_artifact_to_dir should return False if gh command fails."""
         from subprocess import CalledProcessError
 
-        from heisenberg.playground.discover.client import download_artifact_to_dir
+        from heisenberg.discovery.client import download_artifact_to_dir
 
         mock_run.side_effect = CalledProcessError(1, "gh")
 
@@ -547,7 +547,7 @@ class TestExtractFailureCountFromDir:
 
     def test_extract_failure_count_from_dir_finds_json_stats(self, tmp_path):
         """Should find and parse JSON files with stats in extracted directory."""
-        from heisenberg.playground.discover.analysis import extract_failure_count_from_dir
+        from heisenberg.discovery.analysis import extract_failure_count_from_dir
 
         report_file = tmp_path / "report.json"
         report_file.write_text(json.dumps({"stats": {"failed": 7, "passed": 100}}))
@@ -561,7 +561,7 @@ class TestExtractFailureCountFromDir:
         import io
         import zipfile
 
-        from heisenberg.playground.discover.analysis import extract_failure_count_from_dir
+        from heisenberg.discovery.analysis import extract_failure_count_from_dir
 
         inner_zip = io.BytesIO()
         with zipfile.ZipFile(inner_zip, "w") as zf:
@@ -575,7 +575,7 @@ class TestExtractFailureCountFromDir:
 
     def test_extract_failure_count_from_dir_returns_none_if_no_stats(self, tmp_path):
         """Should return None if no stats found in any file."""
-        from heisenberg.playground.discover.analysis import extract_failure_count_from_dir
+        from heisenberg.discovery.analysis import extract_failure_count_from_dir
 
         (tmp_path / "readme.txt").write_text("No stats here")
 
@@ -587,8 +587,8 @@ class TestExtractFailureCountFromDir:
 class TestOptimizedDownloadAndCheck:
     """Tests for optimized download_and_check_failures (no re-zipping)."""
 
-    @patch("heisenberg.playground.discover.analysis.extract_failure_count_from_dir")
-    @patch("heisenberg.playground.discover.analysis.download_artifact_to_dir")
+    @patch("heisenberg.discovery.analysis.extract_failure_count_from_dir")
+    @patch("heisenberg.discovery.analysis.download_artifact_to_dir")
     def test_uses_direct_file_reading(self, mock_download, mock_extract):
         """Should use direct file reading, not re-zipping."""
         mock_download.return_value = True
@@ -600,7 +600,7 @@ class TestOptimizedDownloadAndCheck:
         mock_download.assert_called_once()
         mock_extract.assert_called_once()
 
-    @patch("heisenberg.playground.discover.analysis.download_artifact_to_dir")
+    @patch("heisenberg.discovery.analysis.download_artifact_to_dir")
     def test_returns_none_on_download_failure(self, mock_download):
         """Should return None if download fails."""
         mock_download.return_value = False
@@ -613,8 +613,8 @@ class TestOptimizedDownloadAndCheck:
 class TestFindValidArtifactsReturnsRunCreatedAt:
     """Tests for find_valid_artifacts returning run_created_at for cache."""
 
-    @patch("heisenberg.playground.discover.analysis.get_run_artifacts")
-    @patch("heisenberg.playground.discover.analysis.get_failed_runs")
+    @patch("heisenberg.discovery.analysis.get_run_artifacts")
+    @patch("heisenberg.discovery.analysis.get_failed_runs")
     def test_find_valid_artifacts_returns_run_created_at(self, mock_get_runs, mock_get_artifacts):
         """find_valid_artifacts should return run's created_at timestamp."""
         mock_get_runs.return_value = [
@@ -637,15 +637,15 @@ class TestAnalyzeWithStatusUpdates:
 
     def test_analyze_source_with_status_exists(self):
         """analyze_source_with_status function should exist."""
-        from heisenberg.playground.discover.analysis import analyze_source_with_status
+        from heisenberg.discovery.analysis import analyze_source_with_status
 
         assert callable(analyze_source_with_status)
 
-    @patch("heisenberg.playground.discover.analysis.get_repo_stars")
-    @patch("heisenberg.playground.discover.analysis.find_valid_artifacts")
+    @patch("heisenberg.discovery.analysis.get_repo_stars")
+    @patch("heisenberg.discovery.analysis.find_valid_artifacts")
     def test_calls_status_callback_with_stages(self, mock_artifacts, mock_stars):
         """Should call status_callback with different stages."""
-        from heisenberg.playground.discover.analysis import analyze_source_with_status
+        from heisenberg.discovery.analysis import analyze_source_with_status
 
         mock_stars.return_value = 1000
         mock_artifacts.return_value = (
@@ -670,12 +670,12 @@ class TestAnalyzeWithStatusUpdates:
         assert len(stages_seen) >= 1
         assert any("runs" in s.lower() or "info" in s.lower() for s in stages_seen)
 
-    @patch("heisenberg.playground.discover.analysis.verify_has_failures")
-    @patch("heisenberg.playground.discover.analysis.get_repo_stars")
-    @patch("heisenberg.playground.discover.analysis.find_valid_artifacts")
+    @patch("heisenberg.discovery.analysis.verify_has_failures")
+    @patch("heisenberg.discovery.analysis.get_repo_stars")
+    @patch("heisenberg.discovery.analysis.find_valid_artifacts")
     def test_shows_downloading_stage_when_verifying(self, mock_artifacts, mock_stars, mock_verify):
         """Should show 'Downloading...' stage when verify_failures=True."""
-        from heisenberg.playground.discover.analysis import analyze_source_with_status
+        from heisenberg.discovery.analysis import analyze_source_with_status
 
         mock_stars.return_value = 1000
         mock_artifacts.return_value = (

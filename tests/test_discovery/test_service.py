@@ -5,8 +5,8 @@ from __future__ import annotations
 import threading
 from unittest.mock import patch
 
-from heisenberg.playground.discover.cache import QuarantineCache
-from heisenberg.playground.discover.models import (
+from heisenberg.discovery.cache import QuarantineCache
+from heisenberg.discovery.models import (
     DEFAULT_QUERIES,
     ProgressInfo,
     ProjectSource,
@@ -22,8 +22,8 @@ class TestDiscoverSources:
     """Tests for discover_sources function."""
 
     @patch("time.sleep")
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
     def test_uses_default_queries(self, mock_search, mock_analyze, _mock_sleep):
         """Should use DEFAULT_QUERIES when queries not provided."""
         mock_search.return_value = []
@@ -33,7 +33,7 @@ class TestDiscoverSources:
             status=SourceStatus.COMPATIBLE,
         )
 
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         discover_sources(global_limit=10)
 
@@ -43,11 +43,11 @@ class TestDiscoverSources:
 class TestParallelProcessing:
     """Tests for parallel source analysis."""
 
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
     def test_discover_sources_uses_parallel_processing(self, mock_search, mock_analyze):
         """discover_sources should process repos in parallel when verify=True."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         mock_search.return_value = ["repo1", "repo2", "repo3"]
         mock_analyze.return_value = ProjectSource(
@@ -60,11 +60,11 @@ class TestParallelProcessing:
 
         assert mock_analyze.call_count >= 3
 
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
     def test_parallel_processing_handles_exceptions(self, mock_search, mock_analyze):
         """Parallel processing should handle individual repo failures gracefully."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         mock_search.return_value = ["repo1", "repo2"]
 
@@ -88,11 +88,11 @@ class TestProgressCallback:
     """Tests for progress feedback during discovery."""
 
     @patch("time.sleep")
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
     def test_discover_accepts_progress_callback(self, mock_search, mock_analyze, _mock_sleep):
         """discover_sources should accept optional progress callback."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         mock_search.return_value = ["repo1", "repo2"]
         mock_analyze.return_value = ProjectSource(
@@ -120,13 +120,11 @@ class TestThreadSafeProgress:
     @patch("time.sleep")
     def test_discover_sources_returns_progress_info(self, _mock_sleep):
         """Progress callback should receive ProgressInfo objects."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         with (
-            patch("heisenberg.playground.discover.service.search_repos") as mock_search,
-            patch(
-                "heisenberg.playground.discover.service.analyze_source_with_status"
-            ) as mock_analyze,
+            patch("heisenberg.discovery.service.search_repos") as mock_search,
+            patch("heisenberg.discovery.service.analyze_source_with_status") as mock_analyze,
         ):
             mock_search.return_value = ["repo1"]
             mock_analyze.return_value = ProjectSource(
@@ -148,13 +146,11 @@ class TestThreadSafeProgress:
     @patch("time.sleep")
     def test_progress_completed_is_sequential(self, _mock_sleep):
         """Progress.completed should increment sequentially regardless of finish order."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         with (
-            patch("heisenberg.playground.discover.service.search_repos") as mock_search,
-            patch(
-                "heisenberg.playground.discover.service.analyze_source_with_status"
-            ) as mock_analyze,
+            patch("heisenberg.discovery.service.search_repos") as mock_search,
+            patch("heisenberg.discovery.service.analyze_source_with_status") as mock_analyze,
         ):
             mock_search.return_value = ["repo1", "repo2", "repo3"]
             mock_analyze.return_value = ProjectSource(
@@ -179,14 +175,12 @@ class TestThreadSafeProgress:
         This tests that the callback is inside the lock to prevent race conditions.
         We run the test multiple times to increase chance of catching race conditions.
         """
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         for attempt in range(5):
             with (
-                patch("heisenberg.playground.discover.service.search_repos") as mock_search,
-                patch(
-                    "heisenberg.playground.discover.service.analyze_source_with_status"
-                ) as mock_analyze,
+                patch("heisenberg.discovery.service.search_repos") as mock_search,
+                patch("heisenberg.discovery.service.analyze_source_with_status") as mock_analyze,
             ):
                 mock_search.return_value = ["repo1", "repo2", "repo3", "repo4"]
 
@@ -221,11 +215,11 @@ class TestDiscoverWithRichProgress:
     """Tests for discover_sources with Rich progress display."""
 
     @patch("time.sleep")
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
     def test_discover_shows_active_tasks(self, mock_search, mock_analyze, _mock_sleep):
         """discover_sources should show tasks while they're running."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         mock_search.return_value = ["repo1", "repo2"]
         mock_analyze.return_value = ProjectSource(
@@ -242,11 +236,11 @@ class TestDiscoverWithRichProgress:
         assert len(result) >= 1
 
     @patch("time.sleep")
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
     def test_discover_works_without_progress(self, mock_search, mock_analyze, _mock_sleep):
         """discover_sources should work with show_progress=False."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         mock_search.return_value = ["repo1"]
         mock_analyze.return_value = ProjectSource(
@@ -266,11 +260,11 @@ class TestDiscoverWithRichProgress:
 class TestNoCacheFlag:
     """Tests for --no-cache CLI flag."""
 
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
     def test_discover_accepts_no_cache_flag(self, mock_search, mock_analyze):
         """discover_sources should accept cache_path=None to disable cache."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         mock_search.return_value = ["repo1"]
         mock_analyze.return_value = ProjectSource(
@@ -289,7 +283,7 @@ class TestNoCacheFlag:
 
     def test_cli_has_no_cache_argument(self):
         """CLI parser should have --no-cache argument."""
-        from heisenberg.playground.discover.cli import create_argument_parser
+        from heisenberg.discovery.cli import create_argument_parser
 
         parser = create_argument_parser()
         args = parser.parse_args(["--no-cache"])
@@ -298,7 +292,7 @@ class TestNoCacheFlag:
 
     def test_cli_no_cache_disables_caching(self):
         """--no-cache should set cache_path to None."""
-        from heisenberg.playground.discover.cli import create_argument_parser
+        from heisenberg.discovery.cli import create_argument_parser
 
         parser = create_argument_parser()
 
@@ -317,11 +311,11 @@ class TestNoCacheFlag:
 class TestQuarantineIntegration:
     """Tests for quarantine cache integration with discover_sources."""
 
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
     def test_quarantine_skips_non_compatible_repos(self, mock_search, mock_analyze, tmp_path):
         """Quarantined repos should be skipped during analysis."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         quarantine_file = tmp_path / "quarantine.json"
         quarantine = QuarantineCache(cache_path=quarantine_file)
@@ -343,11 +337,11 @@ class TestQuarantineIntegration:
         assert "bad/repo" not in analyzed_repos
         assert "good/repo" in analyzed_repos
 
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
     def test_quarantine_updates_after_analysis(self, mock_search, mock_analyze, tmp_path):
         """Non-compatible repos should be quarantined after analysis."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         quarantine_file = tmp_path / "quarantine.json"
 
@@ -367,11 +361,11 @@ class TestQuarantineIntegration:
         quarantine = QuarantineCache(cache_path=quarantine_file)
         assert quarantine.is_quarantined("no-artifacts/repo") is True
 
-    @patch("heisenberg.playground.discover.service.analyze_source_with_status")
-    @patch("heisenberg.playground.discover.service.search_repos")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
     def test_quarantine_disabled_when_path_is_none(self, mock_search, mock_analyze):
         """quarantine_path=None should disable quarantine entirely."""
-        from heisenberg.playground.discover.service import discover_sources
+        from heisenberg.discovery.service import discover_sources
 
         mock_search.return_value = ["repo1"]
         mock_analyze.return_value = ProjectSource(
@@ -393,7 +387,7 @@ class TestFreshFlag:
 
     def test_cli_has_fresh_argument(self):
         """CLI parser should have --fresh argument."""
-        from heisenberg.playground.discover.cli import create_argument_parser
+        from heisenberg.discovery.cli import create_argument_parser
 
         parser = create_argument_parser()
         args = parser.parse_args(["--fresh"])
@@ -402,7 +396,7 @@ class TestFreshFlag:
 
     def test_fresh_disables_quarantine(self):
         """--fresh should set quarantine to disabled."""
-        from heisenberg.playground.discover.cli import create_argument_parser
+        from heisenberg.discovery.cli import create_argument_parser
 
         parser = create_argument_parser()
 
@@ -414,7 +408,7 @@ class TestFreshFlag:
 
     def test_no_cache_disables_quarantine(self):
         """--no-cache should also disable quarantine."""
-        from heisenberg.playground.discover.cli import create_argument_parser
+        from heisenberg.discovery.cli import create_argument_parser
 
         parser = create_argument_parser()
         args = parser.parse_args(["--no-cache"])
