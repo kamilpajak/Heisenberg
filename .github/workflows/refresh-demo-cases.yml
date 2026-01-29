@@ -40,8 +40,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Install Heisenberg
-        run: pip install -e ".[backend]"
+        run: uv sync --extra backend
 
       - name: Create cases directory if missing
         run: mkdir -p ${{ env.CASES_DIR }}
@@ -51,7 +54,7 @@ jobs:
         run: |
           # Run validation (may return exit code 1 if invalid cases exist)
           set +e
-          OUTPUT=$(heisenberg validate-cases ${{ env.CASES_DIR }} --json 2>/dev/null)
+          OUTPUT=$(uv run heisenberg validate-cases ${{ env.CASES_DIR }} --json 2>/dev/null)
           EXIT_CODE=$?
           set -e
 
@@ -101,15 +104,19 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Install dependencies
-        run: pip install -e .
+        run: uv sync
 
       - name: Discover source projects
         id: discover
         env:
+          # GH_PAT required to access other repos' artifacts (GITHUB_TOKEN is scoped to this repo only)
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          python -m heisenberg.discovery --limit 20 --output /tmp/sources.json
+          uv run python -m heisenberg.discovery --limit 20 --output /tmp/sources.json
 
           # Count compatible sources
           COUNT=$(jq '[.[] | select(.compatible == true)] | length' /tmp/sources.json)
@@ -139,8 +146,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Install Heisenberg
-        run: pip install -e ".[backend]"
+        run: uv sync --extra backend
 
       - name: Download sources
         uses: actions/download-artifact@v4
@@ -155,8 +165,9 @@ jobs:
         id: freeze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAX_NEW_CASES: ${{ inputs.max_new_cases || '3' }}
         run: |
-          MAX_NEW=${{ inputs.max_new_cases || '3' }}
+          MAX_NEW=$MAX_NEW_CASES
           FROZEN=0
 
           # Get compatible sources sorted by stars
@@ -176,7 +187,7 @@ jobs:
             fi
 
             echo "Freezing case for $REPO..."
-            if heisenberg freeze -r "$REPO" --output ${{ env.CASES_DIR }} 2>/dev/null; then
+            if uv run heisenberg freeze -r "$REPO" --output ${{ env.CASES_DIR }} 2>/dev/null; then
               FROZEN=$((FROZEN + 1))
               echo "Successfully frozen $REPO"
             else
@@ -202,7 +213,7 @@ jobs:
               CASE_ID=$(basename "$CASE_DIR")
               echo "Analyzing $CASE_ID..."
 
-              if heisenberg analyze-case "$CASE_DIR" -p google; then
+              if uv run heisenberg analyze-case "$CASE_DIR" -p google; then
                 ANALYZED=$((ANALYZED + 1))
                 echo "Successfully analyzed $CASE_ID"
               else
@@ -221,7 +232,7 @@ jobs:
 
       - name: Generate manifest
         run: |
-          heisenberg generate-manifest ${{ env.CASES_DIR }} -o ${{ env.CASES_DIR }}/manifest.json
+          uv run heisenberg generate-manifest ${{ env.CASES_DIR }} -o ${{ env.CASES_DIR }}/manifest.json
 
           # Show manifest stats
           echo "### Manifest Generated" >> $GITHUB_STEP_SUMMARY
@@ -281,7 +292,7 @@ jobs:
   cleanup-stale:
     name: Cleanup Stale Cases
     runs-on: ubuntu-latest
-    needs: validate
+    needs: [validate, commit]
     if: needs.validate.outputs.stale_count > 0
     steps:
       - name: Checkout repository
@@ -292,13 +303,16 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Install Heisenberg
-        run: pip install -e ".[backend]"
+        run: uv sync --extra backend
 
       - name: Remove stale cases
         run: |
           # Get list of stale cases
-          STALE=$(heisenberg validate-cases ${{ env.CASES_DIR }} --json | \
+          STALE=$(uv run heisenberg validate-cases ${{ env.CASES_DIR }} --json | \
                   jq -r '.results[] | select(.status == "stale") | .case_id')
 
           for CASE_ID in $STALE; do

@@ -1,5 +1,8 @@
 name: Mutation Testing
 
+permissions:
+  contents: read
+
 on:
   schedule:
     # Run every night at 2 AM UTC
@@ -35,12 +38,13 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Run Mutation Testing
+        env:
+          MUTATE_PATH: ${{ github.event.inputs.paths_to_mutate }}
         run: |
           echo "Starting mutation testing..."
 
           # mutmut 2.x: uses --paths-to-mutate flag, config from setup.cfg
-          if [ -n "${{ github.event.inputs.paths_to_mutate }}" ]; then
-            MUTATE_PATH="${{ github.event.inputs.paths_to_mutate }}"
+          if [ -n "$MUTATE_PATH" ]; then
             echo "Mutating specific path: $MUTATE_PATH"
             uv run mutmut run --paths-to-mutate "$MUTATE_PATH" || true
           else

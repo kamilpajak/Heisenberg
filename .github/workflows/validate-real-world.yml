@@ -1,5 +1,8 @@
 name: Real-World Validation
 
+permissions:
+  contents: read
+
 on:
   schedule:
     # Run every Monday at 6:00 UTC
@@ -30,14 +33,10 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install -e ".[dev]"
+        run: uv sync --all-extras --dev
 
       - name: Run fixture validation tests
-        run: |
-          source .venv/bin/activate
-          pytest tests/test_real_world_fixtures.py -v --tb=short
+        run: uv run pytest tests/test_real_world_fixtures.py -v --tb=short
 
       - name: Write summary
         run: |
@@ -63,9 +62,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install -e ".[dev]"
+        run: uv sync --all-extras --dev
 
       - name: Fetch and validate Cal.com
         id: calcom
@@ -73,12 +70,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          source .venv/bin/activate
           echo "Fetching latest Playwright report from Cal.com..."
-          heisenberg fetch-github --repo calcom/cal.com --output calcom-report.json || echo "No report available"
+          uv run heisenberg fetch-github --repo calcom/cal.com --output calcom-report.json || echo "No report available"
           if [ -f calcom-report.json ]; then
             echo "calcom_found=true" >> $GITHUB_OUTPUT
-            heisenberg analyze --report calcom-report.json --output-format json > calcom-analysis.json || true
+            uv run heisenberg analyze --report calcom-report.json --output-format json > calcom-analysis.json || true
           else
             echo "calcom_found=false" >> $GITHUB_OUTPUT
           fi
@@ -89,12 +85,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          source .venv/bin/activate
           echo "Fetching latest Playwright report from Grafana..."
-          heisenberg fetch-github --repo grafana/grafana --output grafana-report.json || echo "No report available"
+          uv run heisenberg fetch-github --repo grafana/grafana --output grafana-report.json || echo "No report available"
           if [ -f grafana-report.json ]; then
             echo "grafana_found=true" >> $GITHUB_OUTPUT
-            heisenberg analyze --report grafana-report.json --output-format json > grafana-analysis.json || true
+            uv run heisenberg analyze --report grafana-report.json --output-format json > grafana-analysis.json || true
           else
             echo "grafana_found=false" >> $GITHUB_OUTPUT
           fi
@@ -157,17 +152,13 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install -e ".[dev]"
+        run: uv sync --all-extras --dev
 
       - name: Run AI analysis on fixtures
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          source .venv/bin/activate
-
           echo "## AI Analysis Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -176,7 +167,7 @@ jobs:
             echo "### $(basename $fixture)" >> $GITHUB_STEP_SUMMARY
 
             if [ -n "$ANTHROPIC_API_KEY" ]; then
-              heisenberg analyze --report "$fixture" --ai-analysis --output-format json > /tmp/analysis.json 2>&1 || true
+              uv run heisenberg analyze --report "$fixture" --ai-analysis --output-format json > /tmp/analysis.json 2>&1 || true
               if [ -f /tmp/analysis.json ]; then
                 echo '```json' >> $GITHUB_STEP_SUMMARY
                 cat /tmp/analysis.json >> $GITHUB_STEP_SUMMARY
