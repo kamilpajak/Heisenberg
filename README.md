@@ -63,16 +63,16 @@ jobs:
           playwright-report: test-results.json
           docker-services: api,database,redis
           ai-analysis: true
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          google-api-key: ${{ secrets.GOOGLE_API_KEY }}
 ```
 
 ### 2. Set Up Secrets
 
-Add your Anthropic API key to repository secrets:
+Add your Google API key to repository secrets:
 - Go to Settings > Secrets and variables > Actions
 - Click "New repository secret"
-- Name: `ANTHROPIC_API_KEY`
-- Value: Your Claude API key
+- Name: `GOOGLE_API_KEY`
+- Value: Your Google AI API key
 
 ### 3. Run Your Tests
 
@@ -120,7 +120,7 @@ This will parse failures and post a structured report without AI analysis.
   with:
     playwright-report: test-results.json
     ai-analysis: true
-    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    google-api-key: ${{ secrets.GOOGLE_API_KEY }}
 ```
 
 ### With Docker Log Collection
@@ -132,7 +132,7 @@ This will parse failures and post a structured report without AI analysis.
     docker-services: api,database,redis
     log-window-seconds: 60
     ai-analysis: true
-    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    google-api-key: ${{ secrets.GOOGLE_API_KEY }}
 ```
 
 ### CLI Usage
@@ -201,7 +201,7 @@ heisenberg fetch-github --repo microsoft/playwright --merge-blobs --artifact-nam
 | `docker-services` | Comma-separated Docker service names | No | `""` |
 | `log-window-seconds` | Time window for log collection | No | `30` |
 | `ai-analysis` | Enable AI-powered analysis | No | `false` |
-| `ai-provider` | LLM provider: `anthropic`, `openai`, `google` | No | `anthropic` |
+| `ai-provider` | LLM provider: `anthropic`, `openai`, `google` | No | `google` |
 | `anthropic-api-key` | Anthropic API key (for Claude) | No | `""` |
 | `openai-api-key` | OpenAI API key (for GPT-4) | No | `""` |
 | `google-api-key` | Google API key (for Gemini) | No | `""` |
@@ -292,9 +292,9 @@ Your data is subject to your LLM provider's policies:
 
 | Provider | Data Retention | Training Opt-Out |
 |----------|---------------|------------------|
+| **Google (Gemini)** | [Paid API data not used for training](https://ai.google.dev/terms) | Default |
 | **Anthropic (Claude)** | [API data not used for training](https://www.anthropic.com/policies/privacy-policy) | Default |
 | **OpenAI** | [API data not used for training](https://openai.com/policies/api-data-usage-policies) | Default |
-| **Google (Gemini)** | [Paid API data not used for training](https://ai.google.dev/terms) | Default for paid |
 
 ### Security Best Practices
 
@@ -343,7 +343,7 @@ Based on measured "Large" scenario (~4,400 input + ~1,300 output tokens = 10 fai
 | **Google** | Gemini 3 Pro Preview** | $2.00 | $12.00 | ~$0.025 | ~$2.50 |
 
 *\*Default model for `--provider anthropic`*
-*\*\*Default model for `--provider google`*
+*\*\*Default model for `--provider google` (default provider)*
 
 ### Cost Optimization Tips
 

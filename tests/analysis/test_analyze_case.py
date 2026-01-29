@@ -128,11 +128,11 @@ class TestAnalyzeConfig:
         assert config.case_dir == Path("/tmp/scenario")
 
     def test_config_has_default_provider(self):
-        """AnalyzeConfig should default to anthropic provider."""
+        """AnalyzeConfig should default to google provider."""
         from heisenberg.playground.analyze import AnalyzeConfig
 
         config = AnalyzeConfig(case_dir=Path("/tmp/scenario"))
-        assert config.provider == "anthropic"
+        assert config.provider == "google"
 
     def test_config_accepts_custom_provider(self):
         """AnalyzeConfig should accept custom provider."""

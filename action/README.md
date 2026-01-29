@@ -5,7 +5,7 @@ AI-powered root cause analysis for Playwright test failures.
 ## Features
 
 - Analyzes Playwright JSON reports to identify failed tests
-- Uses AI (Claude, OpenAI, or Gemini) to diagnose root causes
+- Uses AI (Anthropic, OpenAI, or Google) to diagnose root causes
 - Detects flaky test patterns
 - Provides confidence-scored diagnoses
 - Posts analysis as PR comments
@@ -22,8 +22,7 @@ AI-powered root cause analysis for Playwright test failures.
   uses: kamilpajak/heisenberg/action@v1
   with:
     report-path: results.json
-    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-    provider: claude
+    api-key: ${{ secrets.GOOGLE_API_KEY }}
 ```
 
 ## Inputs
@@ -32,7 +31,7 @@ AI-powered root cause analysis for Playwright test failures.
 |-------|----------|---------|-------------|
 | `report-path` | Yes | - | Path to Playwright JSON report file |
 | `api-key` | Yes | - | API key for LLM provider |
-| `provider` | No | `claude` | LLM provider (`claude`, `openai`, or `gemini`) |
+| `provider` | No | `google` | LLM provider (`anthropic`, `openai`, or `google`) |
 | `model` | No | - | Specific model to use |
 | `fail-on-flaky` | No | `false` | Fail workflow if flaky tests detected |
 | `container-logs` | No | - | Path to container logs for context |
@@ -70,7 +69,7 @@ jobs:
         uses: kamilpajak/heisenberg/action@v1
         with:
           report-path: test-results.json
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          api-key: ${{ secrets.GOOGLE_API_KEY }}
 ```
 
 ### With OpenAI
@@ -85,16 +84,16 @@ jobs:
     model: gpt-4o
 ```
 
-### With Gemini
+### With Anthropic
 
 ```yaml
 - name: Analyze Failures
   uses: kamilpajak/heisenberg/action@v1
   with:
     report-path: test-results.json
-    api-key: ${{ secrets.GOOGLE_API_KEY }}
-    provider: gemini
-    model: gemini-3-pro-preview
+    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    provider: anthropic
+    model: claude-sonnet-4-20250514
 ```
 
 ### Post PR Comment
@@ -104,7 +103,7 @@ jobs:
   uses: kamilpajak/heisenberg/action@v1
   with:
     report-path: test-results.json
-    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    api-key: ${{ secrets.GOOGLE_API_KEY }}
     post-comment: true
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -116,7 +115,7 @@ jobs:
   uses: kamilpajak/heisenberg/action@v1
   with:
     report-path: test-results.json
-    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    api-key: ${{ secrets.GOOGLE_API_KEY }}
     fail-on-flaky: true
 ```
 
@@ -131,7 +130,7 @@ jobs:
   uses: kamilpajak/heisenberg/action@v1
   with:
     report-path: test-results.json
-    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    api-key: ${{ secrets.GOOGLE_API_KEY }}
     container-logs: docker-logs.txt
 ```
 
@@ -143,7 +142,7 @@ jobs:
   uses: kamilpajak/heisenberg/action@v1
   with:
     report-path: test-results.json
-    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    api-key: ${{ secrets.GOOGLE_API_KEY }}
 
 - name: Check Results
   run: |
@@ -187,8 +186,7 @@ jobs:
         uses: kamilpajak/heisenberg/action@v1
         with:
           report-path: test-results.json
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          provider: claude
+          api-key: ${{ secrets.GOOGLE_API_KEY }}
           post-comment: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           fail-on-flaky: true

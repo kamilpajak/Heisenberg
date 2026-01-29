@@ -21,7 +21,7 @@ class AnalyzeConfig:
     """Configuration for analyzing a frozen case."""
 
     case_dir: Path
-    provider: str = "anthropic"
+    provider: str = "google"
     model: str | None = None
     api_key: str | None = None
 
