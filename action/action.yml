@@ -14,9 +14,9 @@ inputs:
     description: "API key for LLM provider (Anthropic, OpenAI, or Google)"
     required: true
   provider:
-    description: "LLM provider to use (claude, openai, or gemini)"
+    description: "LLM provider to use (anthropic, openai, or google)"
     required: false
-    default: "gemini"
+    default: "google"
   fail-on-flaky:
     description: "Fail the workflow if flaky tests are detected"
     required: false
@@ -69,9 +69,9 @@ runs:
       id: analyze
       shell: bash
       env:
-        ANTHROPIC_API_KEY: ${{ inputs.provider == 'claude' && inputs.api-key || '' }}
+        ANTHROPIC_API_KEY: ${{ inputs.provider == 'anthropic' && inputs.api-key || '' }}
         OPENAI_API_KEY: ${{ inputs.provider == 'openai' && inputs.api-key || '' }}
-        GOOGLE_API_KEY: ${{ inputs.provider == 'gemini' && inputs.api-key || '' }}
+        GOOGLE_API_KEY: ${{ inputs.provider == 'google' && inputs.api-key || '' }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         # Build arguments

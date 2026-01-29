@@ -5,7 +5,7 @@ AI-powered root cause analysis for Playwright test failures.
 ## Features
 
 - Analyzes Playwright JSON reports to identify failed tests
-- Uses AI (Claude, OpenAI, or Gemini) to diagnose root causes
+- Uses AI (Anthropic, OpenAI, or Google) to diagnose root causes
 - Detects flaky test patterns
 - Provides confidence-scored diagnoses
 - Posts analysis as PR comments
@@ -31,7 +31,7 @@ AI-powered root cause analysis for Playwright test failures.
 |-------|----------|---------|-------------|
 | `report-path` | Yes | - | Path to Playwright JSON report file |
 | `api-key` | Yes | - | API key for LLM provider |
-| `provider` | No | `gemini` | LLM provider (`claude`, `openai`, or `gemini`) |
+| `provider` | No | `google` | LLM provider (`anthropic`, `openai`, or `google`) |
 | `model` | No | - | Specific model to use |
 | `fail-on-flaky` | No | `false` | Fail workflow if flaky tests detected |
 | `container-logs` | No | - | Path to container logs for context |
@@ -72,7 +72,7 @@ jobs:
           api-key: ${{ secrets.GOOGLE_API_KEY }}
 ```
 
-### With Claude
+### With OpenAI
 
 ```yaml
 - name: Analyze Failures
@@ -84,7 +84,7 @@ jobs:
     model: gpt-4o
 ```
 
-### With Claude
+### With Anthropic
 
 ```yaml
 - name: Analyze Failures
@@ -92,7 +92,7 @@ jobs:
   with:
     report-path: test-results.json
     api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-    provider: claude
+    provider: anthropic
     model: claude-sonnet-4-20250514
 ```
 
