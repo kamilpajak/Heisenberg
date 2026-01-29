@@ -134,7 +134,7 @@ HIGH (85%) - Clear correlation.""",
 
     @pytest.mark.asyncio
     async def test_analyze_service_handles_multiple_failures(self):
-        """AnalyzeService should handle multiple failed tests."""
+        """AnalyzeService should analyze all failures in single LLM call."""
         from heisenberg.backend.schemas import AnalyzeRequest, FailedTest, TestError
         from heisenberg.backend.services.analyze import AnalyzeService
 
@@ -167,7 +167,11 @@ MEDIUM (60%)""",
 
         result = await service.analyze(request)
 
-        assert len(result.diagnoses) == 2
+        # Single diagnosis covers all failures (better context, lower cost)
+        assert len(result.diagnoses) == 1
+        assert result.diagnoses[0].test_name == "2 failed tests"
+        # Verify single LLM call (not N calls)
+        assert mock_llm.analyze.call_count == 1
 
 
 class TestAnalyzeRouter:
