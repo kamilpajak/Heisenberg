@@ -10,6 +10,7 @@ from heisenberg.playground.discover.client import (
     _gh_subprocess,
     _is_rate_limit_error,
     get_failed_runs,
+    get_repo_stars,
     get_run_artifacts,
     search_repos,
 )
@@ -114,6 +115,69 @@ class TestSearchRepos:
         results = search_repos("query", limit=10)
 
         assert len(results) == 1
+
+
+class TestGetRepoStars:
+    """Tests for get_repo_stars function."""
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_star_count_on_success(self, mock_run, _mock_sleep):
+        """Should return star count from API response."""
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps({"stargazers_count": 42}),
+            returncode=0,
+        )
+
+        result = get_repo_stars("owner/repo")
+
+        assert result == 42
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_zero_for_zero_star_repo(self, mock_run, _mock_sleep):
+        """Should return 0 for repos with no stars."""
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps({"stargazers_count": 0}),
+            returncode=0,
+        )
+
+        result = get_repo_stars("owner/repo")
+
+        assert result == 0
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_none_on_api_error(self, mock_run, _mock_sleep):
+        """Should return None when gh CLI fails."""
+        mock_run.side_effect = subprocess.CalledProcessError(1, "gh", stderr="Not Found")
+
+        result = get_repo_stars("owner/repo")
+
+        assert result is None
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_none_on_timeout(self, mock_run, _mock_sleep):
+        """Should return None when request times out."""
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
+
+        result = get_repo_stars("owner/repo")
+
+        assert result is None
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_none_on_invalid_json(self, mock_run, _mock_sleep):
+        """Should return None when response is not valid JSON."""
+        mock_run.return_value = MagicMock(
+            stdout="not valid json",
+            returncode=0,
+        )
+
+        result = get_repo_stars("owner/repo")
+
+        assert result is None
 
 
 # =============================================================================

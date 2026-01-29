@@ -74,8 +74,8 @@ app = FastAPI(
 )
 
 # Add middleware (order matters - first added is outermost)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
-app.add_middleware(RequestIDMiddleware)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60)  # type: ignore[arg-type]
+app.add_middleware(RequestIDMiddleware)  # type: ignore[arg-type]
 
 # Include routers
 app.include_router(analyze.router, prefix=API_PREFIX)

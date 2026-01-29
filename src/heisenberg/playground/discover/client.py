@@ -62,7 +62,7 @@ def _gh_subprocess(
     last_error = None
     for attempt in range(GH_MAX_RETRIES + 1):
         with _gh_semaphore:
-            time.sleep(random.uniform(0.05, 0.5))
+            time.sleep(random.uniform(0.05, 0.5))  # noqa: S311 - backoff jitter
             try:
                 return subprocess.run(
                     cmd,
@@ -78,7 +78,7 @@ def _gh_subprocess(
             # Note: TimeoutExpired is not caught - it propagates immediately (not retried)
 
         # Semaphore released — exponential backoff before retry
-        delay = GH_RETRY_BASE_DELAY * (2**attempt) + random.uniform(0, 1)
+        delay = GH_RETRY_BASE_DELAY * (2**attempt) + random.uniform(0, 1)  # noqa: S311
         time.sleep(delay)
 
     raise last_error  # type: ignore[misc]
@@ -129,10 +129,17 @@ def search_repos(query: str, limit: int = 30) -> list[str]:
     return list(seen)
 
 
-def get_repo_stars(repo: str) -> int:
-    """Get star count for a repository."""
+def get_repo_stars(repo: str) -> int | None:
+    """Get star count for a repository.
+
+    Returns:
+        int: Star count (0 or higher) on success
+        None: If API call failed (timeout, rate limit, 404, etc.)
+    """
     data = gh_api(f"/repos/{repo}")
-    return data.get("stargazers_count", 0) if data else 0
+    if isinstance(data, dict):
+        return data.get("stargazers_count", 0)
+    return None
 
 
 def get_failed_runs(repo: str, limit: int = MAX_RUNS_TO_CHECK) -> list[dict]:
@@ -150,9 +157,9 @@ def get_failed_runs(repo: str, limit: int = MAX_RUNS_TO_CHECK) -> list[dict]:
 def get_run_artifacts(repo: str, run_id: str) -> list[dict]:
     """Get artifacts for a specific workflow run."""
     data = gh_api(f"/repos/{repo}/actions/runs/{run_id}/artifacts")
-    if not data or not data.get("artifacts"):
+    if not isinstance(data, dict):
         return []
-    return data["artifacts"]
+    return data.get("artifacts", [])
 
 
 def download_artifact_to_dir(repo: str, artifact_name: str, target_dir: str) -> bool:

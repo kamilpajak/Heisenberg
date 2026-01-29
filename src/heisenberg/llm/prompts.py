@@ -8,7 +8,7 @@ from heisenberg.integrations.docker import ContainerLogs
 from heisenberg.utils.compression import compress_logs_for_llm
 
 if TYPE_CHECKING:
-    from heisenberg.core.models import TestFailure, UnifiedTestRun
+    from heisenberg.core.models import UnifiedFailure, UnifiedTestRun
     from heisenberg.parsers.playwright import PlaywrightReport
 
 
@@ -286,7 +286,7 @@ def _build_prompt_header(run: UnifiedTestRun) -> str:
     return header
 
 
-def _format_failure_for_prompt(failure: TestFailure, index: int) -> list[str]:
+def _format_failure_for_prompt(failure: UnifiedFailure, index: int) -> list[str]:
     """Format a single test failure for the prompt."""
     lines = [f"\n### Test {index}: {failure.test_title}", f"- **File:** {failure.file_path}"]
 

@@ -55,11 +55,12 @@ class Settings(BaseSettings):
     google_api_key: str | None = None
 
     # Server
-    host: str = "0.0.0.0"
+    host: str = "0.0.0.0"  # noqa: S104 - intentional for Docker
     port: int = 8000
 
 
 @lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
-    return Settings()
+    # pydantic-settings loads required fields from env vars at runtime
+    return Settings()  # type: ignore[call-arg]

@@ -10,7 +10,7 @@ import json
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from heisenberg.core.models import TestFailure, UnifiedTestRun
+    from heisenberg.core.models import UnifiedFailure, UnifiedTestRun
 
 
 def _format_stack_trace(stack_trace: str | None, max_lines: int = 15) -> list[str]:
@@ -28,7 +28,7 @@ def _format_stack_trace(stack_trace: str | None, max_lines: int = 15) -> list[st
     return lines
 
 
-def _format_md_failure(failure: TestFailure, index: int) -> list[str]:
+def _format_md_failure(failure: UnifiedFailure, index: int) -> list[str]:
     """Format a single failure for markdown output."""
     lines = [f"### {index}. {failure.test_title}", f"- **File:** `{failure.file_path}`"]
 
@@ -107,7 +107,7 @@ def _format_github_run_details(run: UnifiedTestRun) -> list[str]:
     return lines
 
 
-def _format_github_failure(failure: TestFailure, max_error_len: int = 500) -> list[str]:
+def _format_github_failure(failure: UnifiedFailure, max_error_len: int = 500) -> list[str]:
     """Format a single failure for GitHub output."""
     error_msg = failure.error.message
     if len(error_msg) > max_error_len:

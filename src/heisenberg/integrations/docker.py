@@ -105,7 +105,7 @@ class DockerLogsCollector:
                 logs = self._collect_from_container(service)
                 if logs.entries:
                     results[service] = logs
-            except Exception:
+            except Exception:  # noqa: S112 - intentionally silent
                 # Skip containers that fail (not found, docker not available, etc.)
                 continue
 

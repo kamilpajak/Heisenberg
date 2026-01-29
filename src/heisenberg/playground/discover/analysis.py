@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 
 from .cache import RunCache
 from .client import (
@@ -120,7 +121,7 @@ def _extract_from_nested_zip(zip_file) -> int | None:
                     failures = _extract_failure_count_from_jsonl(content)
                     if failures is not None:
                         return failures
-    except Exception:
+    except Exception:  # noqa: S110 - intentionally silent, returns None
         pass
     return None
 
@@ -323,7 +324,7 @@ def _report_verification_stage(
     run_id: str,
     artifact_sizes: dict[str, int],
     artifact_name: str,
-    report: callable,
+    report: Callable[[str], None],
 ) -> None:
     """Report the appropriate status message for verification stage."""
     if cache and cache.get(run_id):
@@ -357,7 +358,7 @@ def analyze_source_with_status(
     repo: str,
     stars: int | None = None,
     verify_failures: bool = False,
-    on_status: callable | None = None,
+    on_status: Callable[[str], None] | None = None,
     cache: RunCache | None = None,
 ) -> ProjectSource:
     """Analyze a repository with status updates for each stage."""
@@ -368,7 +369,7 @@ def analyze_source_with_status(
 
     report("fetching info")
     if stars is None:
-        stars = get_repo_stars(repo)
+        stars = get_repo_stars(repo) or 0
 
     report("fetching runs")
     run_id, run_url, artifact_names, run_created_at, artifact_sizes = find_valid_artifacts(repo)
@@ -408,7 +409,7 @@ def analyze_source(
         verify_failures: If True, download artifact to verify it has failures
     """
     if stars is None:
-        stars = get_repo_stars(repo)
+        stars = get_repo_stars(repo) or 0
 
     run_id, run_url, artifact_names, _, _ = find_valid_artifacts(repo)
     playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
