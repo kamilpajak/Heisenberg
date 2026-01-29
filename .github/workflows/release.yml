@@ -32,35 +32,18 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install -e ".[dev]"
+        run: uv sync --all-extras --dev
 
       - name: Run Semantic Release (dry-run)
         if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          source .venv/bin/activate
-          semantic-release version --print
+        run: uv run semantic-release version --print
 
       - name: Run Semantic Release
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          source .venv/bin/activate
-          semantic-release version
-          semantic-release publish
-
-      # PyPI publishing disabled until PEP 541 request is approved
-      # See: https://github.com/pypi/support/issues/XXXX
-      # - name: Build package
-      #   if: github.event_name == 'push'
-      #   run: uv build
-      #
-      # - name: Publish to PyPI
-      #   if: github.event_name == 'push'
-      #   env:
-      #     UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
-      #   run: uv publish
+          uv run semantic-release version
+          uv run semantic-release publish
