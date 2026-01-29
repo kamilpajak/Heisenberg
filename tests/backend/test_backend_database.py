@@ -324,7 +324,7 @@ class TestNoGlobalDatabaseState:
         from pathlib import Path
 
         # Read the source file
-        db_module_path = Path(__file__).parent.parent / "src/heisenberg/backend/database.py"
+        db_module_path = Path(__file__).parent.parent.parent / "src/heisenberg/backend/database.py"
         source = db_module_path.read_text()
         tree = ast.parse(source)
 
@@ -341,7 +341,7 @@ class TestNoGlobalDatabaseState:
         from pathlib import Path
 
         # Read the source file
-        db_module_path = Path(__file__).parent.parent / "src/heisenberg/backend/database.py"
+        db_module_path = Path(__file__).parent.parent.parent / "src/heisenberg/backend/database.py"
         source = db_module_path.read_text()
         tree = ast.parse(source)
 

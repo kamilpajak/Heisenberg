@@ -4,8 +4,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from heisenberg.analysis import AnalysisResult, Analyzer, run_analysis
 
 
@@ -227,7 +225,4 @@ class TestAnalyzerWithDockerLogs:
         assert mock_logs.filter_by_time_window.called
 
 
-@pytest.fixture
-def sample_report_path() -> Path:
-    """Path to sample Playwright report fixture."""
-    return Path(__file__).parent / "fixtures" / "playwright_report.json"
+# sample_report_path fixture is provided by conftest.py

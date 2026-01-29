@@ -4,7 +4,9 @@ from pathlib import Path
 
 import yaml
 
-WORKFLOW_FILE = Path(__file__).parent.parent / ".github" / "workflows" / "validate-real-world.yml"
+WORKFLOW_FILE = (
+    Path(__file__).parent.parent.parent / ".github" / "workflows" / "validate-real-world.yml"
+)
 
 
 class TestValidateWorkflowExists:

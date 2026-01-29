@@ -277,7 +277,7 @@ class TestUsageMigration:
         """Usage tracking migration file should exist."""
         from pathlib import Path
 
-        project_root = Path(__file__).parent.parent
+        project_root = Path(__file__).parent.parent.parent
         migrations_dir = project_root / "migrations" / "versions"
 
         if not migrations_dir.exists():
@@ -291,7 +291,7 @@ class TestUsageMigration:
         import importlib.util
         from pathlib import Path
 
-        project_root = Path(__file__).parent.parent
+        project_root = Path(__file__).parent.parent.parent
         migrations_dir = project_root / "migrations" / "versions"
 
         if not migrations_dir.exists():

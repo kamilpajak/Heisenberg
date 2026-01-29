@@ -9,7 +9,19 @@ tests/
 ├── integration/         # Integration tests (require external services)
 │   ├── conftest.py      # Auto-marks all tests as @pytest.mark.integration
 │   └── test_*.py        # Tests requiring API keys, DB, GitHub, etc.
-└── test_*.py            # Unit tests (pure logic, mocks, no external deps)
+├── analysis/            # Tests for heisenberg.analysis module
+├── backend/             # Tests for heisenberg.backend module
+├── cli/                 # Tests for heisenberg.cli module
+├── core/                # Tests for heisenberg.core module
+├── integrations/        # Tests for heisenberg.integrations module
+├── llm/                 # Tests for heisenberg.llm module
+├── parsers/             # Tests for heisenberg.parsers module
+├── reports/             # Tests for heisenberg.reports module
+├── utils/               # Tests for heisenberg.utils module
+├── ci/                  # CI/CD workflow tests
+├── cases/               # Frozen case management tests
+├── misc/                # Miscellaneous tests
+└── test_discovery/      # Tests for playground.discover module
 
 Running Tests
 =============
@@ -29,6 +41,7 @@ pytest tests/integration/ --run-integration
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -174,3 +187,21 @@ def sample_unified_run():
 def sample_result() -> AIAnalysisResult:
     """Sample AIAnalysisResult for testing."""
     return make_ai_analysis_result()
+
+
+# =============================================================================
+# Path Fixtures
+# =============================================================================
+# Use these fixtures instead of defining local Path fixtures in test files.
+
+
+@pytest.fixture(scope="session")
+def fixtures_dir() -> Path:
+    """Path to the shared fixtures directory."""
+    return Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture
+def sample_report_path(fixtures_dir: Path) -> Path:
+    """Path to sample Playwright report fixture."""
+    return fixtures_dir / "playwright_report.json"
