@@ -80,7 +80,7 @@ def _extract_failure_count_from_html(html_content: str) -> int | None:
     import re
     import zipfile
 
-    match = re.search(r"([A-Za-z0-9+/=]{100,})</script>", html_content)
+    match = re.search(r"([A-Za-z0-9+/=]{100,})</script>", html_content)  # NOSONAR
     if not match:
         return None
 

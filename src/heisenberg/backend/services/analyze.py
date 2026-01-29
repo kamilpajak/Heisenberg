@@ -155,7 +155,7 @@ def _failed_test_to_unified_failure(failed_test: FailedTest) -> UnifiedFailure:
         stack_trace = None
 
     # Generate deterministic test ID
-    test_id = hashlib.md5(  # noqa: S324 - MD5 for fingerprinting, not security
+    test_id = hashlib.md5(  # noqa: S324  # NOSONAR
         f"{failed_test.file or ''}-{failed_test.title}".encode()
     ).hexdigest()[:12]
 
