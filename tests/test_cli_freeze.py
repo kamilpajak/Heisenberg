@@ -103,13 +103,13 @@ class TestFreezeParser:
         args = parser.parse_args(["freeze", "-r", "owner/repo", "--output", "/tmp/scenarios"])
         assert args.output == Path("/tmp/scenarios")
 
-    def test_freeze_output_defaults_to_scenarios(self):
-        """Output should default to ./scenarios."""
+    def test_freeze_output_defaults_to_cases(self):
+        """Output should default to ./cases."""
         from heisenberg.cli.parsers import create_parser
 
         parser = create_parser()
         args = parser.parse_args(["freeze", "-r", "owner/repo"])
-        assert args.output == Path("./scenarios")
+        assert args.output == Path("./cases")
 
     def test_freeze_parses_token(self):
         """Parser should accept --token for GitHub token."""

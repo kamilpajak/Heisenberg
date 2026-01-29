@@ -949,3 +949,212 @@ class TestPlaywrightHandlerHelpers:
 
         assert combined["passed"] == 8
         assert "name" not in combined
+
+
+# =============================================================================
+# NESTED DIRECTORY TESTS (GitHub Actions artifact wrapping)
+# =============================================================================
+
+
+class TestNestedDirectorySupport:
+    """Tests for handling reports nested in subdirectories.
+
+    GitHub Actions wraps artifacts in subdirectories when downloading,
+    so we need to find reports even when they're not at the ZIP root.
+    """
+
+    @pytest.fixture
+    def nested_html_report_zip(self) -> bytes:
+        """Create HTML report nested in subdirectory (GitHub Actions style)."""
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            # Report is inside playwright-report/ subdirectory
+            zf.writestr("playwright-report/index.html", "<html>Report</html>")
+            zf.writestr("playwright-report/data/test-1.zip", b"test data")
+        zip_buffer.seek(0)
+        return zip_buffer.read()
+
+    @pytest.fixture
+    def deeply_nested_html_report_zip(self) -> bytes:
+        """Create HTML report nested multiple levels deep."""
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            # Report nested two levels deep
+            zf.writestr("artifacts/reports/index.html", "<html>Report</html>")
+            zf.writestr("artifacts/reports/data/results.zip", b"test data")
+        zip_buffer.seek(0)
+        return zip_buffer.read()
+
+    @pytest.fixture
+    def nested_blob_report_zip(self) -> bytes:
+        """Create blob report nested in subdirectory."""
+        # Create inner zip with report data
+        inner_zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(inner_zip_buffer, "w") as inner_zf:
+            inner_zf.writestr(
+                "report.json",
+                json.dumps(
+                    {
+                        "suites": [{"title": "Test", "specs": []}],
+                        "stats": {"expected": 1, "unexpected": 1, "skipped": 0},
+                    }
+                ),
+            )
+        inner_zip_data = inner_zip_buffer.getvalue()
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            # Blob report inside blob-report/ subdirectory
+            zf.writestr("blob-report/report-shard-1.zip", inner_zip_data)
+            zf.writestr("blob-report/report-shard-2.zip", inner_zip_data)
+        zip_buffer.seek(0)
+        return zip_buffer.read()
+
+    @pytest.fixture
+    def nested_json_report_zip(self) -> bytes:
+        """Create JSON report nested in subdirectory."""
+        report = {
+            "config": {"rootDir": "/app"},
+            "suites": [{"title": "Suite", "specs": []}],
+            "stats": {"expected": 2, "unexpected": 1, "skipped": 0},
+        }
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("test-results/report.json", json.dumps(report))
+        zip_buffer.seek(0)
+        return zip_buffer.read()
+
+    # -------------------------------------------------------------------------
+    # can_handle tests
+    # -------------------------------------------------------------------------
+
+    def test_can_handle_nested_html_report(self, nested_html_report_zip: bytes):
+        """Should detect HTML report in subdirectory."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(nested_html_report_zip)) as zf:
+            assert handler.can_handle(zf) is True
+
+    def test_can_handle_deeply_nested_html_report(self, deeply_nested_html_report_zip: bytes):
+        """Should detect HTML report nested multiple levels deep."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(deeply_nested_html_report_zip)) as zf:
+            assert handler.can_handle(zf) is True
+
+    def test_can_handle_nested_blob_report(self, nested_blob_report_zip: bytes):
+        """Should detect blob report in subdirectory."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(nested_blob_report_zip)) as zf:
+            assert handler.can_handle(zf) is True
+
+    def test_can_handle_nested_json_report(self, nested_json_report_zip: bytes):
+        """Should detect JSON report in subdirectory."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(nested_json_report_zip)) as zf:
+            assert handler.can_handle(zf) is True
+
+    # -------------------------------------------------------------------------
+    # _find_report_root tests
+    # -------------------------------------------------------------------------
+
+    def test_find_report_root_returns_prefix_for_nested_html(self, nested_html_report_zip: bytes):
+        """Should return directory prefix for nested HTML report."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(nested_html_report_zip)) as zf:
+            root = handler._find_report_root(zf.namelist())
+            assert root == "playwright-report/"
+
+    def test_find_report_root_returns_empty_for_root_level(self):
+        """Should return empty string for reports at root level."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        namelist = ["index.html", "data/test.zip"]
+        root = handler._find_report_root(namelist)
+        assert root == ""
+
+    def test_find_report_root_returns_none_for_no_report(self):
+        """Should return None when no valid report structure found."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        namelist = ["random.txt", "other/file.json"]
+        root = handler._find_report_root(namelist)
+        assert root is None
+
+    def test_find_report_root_deeply_nested(self, deeply_nested_html_report_zip: bytes):
+        """Should return full prefix path for deeply nested reports."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(deeply_nested_html_report_zip)) as zf:
+            root = handler._find_report_root(zf.namelist())
+            assert root == "artifacts/reports/"
+
+    # -------------------------------------------------------------------------
+    # extract tests
+    # -------------------------------------------------------------------------
+
+    def test_extract_nested_html_report(self, nested_html_report_zip: bytes, tmp_path: Path):
+        """Should extract nested HTML report correctly."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(nested_html_report_zip)) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        assert result.report_type == ReportType.HTML
+        assert result.entry_point.exists()
+        assert result.entry_point.name == "index.html"
+
+    def test_extract_nested_blob_report(self, nested_blob_report_zip: bytes, tmp_path: Path):
+        """Should extract nested blob report correctly."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(nested_blob_report_zip)) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        assert result.report_type == ReportType.BLOB
+        assert result.data_file.exists()
+        # Should have extracted test data from inner zips
+        data = json.loads(result.data_file.read_text())
+        assert "suites" in data
+
+    def test_extract_nested_json_report(self, nested_json_report_zip: bytes, tmp_path: Path):
+        """Should extract nested JSON report correctly."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(nested_json_report_zip)) as zf:
+            result = handler.extract(zf, tmp_path)
+
+        assert result.report_type == ReportType.JSON
+        assert result.data_file.exists()
+
+    # -------------------------------------------------------------------------
+    # normalize tests
+    # -------------------------------------------------------------------------
+
+    def test_normalize_nested_json_report(self, nested_json_report_zip: bytes, tmp_path: Path):
+        """Should normalize nested JSON report to standard format."""
+        from heisenberg.reports.handlers.playwright import PlaywrightHandler
+
+        handler = PlaywrightHandler()
+        with zipfile.ZipFile(io.BytesIO(nested_json_report_zip)) as zf:
+            extracted = handler.extract(zf, tmp_path)
+
+        normalized = handler.normalize(extracted)
+        assert normalized.framework == "playwright"
+        # stats: expected=2, unexpected=1
+        assert normalized.passed_tests == 2
+        assert normalized.failed_tests == 1

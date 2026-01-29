@@ -13,9 +13,10 @@ import os
 import zipfile
 from dataclasses import dataclass
 
+from heisenberg.llm.providers.gemini import GeminiProvider
 from heisenberg.utils.artifacts import extract_spec_file_from_path, extract_test_name_from_path
 
-# Default model for screenshot analysis
+# Default model for screenshot analysis (vision-capable)
 DEFAULT_VISION_MODEL = "gemini-2.0-flash"
 
 
@@ -92,7 +93,10 @@ def extract_screenshots_from_artifact(zip_data: bytes) -> list[ScreenshotContext
 
 
 class ScreenshotAnalyzer:
-    """Analyzes screenshots using vision-capable LLMs."""
+    """Analyzes screenshots using vision-capable LLMs.
+
+    Uses GeminiProvider's vision capability for multimodal analysis.
+    """
 
     DEFAULT_PROMPT = """Analyze this screenshot from a failed Playwright test.
 
@@ -113,13 +117,29 @@ Keep your description concise (2-4 sentences) and focus on details relevant to d
         """Initialize the analyzer.
 
         Args:
-            provider: LLM provider (google recommended for vision).
-            api_key: Optional API key.
+            provider: LLM provider (only 'google' supported for vision).
+            api_key: Optional API key (falls back to GOOGLE_API_KEY env var).
             model: Optional specific model name.
         """
-        self.provider = provider
-        self.api_key = api_key
-        self.model = model
+        self._provider_name = provider
+        self._api_key = api_key
+        self._model = model or DEFAULT_VISION_MODEL
+        self._gemini_provider: GeminiProvider | None = None
+
+    def _get_provider(self) -> GeminiProvider | None:
+        """Get or create the Gemini provider for vision analysis."""
+        if self._gemini_provider is not None:
+            return self._gemini_provider
+
+        api_key = self._api_key or os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            return None
+
+        self._gemini_provider = GeminiProvider(
+            api_key=api_key,
+            model=self._model,
+        )
+        return self._gemini_provider
 
     def get_analysis_prompt(self) -> str:
         """Get the prompt used for screenshot analysis."""
@@ -135,35 +155,19 @@ Keep your description concise (2-4 sentences) and focus on details relevant to d
             ScreenshotContext with description filled in.
         """
         try:
-            # Get API key
-            api_key = self.api_key
-            if not api_key:
-                api_key = os.environ.get("GOOGLE_API_KEY")
-
-            if not api_key:
+            provider = self._get_provider()
+            if provider is None:
                 screenshot.description = "[Screenshot analysis skipped: No API key]"
                 return screenshot
 
-            # Use Gemini for vision analysis
-            from google import genai
-            from google.genai import types
-
-            client = genai.Client(api_key=api_key)
-            model = self.model or DEFAULT_VISION_MODEL
-
-            # Create image part
-            image_part = types.Part.from_bytes(
-                data=screenshot.image_data,
+            # Use GeminiProvider's vision capability
+            result = provider.analyze_with_image(
+                user_prompt=self.get_analysis_prompt(),
+                image_data=screenshot.image_data,
                 mime_type="image/png",
             )
 
-            # Generate content with image
-            response = client.models.generate_content(
-                model=model,
-                contents=[self.get_analysis_prompt(), image_part],
-            )
-
-            screenshot.description = response.text
+            screenshot.description = result.content
 
         except Exception as e:
             screenshot.description = f"[Screenshot analysis failed: {e}]"

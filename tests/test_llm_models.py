@@ -212,28 +212,3 @@ class TestBackendProvidersReturnLLMAnalysis:
         return_annotation = sig.return_annotation
 
         assert _is_llm_analysis_annotation(return_annotation, LLMAnalysis)
-
-
-class TestCLIClientUsesLLMAnalysis:
-    """Test suite for CLI client using shared LLMAnalysis."""
-
-    def test_cli_client_returns_llm_analysis(self):
-        """LLMClient.analyze() should return LLMAnalysis."""
-        import inspect
-
-        from heisenberg.llm.client import LLMClient
-        from heisenberg.llm.models import LLMAnalysis
-
-        # Check return type annotation
-        sig = inspect.signature(LLMClient.analyze)
-        return_annotation = sig.return_annotation
-
-        assert _is_llm_analysis_annotation(return_annotation, LLMAnalysis)
-
-    def test_llm_response_is_alias_to_llm_analysis(self):
-        """LLMResponse should be an alias to LLMAnalysis for backwards compatibility."""
-        from heisenberg.llm.client import LLMResponse
-        from heisenberg.llm.models import LLMAnalysis
-
-        # LLMResponse should be an alias to LLMAnalysis
-        assert LLMResponse is LLMAnalysis

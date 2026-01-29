@@ -1,7 +1,13 @@
-"""Analyze service for processing test failure analysis requests."""
+"""Analyze service for processing test failure analysis requests.
+
+This service uses the core analysis logic via UnifiedTestRun transformation,
+ensuring consistent prompt building and single-LLM-call analysis across
+both the backend API and direct library usage.
+"""
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
@@ -10,24 +16,38 @@ from heisenberg.backend.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
     DiagnosisResponse,
+    FailedTest,
 )
 from heisenberg.core.diagnosis import parse_diagnosis
-from heisenberg.llm.prompts import get_system_prompt
+from heisenberg.core.models import (
+    ErrorInfo,
+    FailureMetadata,
+    Framework,
+    UnifiedFailure,
+    UnifiedTestRun,
+)
+from heisenberg.llm.prompts import build_unified_prompt
 
 if TYPE_CHECKING:
-    from heisenberg.llm.client import LLMResponse
+    from heisenberg.llm.models import LLMAnalysis
 
 
 class LLMClientProtocol(Protocol):
     """Protocol for LLM client interface."""
 
-    async def analyze(self, prompt: str, system_prompt: str | None = None) -> LLMResponse:
+    async def analyze(self, prompt: str, system_prompt: str | None = None) -> LLMAnalysis:
         """Analyze prompt with LLM."""
         ...
 
 
 class AnalyzeService:
-    """Service for analyzing test failures with AI."""
+    """Service for analyzing test failures with AI.
+
+    Uses core's unified analysis approach for:
+    - Single LLM call for all failures (better context, lower cost)
+    - Sophisticated prompt building with log compression
+    - Consistent analysis quality across API and library usage
+    """
 
     def __init__(self, llm_client: LLMClientProtocol):
         """
@@ -42,101 +62,115 @@ class AnalyzeService:
         """
         Analyze test failures and generate diagnoses.
 
+        Transforms the request to UnifiedTestRun format and uses core's
+        prompt building for consistent, high-quality analysis.
+
         Args:
             request: Analysis request with failed tests.
 
         Returns:
             Analysis response with diagnoses.
         """
-        diagnoses: list[DiagnosisResponse] = []
-        total_input_tokens = 0
-        total_output_tokens = 0
+        # Transform to unified model
+        unified_run = _request_to_unified_run(request)
 
-        for failed_test in request.failed_tests:
-            # Build prompt for this test
-            prompt = self._build_prompt_for_test(failed_test, request)
+        # Build prompts using core's sophisticated prompt builder
+        system_prompt, user_prompt = build_unified_prompt(unified_run)
 
-            # Get AI analysis
-            response = await self.llm_client.analyze(
-                prompt=prompt,
-                system_prompt=get_system_prompt(),
-            )
+        # Single LLM call for all failures
+        response = await self.llm_client.analyze(
+            prompt=user_prompt,
+            system_prompt=system_prompt,
+        )
 
-            total_input_tokens += response.input_tokens
-            total_output_tokens += response.output_tokens
+        # Parse the diagnosis
+        diagnosis = parse_diagnosis(response.content)
 
-            # Parse the diagnosis
-            diagnosis = parse_diagnosis(response.content)
+        # Build test names summary for response
+        test_names = [t.title for t in request.failed_tests]
+        test_name_summary = (
+            test_names[0] if len(test_names) == 1 else f"{len(test_names)} failed tests"
+        )
 
-            diagnoses.append(
+        return AnalyzeResponse(
+            test_run_id=uuid.uuid4(),
+            repository=request.repository,
+            diagnoses=[
                 DiagnosisResponse(
-                    test_name=failed_test.title,
+                    test_name=test_name_summary,
                     root_cause=diagnosis.root_cause,
                     evidence=diagnosis.evidence,
                     suggested_fix=diagnosis.suggested_fix,
                     confidence=diagnosis.confidence.value,
                     confidence_explanation=diagnosis.confidence_explanation,
                 )
-            )
-
-        return AnalyzeResponse(
-            test_run_id=uuid.uuid4(),
-            repository=request.repository,
-            diagnoses=diagnoses,
-            total_input_tokens=total_input_tokens,
-            total_output_tokens=total_output_tokens,
+            ],
+            total_input_tokens=response.input_tokens,
+            total_output_tokens=response.output_tokens,
             created_at=datetime.now(UTC),
         )
 
-    def _build_prompt_for_test(
-        self,
-        failed_test,
-        request: AnalyzeRequest,
-    ) -> str:
-        """
-        Build analysis prompt for a single failed test.
 
-        Args:
-            failed_test: The failed test to analyze.
-            request: Full analysis request for context.
+def _request_to_unified_run(request: AnalyzeRequest) -> UnifiedTestRun:
+    """Transform AnalyzeRequest to UnifiedTestRun for core analysis.
 
-        Returns:
-            Formatted prompt string.
-        """
-        lines = [
-            "# Test Failure Analysis Request",
-            "",
-            f"## Repository: {request.repository}",
-            "",
-            "## Failed Test",
-            f"- **Name:** {failed_test.title}",
-        ]
+    Args:
+        request: Backend API request with test failures.
 
-        if failed_test.file:
-            lines.append(f"- **File:** {failed_test.file}")
-        if failed_test.suite:
-            lines.append(f"- **Suite:** {failed_test.suite}")
-        if failed_test.duration_ms:
-            lines.append(f"- **Duration:** {failed_test.duration_ms}ms")
+    Returns:
+        UnifiedTestRun compatible with core analysis functions.
+    """
+    failures = [_failed_test_to_unified_failure(ft) for ft in request.failed_tests]
 
-        if failed_test.errors:
-            lines.append("")
-            lines.append("## Errors")
-            for i, error in enumerate(failed_test.errors, 1):
-                lines.append(f"### Error {i}")
-                lines.append(f"**Message:** {error.message}")
-                if error.stack:
-                    lines.append(f"**Stack:** {error.stack}")
+    return UnifiedTestRun(
+        run_id=str(uuid.uuid4()),
+        repository=request.repository,
+        branch=request.branch,
+        commit_sha=request.commit_sha,
+        total_tests=request.total_tests,
+        passed_tests=request.passed_tests,
+        failed_tests=len(request.failed_tests),
+        skipped_tests=request.skipped_tests,
+        failures=failures,
+    )
 
-        if request.container_logs:
-            lines.append("")
-            lines.append("## Backend Logs")
-            for container_log in request.container_logs:
-                lines.append(f"### Container: {container_log.container_name}")
-                for entry in container_log.entries[:20]:  # Limit entries
-                    lines.append(f"[{entry.timestamp}] {entry.message}")
 
-        lines.append("")
-        lines.append("Please analyze this test failure and provide your diagnosis.")
+def _failed_test_to_unified_failure(failed_test: FailedTest) -> UnifiedFailure:
+    """Transform FailedTest schema to UnifiedFailure model.
 
-        return "\n".join(lines)
+    Args:
+        failed_test: Pydantic schema from API request.
+
+    Returns:
+        UnifiedFailure for core analysis.
+    """
+    # Combine multiple errors into single ErrorInfo
+    if failed_test.errors:
+        messages = [e.message for e in failed_test.errors]
+        stacks = [e.stack for e in failed_test.errors if e.stack]
+        error_message = "\n---\n".join(messages) if len(messages) > 1 else messages[0]
+        stack_trace = "\n---\n".join(stacks) if stacks else None
+    else:
+        error_message = "Unknown error"
+        stack_trace = None
+
+    # Generate deterministic test ID
+    test_id = hashlib.md5(  # noqa: S324  # NOSONAR
+        f"{failed_test.file or ''}-{failed_test.title}".encode()
+    ).hexdigest()[:12]
+
+    return UnifiedFailure(
+        test_id=test_id,
+        file_path=failed_test.file or "",
+        test_title=failed_test.title,
+        suite_path=[failed_test.suite] if failed_test.suite else [],
+        error=ErrorInfo(
+            message=error_message,
+            stack_trace=stack_trace,
+        ),
+        metadata=FailureMetadata(
+            framework=Framework.PLAYWRIGHT,  # Default; could be extended
+            browser=failed_test.project,
+            duration_ms=failed_test.duration_ms or None,
+        ),
+    )

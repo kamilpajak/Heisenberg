@@ -82,7 +82,7 @@ class ScenarioAnalyzer:
         self.config = config
 
     def load_metadata(self) -> dict[str, Any]:
-        """Load metadata.json from scenario directory.
+        """Load metadata.json from case directory.
 
         Returns:
             Parsed metadata dictionary.
@@ -96,7 +96,7 @@ class ScenarioAnalyzer:
         return json.loads(metadata_path.read_text())
 
     def load_report(self) -> dict[str, Any]:
-        """Load report.json from scenario directory.
+        """Load report.json from case directory.
 
         Returns:
             Parsed report dictionary.
@@ -116,10 +116,10 @@ class ScenarioAnalyzer:
             AnalysisResult with diagnosis and metadata.
 
         Raises:
-            FileNotFoundError: If scenario files are missing.
+            FileNotFoundError: If case files are missing.
             ValueError: If report is invalid or AI analysis fails.
         """
-        # Load scenario data
+        # Load case data
         metadata = self.load_metadata()
 
         # Parse report from file
@@ -158,7 +158,7 @@ class ScenarioAnalyzer:
         return result
 
     def _save_diagnosis(self, result: AnalysisResult) -> Path:
-        """Save diagnosis to diagnosis.json in scenario directory.
+        """Save diagnosis to diagnosis.json in case directory.
 
         Args:
             result: Analysis result to save.

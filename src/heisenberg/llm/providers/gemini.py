@@ -179,6 +179,69 @@ class GeminiProvider:
 
         return result
 
+    def analyze_with_image(
+        self,
+        user_prompt: str,
+        image_data: bytes,
+        mime_type: str = "image/png",
+        *,
+        system_prompt: str | None = None,
+    ) -> LLMAnalysis:
+        """
+        Analyze with an image using Gemini's vision capability (synchronous).
+
+        This is a Gemini-specific method not part of the LLMProvider protocol,
+        as not all providers support vision.
+
+        Args:
+            user_prompt: User prompt describing what to analyze.
+            image_data: Raw image bytes.
+            mime_type: Image MIME type (default: image/png).
+            system_prompt: Optional system prompt for context.
+
+        Returns:
+            LLMAnalysis with response content and token usage.
+        """
+        from google.genai import types
+
+        client = self._get_client()
+        config = self._get_config(system_prompt)
+
+        # Build multimodal content: text prompt + image
+        image_part = types.Part.from_bytes(data=image_data, mime_type=mime_type)
+        contents = [user_prompt, image_part]
+
+        logger.debug(
+            "gemini_vision_request: model=%s, mime_type=%s, image_size=%d",
+            self._model,
+            mime_type,
+            len(image_data),
+        )
+
+        response = client.models.generate_content(
+            model=self._model,
+            contents=contents,
+            config=config,
+        )
+
+        input_tokens, output_tokens = self._extract_token_counts(response)
+
+        result = LLMAnalysis(
+            content=response.text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            model=self._model,
+            provider=self.name,
+        )
+
+        logger.debug(
+            "gemini_vision_response: input_tokens=%d, output_tokens=%d",
+            result.input_tokens,
+            result.output_tokens,
+        )
+
+        return result
+
     async def _call_api(
         self,
         user_prompt: str,
