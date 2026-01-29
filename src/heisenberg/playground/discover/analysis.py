@@ -193,7 +193,7 @@ def download_and_check_failures(repo: str, artifact_name: str) -> int | None:
         return extract_failure_count_from_dir(tmpdir)
 
 
-def verify_has_failures(repo: str, run_id: str, artifact_name: str) -> bool:
+def verify_has_failures(repo: str, artifact_name: str) -> bool:
     """Verify that an artifact contains actual test failures.
 
     Downloads the artifact and checks if it has non-zero failure count.
@@ -349,7 +349,7 @@ def _verify_artifact_failures(
             repo, run_id, artifact_name, cache, run_created_at
         )
     else:
-        has_failures = verify_has_failures(repo, run_id, artifact_name)
+        has_failures = verify_has_failures(repo, artifact_name)
     return 1 if has_failures else 0
 
 
@@ -416,7 +416,7 @@ def analyze_source(
     # Optionally verify that artifact has actual failures
     failure_count = None
     if verify_failures and playwright_artifacts and run_id:
-        has_failures = verify_has_failures(repo, run_id, playwright_artifacts[0])
+        has_failures = verify_has_failures(repo, playwright_artifacts[0])
         failure_count = 1 if has_failures else 0
 
     status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)

@@ -311,7 +311,7 @@ class TestVerifyHasFailures:
         """Should return True when artifact contains test failures."""
         mock_download.return_value = 5
 
-        result = verify_has_failures("owner/repo", "123", "playwright-report")
+        result = verify_has_failures("owner/repo", "playwright-report")
 
         assert result is True
 
@@ -320,7 +320,7 @@ class TestVerifyHasFailures:
         """Should return False when artifact has zero failures."""
         mock_download.return_value = 0
 
-        result = verify_has_failures("owner/repo", "123", "playwright-report")
+        result = verify_has_failures("owner/repo", "playwright-report")
 
         assert result is False
 
@@ -329,7 +329,7 @@ class TestVerifyHasFailures:
         """Should return False if artifact can't be downloaded/parsed."""
         mock_download.return_value = None
 
-        result = verify_has_failures("owner/repo", "123", "playwright-report")
+        result = verify_has_failures("owner/repo", "playwright-report")
 
         assert result is False
 

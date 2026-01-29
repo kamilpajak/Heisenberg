@@ -75,8 +75,7 @@ def _gh_subprocess(
                 if not _is_rate_limit_error(e) or attempt >= GH_MAX_RETRIES:
                     raise
                 last_error = e
-            except subprocess.TimeoutExpired:
-                raise  # Timeouts are not retried - propagate immediately
+            # Note: TimeoutExpired is not caught - it propagates immediately (not retried)
 
         # Semaphore released — exponential backoff before retry
         delay = GH_RETRY_BASE_DELAY * (2**attempt) + random.uniform(0, 1)
