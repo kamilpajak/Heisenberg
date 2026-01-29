@@ -147,6 +147,7 @@ upload_to_vcs_release = true
 [dependency-groups]
 dev = [
     "greenlet>=3.3.1",
+    "pre-commit>=4.0.0",
     "pydeps>=3.0.2",
 ]
 

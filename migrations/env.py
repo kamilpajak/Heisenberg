@@ -25,6 +25,7 @@ def get_database_url() -> str:
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return url
 
+
 # Alembic Config object
 config = context.config
 

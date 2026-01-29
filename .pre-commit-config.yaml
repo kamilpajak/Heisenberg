@@ -1,0 +1,19 @@
+# Pre-commit hooks configuration
+# Install: uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
+# Run manually: uv run pre-commit run --all-files
+
+repos:
+  # Ruff - Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.2
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Conventional Commits validation
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]

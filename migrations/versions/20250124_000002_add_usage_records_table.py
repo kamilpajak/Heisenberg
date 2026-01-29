@@ -31,7 +31,9 @@ def upgrade() -> None:
         sa.Column("model_name", sa.String(length=100), nullable=False),
         sa.Column("input_tokens", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("output_tokens", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("cost_usd", sa.Numeric(precision=10, scale=6), nullable=False, server_default="0"),
+        sa.Column(
+            "cost_usd", sa.Numeric(precision=10, scale=6), nullable=False, server_default="0"
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["organization_id"],

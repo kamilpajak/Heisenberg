@@ -139,8 +139,8 @@ class TestLLMPricing:
         for model, pricing in PRICING.items():
             assert "input" in pricing, f"Missing 'input' for {model}"
             assert "output" in pricing, f"Missing 'output' for {model}"
-            assert isinstance(pricing["input"], (int, float))
-            assert isinstance(pricing["output"], (int, float))
+            assert isinstance(pricing["input"], int | float)
+            assert isinstance(pricing["output"], int | float)
 
 
 def _is_llm_analysis_annotation(annotation, llm_analysis_class) -> bool:

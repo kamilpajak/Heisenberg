@@ -949,6 +949,7 @@ dev = [
 [package.dev-dependencies]
 dev = [
     { name = "greenlet" },
+    { name = "pre-commit" },
     { name = "pydeps" },
 ]
 
@@ -988,6 +989,7 @@ provides-extras = ["backend", "dev"]
 [package.metadata.requires-dev]
 dev = [
     { name = "greenlet", specifier = ">=3.3.1" },
+    { name = "pre-commit", specifier = ">=4.0.0" },
     { name = "pydeps", specifier = ">=3.0.2" },
 ]
 

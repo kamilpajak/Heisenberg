@@ -24,7 +24,10 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     # Create task status enum (checkfirst to handle if already exists)
     task_status_enum = postgresql.ENUM(
-        "pending", "running", "completed", "failed",
+        "pending",
+        "running",
+        "completed",
+        "failed",
         name="taskstatus",
         create_type=False,  # Don't auto-create, we do it manually
     )
@@ -38,7 +41,9 @@ def upgrade() -> None:
         sa.Column("task_type", sa.String(length=50), nullable=False),
         sa.Column(
             "status",
-            postgresql.ENUM("pending", "running", "completed", "failed", name="taskstatus", create_type=False),
+            postgresql.ENUM(
+                "pending", "running", "completed", "failed", name="taskstatus", create_type=False
+            ),
             nullable=False,
             server_default="pending",
         ),
@@ -68,7 +73,10 @@ def downgrade() -> None:
 
     # Drop the enum type
     task_status_enum = postgresql.ENUM(
-        "pending", "running", "completed", "failed",
+        "pending",
+        "running",
+        "completed",
+        "failed",
         name="taskstatus",
     )
     task_status_enum.drop(op.get_bind(), checkfirst=True)
