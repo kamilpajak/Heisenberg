@@ -11,8 +11,8 @@ from heisenberg.llm.config import (
     MODEL_PRICING,
 )
 
-# Pricing per million tokens - derived from config for backwards compatibility
-# Uses float instead of Decimal for simpler cost estimation in LLMAnalysis
+# Pricing per million tokens - float version of MODEL_PRICING for LLMAnalysis
+# Uses float instead of Decimal for simpler cost estimation
 PRICING: MappingProxyType[str, MappingProxyType[str, float]] = MappingProxyType(
     {
         model: MappingProxyType(

@@ -179,32 +179,3 @@ def download_artifact_to_dir(repo: str, artifact_name: str, target_dir: str) -> 
         return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return False
-
-
-def gh_artifact_download(repo: str, artifact_name: str) -> bytes | None:
-    """Download artifact content via gh CLI.
-
-    DEPRECATED: Use download_artifact_to_dir instead for better performance.
-
-    Returns raw bytes of the artifact ZIP, or None on failure.
-    """
-    import tempfile
-    from pathlib import Path
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        cmd = ["gh", "run", "download", "-R", repo, "-n", artifact_name, "-D", tmpdir]
-        try:
-            _gh_subprocess(cmd, timeout=TIMEOUT_DOWNLOAD, text=False)
-            # gh extracts the zip, so we need to re-zip the contents
-            import io
-            import zipfile
-
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w") as zf:
-                for file_path in Path(tmpdir).rglob("*"):
-                    if file_path.is_file():
-                        arcname = str(file_path.relative_to(tmpdir))
-                        zf.write(file_path, arcname)
-            return zip_buffer.getvalue()
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            return None
