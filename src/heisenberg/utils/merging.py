@@ -96,8 +96,8 @@ def _write_blob_files(
 
     Args:
         blob_dir: Directory to write files to.
-        blob_files: Legacy list of blob contents.
-        blob_zips: Preferred list of (filename, content) tuples.
+        blob_files: List of blob contents (auto-named as report-N.jsonl).
+        blob_zips: List of (filename, content) tuples with explicit names.
     """
     if blob_zips:
         for filename, content in blob_zips:
@@ -118,8 +118,8 @@ async def merge_blob_reports(
     Playwright expects the nested report-*.zip files, not extracted .jsonl.
 
     Args:
-        blob_files: List of blob file contents (legacy, for tests)
-        blob_zips: List of (filename, zip_content) tuples (preferred)
+        blob_files: List of blob file contents (auto-named as report-N.jsonl)
+        blob_zips: List of (filename, zip_content) tuples with explicit names
         output_format: Output format (json, html, etc.)
 
     Returns:

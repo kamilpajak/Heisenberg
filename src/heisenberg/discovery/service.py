@@ -177,7 +177,7 @@ class _DiscoveryRunner:
     def _report_progress(
         self, repo: str, result: ProjectSource | None, elapsed_ms: int, message: str | None
     ) -> None:
-        """Report progress via legacy callback."""
+        """Report progress via callback."""
         if not self.on_progress:
             return
         status = result.status.value if result else "error"

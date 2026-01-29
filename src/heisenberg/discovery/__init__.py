@@ -28,7 +28,6 @@ from .client import (
     get_repo_stars,
     get_run_artifacts,
     gh_api,
-    gh_artifact_download,
     search_repos,
 )
 from .models import (
@@ -97,7 +96,6 @@ __all__ = [
     "get_failed_runs",
     "get_run_artifacts",
     "download_artifact_to_dir",
-    "gh_artifact_download",
     # analysis
     "is_playwright_artifact",
     "download_and_check_failures",

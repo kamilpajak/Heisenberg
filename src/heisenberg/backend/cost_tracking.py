@@ -7,9 +7,7 @@ from typing import Any
 
 from heisenberg.llm.config import MODEL_PRICING
 
-# Re-export MODEL_PRICING for backwards compatibility
-# (some code may import it from this module)
-__all__ = ["MODEL_PRICING", "CostCalculator", "check_budget_alert"]
+__all__ = ["CostCalculator", "check_budget_alert"]
 
 
 class CostCalculator:
