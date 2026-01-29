@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from heisenberg.playground.discover.models import (
+from heisenberg.discovery.models import (
     ProgressInfo,
     SourceStatus,
 )
-from heisenberg.playground.discover.ui import (
+from heisenberg.discovery.ui import (
     COL_STATUS,
     format_progress_line,
     format_size,
@@ -214,7 +214,7 @@ class TestRichProgressDisplay:
 
     def test_create_progress_display_returns_rich_progress(self):
         """create_progress_display should return a Rich Progress object."""
-        from heisenberg.playground.discover.ui import create_progress_display
+        from heisenberg.discovery.ui import create_progress_display
 
         progress = create_progress_display()
 
@@ -224,7 +224,7 @@ class TestRichProgressDisplay:
 
     def test_progress_display_has_spinner_column(self):
         """Progress display should include a spinner for active tasks."""
-        from heisenberg.playground.discover.ui import create_progress_display
+        from heisenberg.discovery.ui import create_progress_display
 
         progress = create_progress_display()
 
@@ -233,7 +233,7 @@ class TestRichProgressDisplay:
 
     def test_progress_display_has_elapsed_column(self):
         """Progress display should include a live elapsed timer."""
-        from heisenberg.playground.discover.ui import create_progress_display
+        from heisenberg.discovery.ui import create_progress_display
 
         progress = create_progress_display()
 
@@ -242,7 +242,7 @@ class TestRichProgressDisplay:
 
     def test_progress_display_has_task_description(self):
         """Progress display should show task description."""
-        from heisenberg.playground.discover.ui import create_progress_display
+        from heisenberg.discovery.ui import create_progress_display
 
         progress = create_progress_display()
 

@@ -6,7 +6,7 @@ import json
 import subprocess
 from unittest.mock import MagicMock, patch
 
-from heisenberg.playground.discover.client import (
+from heisenberg.discovery.client import (
     _gh_subprocess,
     _is_rate_limit_error,
     get_failed_runs,
@@ -14,7 +14,7 @@ from heisenberg.playground.discover.client import (
     get_run_artifacts,
     search_repos,
 )
-from heisenberg.playground.discover.models import GH_MAX_RETRIES
+from heisenberg.discovery.models import GH_MAX_RETRIES
 
 # =============================================================================
 # GITHUB CLIENT TESTS
@@ -63,7 +63,7 @@ class TestGetFailedRuns:
 class TestGetRunArtifacts:
     """Tests for get_run_artifacts function."""
 
-    @patch("heisenberg.playground.discover.client.gh_api")
+    @patch("heisenberg.discovery.client.gh_api")
     def test_returns_artifacts_list(self, mock_gh_api):
         """Should return list of artifact dicts."""
         mock_gh_api.return_value = {
@@ -192,7 +192,7 @@ class TestSubprocessTimeouts:
     @patch("subprocess.run")
     def test_gh_api_returns_none_on_timeout(self, mock_run, _mock_sleep):
         """gh_api should return None when subprocess times out."""
-        from heisenberg.playground.discover.client import gh_api
+        from heisenberg.discovery.client import gh_api
 
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
 
@@ -224,7 +224,7 @@ class TestSubprocessTimeouts:
     @patch("subprocess.run")
     def test_download_artifact_returns_false_on_timeout(self, mock_run, _mock_sleep):
         """download_artifact_to_dir should return False on timeout."""
-        from heisenberg.playground.discover.client import download_artifact_to_dir
+        from heisenberg.discovery.client import download_artifact_to_dir
 
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=120)
 
@@ -236,8 +236,8 @@ class TestSubprocessTimeouts:
     @patch("subprocess.run")
     def test_download_artifact_passes_timeout(self, mock_run, _mock_sleep):
         """download_artifact_to_dir should pass timeout to subprocess."""
-        from heisenberg.playground.discover.client import download_artifact_to_dir
-        from heisenberg.playground.discover.models import TIMEOUT_DOWNLOAD
+        from heisenberg.discovery.client import download_artifact_to_dir
+        from heisenberg.discovery.models import TIMEOUT_DOWNLOAD
 
         mock_run.return_value = MagicMock(returncode=0)
 
@@ -250,8 +250,8 @@ class TestSubprocessTimeouts:
     @patch("subprocess.run")
     def test_gh_api_passes_timeout(self, mock_run, _mock_sleep):
         """gh_api should pass timeout to subprocess."""
-        from heisenberg.playground.discover.client import gh_api
-        from heisenberg.playground.discover.models import TIMEOUT_API
+        from heisenberg.discovery.client import gh_api
+        from heisenberg.discovery.models import TIMEOUT_API
 
         mock_run.return_value = MagicMock(
             stdout='{"ok": true}',
@@ -280,7 +280,7 @@ class TestRateLimitHandling:
 
         mock_run.side_effect = CalledProcessError(1, "gh", stderr="API rate limit exceeded")
 
-        from heisenberg.playground.discover.client import gh_api
+        from heisenberg.discovery.client import gh_api
 
         result = gh_api("/repos/owner/repo")
 

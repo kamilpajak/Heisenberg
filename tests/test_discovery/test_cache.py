@@ -6,8 +6,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-from heisenberg.playground.discover.cache import RunCache, get_default_cache_path
-from heisenberg.playground.discover.models import CACHE_TTL_DAYS
+from heisenberg.discovery.cache import RunCache, get_default_cache_path
+from heisenberg.discovery.models import CACHE_TTL_DAYS
 
 # =============================================================================
 # RUN CACHE TESTS
@@ -288,10 +288,10 @@ class TestRunCacheSchemaVersion:
 class TestVerifyWithCache:
     """Tests for integration of cache with verification."""
 
-    @patch("heisenberg.playground.discover.analysis.download_and_check_failures")
+    @patch("heisenberg.discovery.analysis.download_and_check_failures")
     def test_verify_uses_cache_hit(self, mock_download):
         """verify_has_failures should use cached result if available."""
-        from heisenberg.playground.discover.analysis import verify_has_failures_cached
+        from heisenberg.discovery.analysis import verify_has_failures_cached
 
         cache = RunCache()
         run_created_at = datetime.now().isoformat()
@@ -302,10 +302,10 @@ class TestVerifyWithCache:
         mock_download.assert_not_called()
         assert result is True
 
-    @patch("heisenberg.playground.discover.analysis.download_and_check_failures")
+    @patch("heisenberg.discovery.analysis.download_and_check_failures")
     def test_verify_downloads_on_cache_miss(self, mock_download):
         """verify_has_failures should download if not in cache."""
-        from heisenberg.playground.discover.analysis import verify_has_failures_cached
+        from heisenberg.discovery.analysis import verify_has_failures_cached
 
         mock_download.return_value = 3
 
@@ -316,10 +316,10 @@ class TestVerifyWithCache:
         mock_download.assert_called_once()
         assert result is True
 
-    @patch("heisenberg.playground.discover.analysis.download_and_check_failures")
+    @patch("heisenberg.discovery.analysis.download_and_check_failures")
     def test_verify_stores_result_in_cache(self, mock_download):
         """verify_has_failures should store result in cache after download."""
-        from heisenberg.playground.discover.analysis import verify_has_failures_cached
+        from heisenberg.discovery.analysis import verify_has_failures_cached
 
         mock_download.return_value = 7
 
@@ -329,10 +329,10 @@ class TestVerifyWithCache:
 
         assert cache.get("new-run") == 7
 
-    @patch("heisenberg.playground.discover.analysis.download_and_check_failures")
+    @patch("heisenberg.discovery.analysis.download_and_check_failures")
     def test_verify_caches_zero_failures(self, mock_download):
         """Should cache 0 failures (important for NO_FAILURES status)."""
-        from heisenberg.playground.discover.analysis import verify_has_failures_cached
+        from heisenberg.discovery.analysis import verify_has_failures_cached
 
         mock_download.return_value = 0
 

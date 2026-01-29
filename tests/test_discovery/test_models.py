@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from heisenberg.playground.discover.models import (
+from heisenberg.discovery.models import (
     DEFAULT_QUERIES,
     ProgressInfo,
     ProjectSource,
