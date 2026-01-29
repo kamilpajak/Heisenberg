@@ -163,6 +163,10 @@ dev = [
     "tach>=0.25.0",
     "ty>=0.0.14",
 ]
+docs = [
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.24.0",
+]
 
 # Mutation Testing Configuration (mutmut 2.x)
 # Note: mutmut 2.x uses setup.cfg format, see setup.cfg for config
