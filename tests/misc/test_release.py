@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 # Project root
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
 class TestVersionConsistency:

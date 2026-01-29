@@ -12,11 +12,7 @@ from heisenberg.parsers.playwright import (
     parse_playwright_report,
 )
 
-
-@pytest.fixture
-def sample_report_path() -> Path:
-    """Path to sample Playwright report fixture."""
-    return Path(__file__).parent / "fixtures" / "playwright_report.json"
+# sample_report_path fixture is provided by conftest.py
 
 
 @pytest.fixture

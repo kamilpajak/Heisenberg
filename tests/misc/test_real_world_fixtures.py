@@ -11,8 +11,8 @@ import pytest
 
 from heisenberg.parsers.playwright import parse_playwright_report
 
-# Path to real-world fixtures
-REAL_WORLD_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "real-world"
+# Path to real-world fixtures (shared fixtures directory)
+REAL_WORLD_FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "real-world"
 
 # Expected failure types that should be represented
 EXPECTED_FAILURE_TYPES = {

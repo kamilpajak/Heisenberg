@@ -5,18 +5,13 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from heisenberg.cli.commands import _load_container_logs, run_analyze
 
 
 class TestCliUnifiedJsonOutput:
     """Tests for unified-json output format in CLI."""
 
-    @pytest.fixture
-    def sample_report_path(self) -> Path:
-        """Path to sample Playwright report fixture."""
-        return Path(__file__).parent / "fixtures" / "playwright_report.json"
+    # sample_report_path fixture is provided by conftest.py
 
     def test_unified_json_output_format(self, sample_report_path: Path, capsys):
         """Should output unified JSON format."""
@@ -73,10 +68,7 @@ class TestCliUseUnifiedFlag:
     analyze_with_ai() internally delegates to analyze_unified_run().
     """
 
-    @pytest.fixture
-    def sample_report_path(self) -> Path:
-        """Path to sample Playwright report fixture."""
-        return Path(__file__).parent / "fixtures" / "playwright_report.json"
+    # sample_report_path fixture is provided by conftest.py
 
     def test_ai_analysis_always_uses_unified_model(
         self, sample_report_path: Path, capsys, monkeypatch
@@ -171,10 +163,7 @@ class TestCliUseUnifiedFlag:
 class TestCliContainerLogs:
     """Tests for container logs handling in CLI."""
 
-    @pytest.fixture
-    def sample_report_path(self) -> Path:
-        """Path to sample Playwright report fixture."""
-        return Path(__file__).parent / "fixtures" / "playwright_report.json"
+    # sample_report_path fixture is provided by conftest.py
 
     def test_container_logs_from_file(self, sample_report_path: Path, tmp_path, capsys):
         """Should load container logs from file."""

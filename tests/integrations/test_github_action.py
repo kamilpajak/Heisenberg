@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 
 # Project root
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 ACTION_DIR = PROJECT_ROOT / "action"
 
 

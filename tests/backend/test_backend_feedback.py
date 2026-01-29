@@ -310,7 +310,7 @@ class TestFeedbackMigration:
         """Feedback migration file should exist."""
         from pathlib import Path
 
-        project_root = Path(__file__).parent.parent
+        project_root = Path(__file__).parent.parent.parent
         migrations_dir = project_root / "migrations" / "versions"
 
         if not migrations_dir.exists():
@@ -324,7 +324,7 @@ class TestFeedbackMigration:
         import importlib.util
         from pathlib import Path
 
-        project_root = Path(__file__).parent.parent
+        project_root = Path(__file__).parent.parent.parent
         migrations_dir = project_root / "migrations" / "versions"
 
         if not migrations_dir.exists():
@@ -346,7 +346,7 @@ class TestFeedbackMigration:
         import importlib.util
         from pathlib import Path
 
-        project_root = Path(__file__).parent.parent
+        project_root = Path(__file__).parent.parent.parent
         migrations_dir = project_root / "migrations" / "versions"
 
         if not migrations_dir.exists():
