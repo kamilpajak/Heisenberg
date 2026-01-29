@@ -15,13 +15,13 @@ from heisenberg.core.diagnosis import parse_diagnosis
 from heisenberg.llm.prompts import get_system_prompt
 
 if TYPE_CHECKING:
-    from heisenberg.llm.client import LLMResponse
+    from heisenberg.llm.models import LLMAnalysis
 
 
 class LLMClientProtocol(Protocol):
     """Protocol for LLM client interface."""
 
-    async def analyze(self, prompt: str, system_prompt: str | None = None) -> LLMResponse:
+    async def analyze(self, prompt: str, system_prompt: str | None = None) -> LLMAnalysis:
         """Analyze prompt with LLM."""
         ...
 

@@ -9,9 +9,6 @@ from heisenberg.llm.models import LLMAnalysis
 if TYPE_CHECKING:
     from heisenberg.llm.router import LLMRouter
 
-# Backwards compatibility alias
-LLMResponse = LLMAnalysis
-
 
 class LLMRouterAdapter:
     """Adapter to make LLMRouter compatible with AnalyzeService's LLMClientProtocol."""
