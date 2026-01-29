@@ -259,6 +259,12 @@ class PlaywrightTransformer:
             f"{failure_data.get('file', '')}-{failure_data.get('title', '')}".encode()
         ).hexdigest()[:12]
 
+        # Extract attachments (trace path)
+        attachments = None
+        trace_path = failure_data.get("trace_path")
+        if trace_path:
+            attachments = Attachments(trace_url=trace_path)
+
         return UnifiedFailure(
             test_id=test_id,
             file_path=failure_data.get("file", ""),
@@ -268,6 +274,7 @@ class PlaywrightTransformer:
                 stack_trace=stack_trace,
                 location=location,
             ),
+            attachments=attachments,
             metadata=FailureMetadata(
                 framework=Framework.PLAYWRIGHT,
                 browser=browser,
@@ -307,6 +314,7 @@ class PlaywrightTransformer:
                 "duration": failed_test.duration_ms,
                 "errors": errors,
                 "projectName": failed_test.project,
+                "trace_path": failed_test.trace_path,
             }
             failure = PlaywrightTransformer.transform_failure(failure_data)
             if failed_test.suite:

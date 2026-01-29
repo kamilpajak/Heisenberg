@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 from heisenberg.integrations.docker import ContainerLogs
@@ -51,7 +52,12 @@ Be concise but thorough. Focus on actionable insights."""
 
 
 class PromptBuilder:
-    """Builds prompts for LLM analysis from test failure data."""
+    """Builds prompts for LLM analysis from test failure data.
+
+    .. deprecated::
+        Use :func:`build_unified_prompt` with :class:`UnifiedTestRun` instead.
+        This class will be removed in a future version.
+    """
 
     def __init__(
         self,
@@ -71,6 +77,11 @@ class PromptBuilder:
             compress_logs: Whether to compress/filter logs.
             max_tokens: Optional token limit for logs section.
         """
+        warnings.warn(
+            "PromptBuilder is deprecated. Use build_unified_prompt() with UnifiedTestRun instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.report = report
         self.container_logs = container_logs or {}
         self.max_log_lines = max_log_lines
@@ -218,6 +229,9 @@ def build_analysis_prompt(
     """
     Convenience function to build analysis prompts.
 
+    .. deprecated::
+        Use :func:`build_unified_prompt` with :class:`UnifiedTestRun` instead.
+
     Args:
         report: Playwright test report.
         container_logs: Optional container logs.
@@ -226,11 +240,19 @@ def build_analysis_prompt(
     Returns:
         Tuple of (system_prompt, user_prompt).
     """
-    builder = PromptBuilder(
-        report=report,
-        container_logs=container_logs,
-        max_log_lines=max_log_lines,
+    warnings.warn(
+        "build_analysis_prompt is deprecated. Use build_unified_prompt() with UnifiedTestRun instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
+    # Suppress the PromptBuilder deprecation warning since we already warned
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        builder = PromptBuilder(
+            report=report,
+            container_logs=container_logs,
+            max_log_lines=max_log_lines,
+        )
     return get_system_prompt(), builder.build()
 
 

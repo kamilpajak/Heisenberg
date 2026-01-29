@@ -224,8 +224,8 @@ class TestPlaywrightToUnifiedConversion:
 class TestUnifiedAnalysisInCLI:
     """Tests for using unified model in AI analysis through CLI."""
 
-    def test_cli_uses_unified_for_ai_analysis(self, tmp_path: Path, monkeypatch):
-        """When --use-unified is set, CLI uses analyze_unified_run."""
+    def test_cli_uses_analyze_with_ai_which_uses_unified(self, tmp_path: Path, monkeypatch):
+        """CLI calls analyze_with_ai which internally uses unified model."""
         # Set API key for the test
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
@@ -241,6 +241,7 @@ class TestUnifiedAnalysisInCLI:
                                 {
                                     "title": "test",
                                     "file": "test.ts",
+                                    "ok": False,  # Must be False for parser to detect failure
                                     "tests": [
                                         {
                                             "projectName": "chromium",
@@ -265,19 +266,21 @@ class TestUnifiedAnalysisInCLI:
 
         args = argparse.Namespace(
             report=report_file,  # Path object, not string
-            docker_services=None,
+            docker_services="",  # Must be string, not None
             log_window=30,
             output_format="text",
             ai_analysis=True,
             provider="anthropic",
             model=None,
-            use_unified=True,
+            use_unified=False,  # Flag is deprecated; unified is always used
             post_comment=False,
             container_logs=None,
         )
 
-        with patch("heisenberg.cli.commands.analyze_unified_run") as mock_unified:
-            mock_unified.return_value = MagicMock(
+        # Mock analyze_with_ai at the commands module level
+        # This is the entry point - it internally uses unified model
+        with patch("heisenberg.cli.commands.analyze_with_ai") as mock_analyze:
+            mock_analyze.return_value = MagicMock(
                 diagnosis=MagicMock(
                     root_cause="Root cause",
                     evidence=["Evidence"],
@@ -294,5 +297,5 @@ class TestUnifiedAnalysisInCLI:
 
             run_analyze(args)
 
-            # Should have called unified analysis
-            mock_unified.assert_called_once()
+            # analyze_with_ai is called (and it internally uses unified model)
+            mock_analyze.assert_called_once()

@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import os
+import warnings
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from heisenberg.core.diagnosis import Diagnosis, parse_diagnosis
+from heisenberg.core.models import PlaywrightTransformer
 from heisenberg.integrations.docker import ContainerLogs
 from heisenberg.llm.config import PROVIDER_CONFIGS, calculate_cost
-from heisenberg.llm.prompts import build_analysis_prompt
 
 if TYPE_CHECKING:
     from heisenberg.core.models import UnifiedTestRun
@@ -92,7 +93,12 @@ class AIAnalysisResult:
 
 
 class AIAnalyzer:
-    """AI-powered analyzer for test failures."""
+    """AI-powered analyzer for test failures.
+
+    .. deprecated::
+        Use :func:`analyze_unified_run` directly with :class:`UnifiedTestRun` instead.
+        This class will be removed in a future version.
+    """
 
     def __init__(
         self,
@@ -112,6 +118,11 @@ class AIAnalyzer:
             provider: LLM provider (anthropic, openai, google).
             model: Specific model to use.
         """
+        warnings.warn(
+            "AIAnalyzer is deprecated. Use analyze_unified_run() with UnifiedTestRun instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.report = report
         self.container_logs = container_logs or {}
         self.api_key = api_key
@@ -124,33 +135,21 @@ class AIAnalyzer:
 
         Returns:
             AIAnalysisResult with diagnosis and token usage.
+
+        Note:
+            Internally converts to UnifiedTestRun and delegates to analyze_unified_run().
         """
-        # Build prompt
-        system_prompt, user_prompt = build_analysis_prompt(
-            self.report,
+        # Convert PlaywrightReport to UnifiedTestRun
+        unified_run = PlaywrightTransformer.transform_report(self.report)
+
+        # Delegate to unified analysis
+        return analyze_unified_run(
+            unified_run,
             container_logs=self.container_logs,
-        )
-
-        # Get LLM client based on provider
-        llm = self._get_llm_client()
-
-        # Call LLM
-        response = llm.analyze(user_prompt, system_prompt=system_prompt)
-
-        # Parse diagnosis
-        diagnosis = parse_diagnosis(response.content)
-
-        return AIAnalysisResult(
-            diagnosis=diagnosis,
-            input_tokens=response.input_tokens,
-            output_tokens=response.output_tokens,
+            api_key=self.api_key,
             provider=self.provider,
-            model=getattr(response, "model", self.model),
+            model=self.model,
         )
-
-    def _get_llm_client(self):
-        """Get appropriate LLM client based on provider."""
-        return _get_llm_client_for_provider(self.provider, self.api_key, self.model)
 
 
 def analyze_with_ai(
@@ -163,6 +162,10 @@ def analyze_with_ai(
     """
     Convenience function for AI analysis.
 
+    This function converts the PlaywrightReport to UnifiedTestRun and delegates
+    to :func:`analyze_unified_run`. For new code, prefer using
+    :func:`analyze_unified_run` directly with :class:`UnifiedTestRun`.
+
     Args:
         report: Playwright test report.
         container_logs: Optional container logs (dict or string).
@@ -174,20 +177,23 @@ def analyze_with_ai(
         AIAnalysisResult with diagnosis.
     """
     # Convert string logs to dict format if needed
-    logs_dict = None
+    logs_dict: dict[str, ContainerLogs] | None = None
     if isinstance(container_logs, str):
-        logs_dict = {"logs": SimpleNamespace(entries=container_logs.split("\n"))}
+        logs_dict = {"logs": SimpleNamespace(entries=container_logs.split("\n"))}  # type: ignore[dict-item]
     elif container_logs:
         logs_dict = container_logs
 
-    analyzer = AIAnalyzer(
-        report=report,
-        container_logs=logs_dict,  # type: ignore[arg-type]
+    # Convert PlaywrightReport to UnifiedTestRun
+    unified_run = PlaywrightTransformer.transform_report(report)
+
+    # Delegate to unified analysis
+    return analyze_unified_run(
+        unified_run,
+        container_logs=logs_dict,
         api_key=api_key,
         provider=provider,
         model=model,
     )
-    return analyzer.analyze()
 
 
 def analyze_unified_run(

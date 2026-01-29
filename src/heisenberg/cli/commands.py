@@ -149,18 +149,7 @@ def run_analyze(args: argparse.Namespace) -> int:
         return 1
 
     container_logs = _load_container_logs(args, result)
-
-    use_unified = getattr(args, "use_unified", False)
-    if use_unified and args.ai_analysis:
-        unified_run = convert_to_unified(result.report)
-        ai_result = analyze_unified_run(
-            unified_run,
-            container_logs=container_logs,
-            provider=args.provider,
-            model=getattr(args, "model", None),
-        )
-    else:
-        ai_result = _run_ai_analysis(args, result, container_logs)
+    ai_result = _run_ai_analysis(args, result, container_logs)
 
     if args.output_format == "unified-json":
         from heisenberg.utils.formatting import format_unified_as_json
