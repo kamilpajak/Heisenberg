@@ -165,8 +165,9 @@ jobs:
         id: freeze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAX_NEW_CASES: ${{ inputs.max_new_cases || '3' }}
         run: |
-          MAX_NEW=${{ inputs.max_new_cases || '3' }}
+          MAX_NEW=$MAX_NEW_CASES
           FROZEN=0
 
           # Get compatible sources sorted by stars
