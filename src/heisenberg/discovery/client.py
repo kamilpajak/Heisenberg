@@ -170,6 +170,31 @@ def fetch_stars_batch(repos: list[str], max_workers: int = 5) -> dict[str, int]:
     return results
 
 
+def get_failed_jobs(repo: str, run_id: str) -> list[str]:
+    """Get names of failed jobs in a workflow run.
+
+    Args:
+        repo: Repository in owner/repo format
+        run_id: Workflow run ID
+
+    Returns:
+        List of job names that have conclusion="failure".
+        Empty list on API error or when no jobs failed.
+    """
+    cmd = ["gh", "api", "-X", "GET", f"/repos/{repo}/actions/runs/{run_id}/jobs"]
+    try:
+        result = _gh_subprocess(cmd, timeout=TIMEOUT_API)
+        data = json.loads(result.stdout)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        return []
+
+    if not isinstance(data, dict):
+        return []
+
+    jobs = data.get("jobs", [])
+    return [job["name"] for job in jobs if job.get("conclusion") == "failure"]
+
+
 def get_failed_runs(repo: str, limit: int = MAX_RUNS_TO_CHECK) -> list[dict]:
     """Get recent failed workflow runs for a repository."""
     cmd = ["gh", "api", "-X", "GET", f"/repos/{repo}/actions/runs?status=failure&per_page={limit}"]

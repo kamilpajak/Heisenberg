@@ -519,3 +519,85 @@ class TestFetchStarsBatch:
         result = fetch_stars_batch(["a/x", "b/y"])
 
         assert result == {"a/x": 0, "b/y": 0}
+
+
+# =============================================================================
+# JOB-AWARE ARTIFACT SELECTION
+# =============================================================================
+
+
+class TestGetFailedJobs:
+    """Tests for get_failed_jobs function."""
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_failed_job_names(self, mock_run, _mock_sleep):
+        """Should return list of failed job names."""
+        from heisenberg.discovery.client import get_failed_jobs
+
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps(
+                {
+                    "jobs": [
+                        {"name": "e2e-web (ubuntu-latest)", "conclusion": "failure"},
+                        {"name": "e2e-desktop [1/4]", "conclusion": "success"},
+                        {"name": "npm audit", "conclusion": "failure"},
+                    ]
+                }
+            ),
+            returncode=0,
+        )
+
+        result = get_failed_jobs("owner/repo", "12345")
+
+        assert result == ["e2e-web (ubuntu-latest)", "npm audit"]
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_empty_list_when_no_failures(self, mock_run, _mock_sleep):
+        """Should return empty list when all jobs passed."""
+        from heisenberg.discovery.client import get_failed_jobs
+
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps(
+                {
+                    "jobs": [
+                        {"name": "build", "conclusion": "success"},
+                        {"name": "test", "conclusion": "success"},
+                    ]
+                }
+            ),
+            returncode=0,
+        )
+
+        result = get_failed_jobs("owner/repo", "12345")
+
+        assert result == []
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_empty_list_on_api_error(self, mock_run, _mock_sleep):
+        """Should return empty list on API error."""
+        from heisenberg.discovery.client import get_failed_jobs
+
+        mock_run.side_effect = subprocess.CalledProcessError(1, "gh")
+
+        result = get_failed_jobs("owner/repo", "12345")
+
+        assert result == []
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_calls_correct_api_endpoint(self, mock_run, _mock_sleep):
+        """Should call the jobs endpoint with correct parameters."""
+        from heisenberg.discovery.client import get_failed_jobs
+
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps({"jobs": []}),
+            returncode=0,
+        )
+
+        get_failed_jobs("owner/repo", "99999")
+
+        call_args = mock_run.call_args[0][0]
+        assert "repos/owner/repo/actions/runs/99999/jobs" in " ".join(call_args)

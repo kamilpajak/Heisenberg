@@ -84,6 +84,102 @@ class TestIsPlaywrightArtifact:
         assert is_playwright_artifact("BLOB-REPORT") is True
 
 
+class TestSelectBestArtifact:
+    """Tests for job-aware artifact selection."""
+
+    def test_prioritizes_artifact_matching_failed_job(self):
+        """Should prioritize artifacts matching failed job names."""
+        from heisenberg.discovery.analysis import select_best_artifact
+
+        artifacts = [
+            {"name": "blob-report-desktop-1", "size_in_bytes": 10000},
+            {"name": "e2e-web-reports", "size_in_bytes": 5000},
+            {"name": "coverage-report", "size_in_bytes": 8000},
+        ]
+        failed_jobs = ["e2e-web (ubuntu-latest)", "npm audit"]
+
+        result = select_best_artifact(artifacts, failed_jobs)
+
+        assert result["name"] == "e2e-web-reports"
+
+    def test_falls_back_to_playwright_patterns_when_no_job_match(self):
+        """Should use Playwright patterns when no job name matches."""
+        from heisenberg.discovery.analysis import select_best_artifact
+
+        artifacts = [
+            {"name": "playwright-report", "size_in_bytes": 10000},
+            {"name": "coverage", "size_in_bytes": 5000},
+        ]
+        failed_jobs = ["build", "lint"]
+
+        result = select_best_artifact(artifacts, failed_jobs)
+
+        assert result["name"] == "playwright-report"
+
+    def test_returns_none_when_no_suitable_artifact(self):
+        """Should return None when no artifact looks like a test report."""
+        from heisenberg.discovery.analysis import select_best_artifact
+
+        artifacts = [
+            {"name": "logs.zip", "size_in_bytes": 10000},
+            {"name": "npm-cache", "size_in_bytes": 50000},
+        ]
+        failed_jobs = ["lint", "typecheck"]
+
+        result = select_best_artifact(artifacts, failed_jobs)
+
+        assert result is None
+
+    def test_prefers_blob_report_over_generic(self):
+        """Should prefer blob-report over generic report names."""
+        from heisenberg.discovery.analysis import select_best_artifact
+
+        artifacts = [
+            {"name": "test-results", "size_in_bytes": 10000},
+            {"name": "blob-report-1", "size_in_bytes": 5000},
+        ]
+        failed_jobs = []
+
+        result = select_best_artifact(artifacts, failed_jobs)
+
+        assert result["name"] == "blob-report-1"
+
+    def test_handles_empty_artifacts_list(self):
+        """Should return None for empty artifacts list."""
+        from heisenberg.discovery.analysis import select_best_artifact
+
+        result = select_best_artifact([], ["e2e-web"])
+
+        assert result is None
+
+    def test_handles_empty_failed_jobs_list(self):
+        """Should still find artifacts by pattern when no failed jobs provided."""
+        from heisenberg.discovery.analysis import select_best_artifact
+
+        artifacts = [
+            {"name": "playwright-report", "size_in_bytes": 10000},
+        ]
+
+        result = select_best_artifact(artifacts, [])
+
+        assert result["name"] == "playwright-report"
+
+    def test_extracts_job_name_prefix_from_matrix(self):
+        """Should match artifact to job even with matrix suffix like [1/4]."""
+        from heisenberg.discovery.analysis import select_best_artifact
+
+        artifacts = [
+            {"name": "blob-report-desktop-3", "size_in_bytes": 10000},
+            {"name": "e2e-results", "size_in_bytes": 5000},
+        ]
+        failed_jobs = ["e2e-desktop (ubuntu-latest) [3/4]"]
+
+        result = select_best_artifact(artifacts, failed_jobs)
+
+        # Should match "desktop" and "3" in artifact name
+        assert result["name"] == "blob-report-desktop-3"
+
+
 class TestDetermineStatus:
     """Tests for determine_status function."""
 
