@@ -532,31 +532,27 @@ def run_validate_cases(args: argparse.Namespace) -> int:
 def run_discover(args: argparse.Namespace) -> int:
     """Run the discover command to find GitHub repos with Playwright artifacts."""
     # JSON mode implies quiet
-    quiet = getattr(args, "quiet", False) or getattr(args, "json_output", False)
+    quiet = args.quiet or args.json_output
 
     # Determine cache paths
-    cache_path = None if getattr(args, "no_cache", False) else _USE_DEFAULT_CACHE
-    quarantine_path = (
-        None
-        if (getattr(args, "no_cache", False) or getattr(args, "fresh", False))
-        else _USE_DEFAULT_QUARANTINE
-    )
+    cache_path = None if args.no_cache else _USE_DEFAULT_CACHE
+    quarantine_path = None if (args.no_cache or args.fresh) else _USE_DEFAULT_QUARANTINE
 
     # Create display handler
-    display = DiscoveryDisplay(verbose=getattr(args, "verbose", False), quiet=quiet)
+    display = DiscoveryDisplay(verbose=args.verbose, quiet=quiet)
 
     # Run discovery
     sources = discover_sources(
-        global_limit=getattr(args, "limit", 30),
-        verify_failures=getattr(args, "verify", False),
+        global_limit=args.limit,
+        verify_failures=args.verify,
         on_event=display.handle,
         cache_path=cache_path,
         quarantine_path=quarantine_path,
-        min_stars=getattr(args, "min_stars", 100),
+        min_stars=args.min_stars,
     )
 
     # JSON output to stdout
-    if getattr(args, "json_output", False):
+    if args.json_output:
         output_data = [
             {
                 "repo": s.repo,
@@ -574,10 +570,9 @@ def run_discover(args: argparse.Namespace) -> int:
         print()  # Newline at end
 
     # Save to file if requested
-    output_path = getattr(args, "output", None)
-    if output_path:
+    if args.output:
         from heisenberg.discovery.ui import save_results
 
-        save_results(sources, str(output_path))
+        save_results(sources, str(args.output))
 
     return 0

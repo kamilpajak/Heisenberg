@@ -22,6 +22,14 @@ PLAYWRIGHT_PATTERNS = [
 _PLAYWRIGHT_REGEX = re.compile("|".join(PLAYWRIGHT_PATTERNS), re.IGNORECASE)
 
 
+def _normalize(s: str) -> str:
+    """Normalize string by removing hyphens and underscores.
+
+    Used for fuzzy matching between job names and artifact names.
+    """
+    return s.replace("-", "").replace("_", "")
+
+
 def is_playwright_artifact(name: str) -> bool:
     """Check if artifact name suggests Playwright report."""
     return bool(_PLAYWRIGHT_REGEX.search(name))
@@ -99,7 +107,7 @@ def select_best_artifact(artifacts: list[dict], failed_jobs: list[str]) -> dict 
             job_lower = job_core.lower()
             # Check if job name prefix matches artifact
             # e.g., "e2e-web" matches "e2e-web-reports"
-            if job_lower.replace("-", "") in name_lower.replace("-", "").replace("_", ""):
+            if _normalize(job_lower) in _normalize(name_lower):
                 score += 50
                 # Bonus for shard index match
                 job_shard = failed_job_shards.get(job_core)

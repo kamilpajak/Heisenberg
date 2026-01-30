@@ -189,6 +189,7 @@ class DiscoveryDisplay:
             SourceStatus.HAS_ARTIFACTS: "yellow",
             SourceStatus.NO_ARTIFACTS: "red",
             SourceStatus.NO_FAILED_RUNS: "dim",
+            SourceStatus.UNSUPPORTED_FORMAT: "magenta",
         }.get(event.status, "white")
 
         icon = {
@@ -197,6 +198,7 @@ class DiscoveryDisplay:
             SourceStatus.HAS_ARTIFACTS: "!",
             SourceStatus.NO_ARTIFACTS: "-",
             SourceStatus.NO_FAILED_RUNS: ".",
+            SourceStatus.UNSUPPORTED_FORMAT: "⚠",
         }.get(event.status, "?")
 
         self.console.print(

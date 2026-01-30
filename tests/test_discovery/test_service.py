@@ -170,6 +170,32 @@ class TestParallelProcessing:
 
         assert len(result) >= 1
 
+    @patch("heisenberg.discovery.service.logger")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
+    def test_logs_analysis_failures_at_debug_level(self, mock_search, mock_analyze, mock_logger):
+        """Analysis failures should be logged at debug level."""
+        from heisenberg.discovery.service import discover_sources
+
+        mock_search.return_value = [("failing/repo", 1000)]
+
+        def analyze_side_effect(repo, **kwargs):
+            raise RuntimeError("Network timeout")
+
+        mock_analyze.side_effect = analyze_side_effect
+
+        discover_sources(
+            global_limit=5,
+            queries=["single query"],
+            quarantine_path=None,
+            cache_path=None,
+        )
+
+        mock_logger.debug.assert_called()
+        call_args = str(mock_logger.debug.call_args)
+        assert "failing/repo" in call_args
+        assert "Network timeout" in call_args
+
 
 class TestNoCacheFlag:
     """Tests for --no-cache CLI flag."""

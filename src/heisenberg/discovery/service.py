@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
@@ -27,6 +28,8 @@ from .models import (
     ProjectSource,
     SourceStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 _USE_DEFAULT_CACHE = object()  # Sentinel for "use default cache path"
 _USE_DEFAULT_QUARANTINE = object()  # Sentinel for "use default quarantine path"
@@ -226,8 +229,8 @@ class _DiscoveryRunner:
                 cache=self.cache,
             )
             _update_quarantine(self.quarantine, result)
-        except Exception:  # noqa: S110  # NOSONAR - graceful degradation
-            pass
+        except Exception as e:  # noqa: S110  # NOSONAR - graceful degradation
+            logger.debug("Analysis failed for %s: %s", repo, e)
 
         elapsed_ms = int((time.time() - start_time) * 1000)
         self._emit_analysis_completed(repo, stars, result, elapsed_ms, index)

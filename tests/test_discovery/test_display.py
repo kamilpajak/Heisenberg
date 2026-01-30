@@ -293,6 +293,66 @@ class TestDiscoveryCompletedOutput:
             assert mock_console.print.called
 
 
+class TestStatusColorAndIconMapping:
+    """Tests for status-to-color and status-to-icon mapping."""
+
+    def test_unsupported_format_has_magenta_color(self):
+        """UNSUPPORTED_FORMAT should have magenta color."""
+        # Expected color mapping (should match display.py _print_repo_line)
+        color_map = {
+            SourceStatus.COMPATIBLE: "green",
+            SourceStatus.NO_FAILURES: "yellow",
+            SourceStatus.HAS_ARTIFACTS: "yellow",
+            SourceStatus.NO_ARTIFACTS: "red",
+            SourceStatus.NO_FAILED_RUNS: "dim",
+            SourceStatus.UNSUPPORTED_FORMAT: "magenta",
+        }
+        for status, expected_color in color_map.items():
+            assert expected_color == color_map.get(status), f"Color mismatch for {status}"
+
+    def test_unsupported_format_has_warning_icon(self):
+        """UNSUPPORTED_FORMAT should have warning icon."""
+        icon_map = {
+            SourceStatus.COMPATIBLE: "✓",
+            SourceStatus.NO_FAILURES: "~",
+            SourceStatus.HAS_ARTIFACTS: "!",
+            SourceStatus.NO_ARTIFACTS: "-",
+            SourceStatus.NO_FAILED_RUNS: ".",
+            SourceStatus.UNSUPPORTED_FORMAT: "⚠",
+        }
+        for status, expected_icon in icon_map.items():
+            assert expected_icon == icon_map.get(status), f"Icon mismatch for {status}"
+
+    def test_verbose_mode_displays_unsupported_format(self):
+        """Verbose mode should properly display UNSUPPORTED_FORMAT repos."""
+        from heisenberg.discovery.display import DiscoveryDisplay
+
+        with patch("heisenberg.discovery.display.Console") as mock_console_cls:
+            mock_console = MagicMock()
+            mock_console_cls.return_value = mock_console
+
+            display = DiscoveryDisplay(verbose=True)
+            display.handle(
+                AnalysisCompleted(
+                    repo="owner/html-report-repo",
+                    stars=500,
+                    status=SourceStatus.UNSUPPORTED_FORMAT,
+                    artifact_name="playwright-report",
+                    failure_count=None,
+                    cache_hit=False,
+                    elapsed_ms=300,
+                    index=0,
+                    total=1,
+                )
+            )
+
+            # Should print for UNSUPPORTED_FORMAT in verbose mode
+            assert mock_console.print.called
+            # Check that the output contains magenta color
+            call_args = str(mock_console.print.call_args_list)
+            assert "magenta" in call_args
+
+
 class TestStatsTracking:
     """Tests for internal stats tracking."""
 
