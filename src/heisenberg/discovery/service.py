@@ -1,31 +1,30 @@
-"""Discovery orchestration — coordinates search, analysis, and progress display."""
+"""Discovery orchestration — coordinates search, analysis, and event emission."""
 
 from __future__ import annotations
 
 import os
 import threading
 import time
-from collections.abc import Callable
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any
 
 from .analysis import analyze_source_with_status, sort_sources
 from .cache import QuarantineCache, RunCache, get_default_cache_path, get_default_quarantine_path
 from .client import search_repos
+from .events import (
+    AnalysisCompleted,
+    DiscoveryCompleted,
+    DiscoveryEvent,
+    EventHandler,
+    QueryCompleted,
+    SearchCompleted,
+    SearchStarted,
+)
 from .models import (
     DEFAULT_QUERIES,
-    ProgressInfo,
     ProjectSource,
     SourceStatus,
-)
-from .ui import (
-    COL_REPO,
-    COL_STATUS,
-    create_progress_display,
-    format_status_color,
-    format_status_icon,
-    format_status_label,
 )
 
 _USE_DEFAULT_CACHE = object()  # Sentinel for "use default cache path"
@@ -68,13 +67,22 @@ def _resolve_quarantine_path(quarantine_path: str | None | object) -> str | None
         return None
 
 
+def _emit(handler: EventHandler | None, event: DiscoveryEvent) -> None:
+    """Emit event to handler if present."""
+    if handler:
+        handler(event)
+
+
 def _collect_repos_from_queries(
     queries: list[str],
     global_limit: int,
     quarantine: QuarantineCache | None,
-    min_stars: int = 0,
+    min_stars: int,
+    on_event: EventHandler | None,
 ) -> tuple[list[tuple[str, int]], int, int]:
     """Collect repos from search queries, skipping quarantined and low-star ones.
+
+    Emits QueryCompleted events for each query.
 
     Returns:
         Tuple of (repos_with_stars, quarantine_skipped, stars_filtered)
@@ -84,8 +92,10 @@ def _collect_repos_from_queries(
     quarantine_skipped = 0
     stars_filtered = 0
 
-    for query in queries:
+    for query_idx, query in enumerate(queries):
+        repos_before = len(all_repos)
         results = search_repos(query, limit=global_limit)
+
         for repo, stars in results:
             if repo in all_repos:
                 continue
@@ -95,6 +105,20 @@ def _collect_repos_from_queries(
                 stars_filtered += 1
             else:
                 all_repos[repo] = stars
+
+        new_repos = len(all_repos) - repos_before
+        query_preview = query[:40] if len(query) <= 40 else query[:37] + "..."
+
+        _emit(
+            on_event,
+            QueryCompleted(
+                query_index=query_idx,
+                query_preview=query_preview,
+                repos_found=len(results),
+                new_repos=new_repos,
+            ),
+        )
+
         if len(all_repos) >= global_limit:
             break
 
@@ -112,38 +136,6 @@ def _update_quarantine(quarantine: QuarantineCache | None, result: ProjectSource
         quarantine.set(result.repo, result.status.value)
 
 
-def _format_waiting_description(repo: str) -> str:
-    """Format Rich progress description for waiting state."""
-    return (
-        f"[dim].[/dim] [cyan]{repo:<{COL_REPO}}[/cyan]"
-        f" [dim]\u2502[/dim] [dim]{'waiting...':<{COL_STATUS}}[/dim]"
-    )
-
-
-def _format_stage_description(repo: str, stage: str) -> str:
-    """Format Rich progress description for in-progress state."""
-    stage_display = (stage[: COL_STATUS - 1] + "\u2026") if len(stage) > COL_STATUS else stage
-    return (
-        f"[dim].[/dim] [cyan]{repo:<{COL_REPO}}[/cyan]"
-        f" [dim]\u2502[/dim] [dim]{stage_display:<{COL_STATUS}}[/dim]"
-    )
-
-
-def _format_complete_description(
-    repo: str, result: ProjectSource | None, message: str | None
-) -> str:
-    """Format Rich progress description for completed state."""
-    icon = format_status_icon(result.status) if result else "?"
-    color = format_status_color(result.status) if result else "white"
-    status_text = format_status_label(result.status) if result else "error"
-    extra = f" [dim]({message})[/dim]" if message else ""
-    return (
-        f"[{color}]{icon}[/{color}] [cyan]{repo:<{COL_REPO}}[/cyan]"
-        f" [dim]\u2502[/dim] [{color}]{status_text:<{COL_STATUS}}[/{color}]"
-        f"{extra}"
-    )
-
-
 @dataclass
 class _DiscoveryRunner:
     """Encapsulates state and methods for running discovery."""
@@ -152,12 +144,10 @@ class _DiscoveryRunner:
     verify_failures: bool
     cache: RunCache | None
     quarantine: QuarantineCache | None
-    progress: Any  # Rich Progress or None
-    on_progress: Callable[[ProgressInfo], None] | None
+    on_event: EventHandler | None
 
     # Mutable state
     sources: list[ProjectSource] = field(default_factory=list)
-    task_ids: dict[str, int] = field(default_factory=dict)
     completion_counter: list[int] = field(default_factory=lambda: [0])
     counter_lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -165,63 +155,49 @@ class _DiscoveryRunner:
     def total(self) -> int:
         return len(self.repos)
 
-    def _start_task(self, repo: str) -> None:
-        """Start the Rich timer for a task."""
-        if self.progress and repo in self.task_ids:
-            self.progress.start_task(self.task_ids[repo])
-
-    def _update_task_stage(self, repo: str, stage: str) -> None:
-        """Update Rich progress with current stage."""
-        if self.progress and repo in self.task_ids:
-            self.progress.update(
-                self.task_ids[repo], description=_format_stage_description(repo, stage)
-            )
-
-    def _complete_task(self, repo: str, result: ProjectSource | None, message: str | None) -> None:
-        """Mark task as complete in Rich progress."""
-        if self.progress and repo in self.task_ids:
-            self.progress.update(
-                self.task_ids[repo],
-                description=_format_complete_description(repo, result, message),
-                completed=1,
-            )
-
-    def _report_progress(
-        self, repo: str, result: ProjectSource | None, elapsed_ms: int, message: str | None
+    def _emit_analysis_completed(
+        self,
+        repo: str,
+        stars: int,
+        result: ProjectSource | None,
+        elapsed_ms: int,
+        index: int,
     ) -> None:
-        """Report progress via callback."""
-        if not self.on_progress:
+        """Emit AnalysisCompleted event."""
+        if not self.on_event:
             return
-        status = result.status.value if result else "error"
+
+        status = result.status if result else SourceStatus.NO_ARTIFACTS
+        artifact_name = (
+            result.playwright_artifacts[0] if result and result.playwright_artifacts else None
+        )
+
         with self.counter_lock:
             self.completion_counter[0] += 1
-            info = ProgressInfo(
-                completed=self.completion_counter[0],
-                total=self.total,
+            event = AnalysisCompleted(
                 repo=repo,
+                stars=stars,
                 status=status,
+                artifact_name=artifact_name,
+                failure_count=None,  # Not tracked currently
+                cache_hit=False,  # Not tracked currently
                 elapsed_ms=elapsed_ms,
-                message=message,
+                index=self.completion_counter[0] - 1,
+                total=self.total,
             )
-            self.on_progress(info)
+            self.on_event(event)
 
-    def analyze_repo(self, repo: str, stars: int) -> ProjectSource | None:
-        """Analyze a single repo and report progress."""
+    def analyze_repo(self, repo: str, stars: int, index: int) -> ProjectSource | None:
+        """Analyze a single repo and emit events."""
         start_time = time.time()
         result = None
-        message = None
-
-        self._start_task(repo)
-
-        def on_status(stage: str) -> None:
-            self._update_task_stage(repo, stage)
 
         try:
             result = analyze_source_with_status(
                 repo,
                 stars=stars,
                 verify_failures=self.verify_failures,
-                on_status=on_status if self.progress else None,
+                on_status=None,
                 cache=self.cache,
             )
             _update_quarantine(self.quarantine, result)
@@ -229,27 +205,16 @@ class _DiscoveryRunner:
             pass
 
         elapsed_ms = int((time.time() - start_time) * 1000)
-        self._complete_task(repo, result, message)
-        self._report_progress(repo, result, elapsed_ms, message)
+        self._emit_analysis_completed(repo, stars, result, elapsed_ms, index)
 
         return result
 
-    def add_progress_tasks(self) -> None:
-        """Add all repos as tasks to Rich progress."""
-        if not self.progress:
-            return
-        for repo, _stars in self.repos:
-            task_id = self.progress.add_task(
-                _format_waiting_description(repo), total=1, start=False
-            )
-            self.task_ids[repo] = task_id
-
     def run(self) -> None:
         """Run parallel discovery."""
-        self.add_progress_tasks()
         with ThreadPoolExecutor(max_workers=4) as executor:
             futures = {
-                executor.submit(self.analyze_repo, repo, stars): repo for repo, stars in self.repos
+                executor.submit(self.analyze_repo, repo, stars, idx): repo
+                for idx, (repo, stars) in enumerate(self.repos)
             }
             for future in as_completed(futures):
                 result = future.result()
@@ -261,8 +226,7 @@ def discover_sources(
     global_limit: int = 30,
     queries: list[str] | None = None,
     verify_failures: bool = False,
-    on_progress: Callable[[ProgressInfo], None] | None = None,
-    show_progress: bool = False,
+    on_event: EventHandler | None = None,
     cache_path: str | None | object = _USE_DEFAULT_CACHE,
     quarantine_path: str | None | object = _USE_DEFAULT_QUARANTINE,
     min_stars: int = 0,
@@ -273,11 +237,13 @@ def discover_sources(
         global_limit: Maximum number of repos to analyze.
         queries: Search queries (defaults to DEFAULT_QUERIES).
         verify_failures: Download artifacts to verify actual failures.
-        on_progress: Callback for progress updates.
-        show_progress: Show Rich progress display.
+        on_event: Event handler for UI updates.
         cache_path: Path to run cache, or None to disable.
         quarantine_path: Path to quarantine cache, or None to disable.
         min_stars: Minimum stars required (repos below this are filtered before analysis).
+
+    Returns:
+        List of ProjectSource objects sorted by compatibility and stars.
     """
     queries = queries or DEFAULT_QUERIES
 
@@ -290,22 +256,27 @@ def discover_sources(
         QuarantineCache(cache_path=actual_quarantine_path) if actual_quarantine_path else None
     )
 
-    # Collect repos (filtering by min_stars happens here)
+    # Emit SearchStarted
+    _emit(on_event, SearchStarted(total_queries=len(queries)))
+
+    # Collect repos (filtering by min_stars happens here, emits QueryCompleted events)
     repos_to_analyze, quarantine_skipped, stars_filtered = _collect_repos_from_queries(
-        queries, global_limit, quarantine, min_stars
+        queries, global_limit, quarantine, min_stars, on_event
     )
 
-    if show_progress:
-        skip_parts = []
-        if quarantine_skipped > 0:
-            skip_parts.append(f"{quarantine_skipped} quarantined")
-        if stars_filtered > 0:
-            skip_parts.append(f"{stars_filtered} below {min_stars} stars")
-        if skip_parts:
-            print(f"  ({', '.join(skip_parts)}, analyzing {len(repos_to_analyze)})\n")
+    # Calculate total candidates (repos we actually looked at)
+    total_candidates = len(repos_to_analyze) + quarantine_skipped + stars_filtered
 
-    # Create progress display
-    progress = create_progress_display() if show_progress else None
+    # Emit SearchCompleted
+    _emit(
+        on_event,
+        SearchCompleted(
+            total_candidates=total_candidates,
+            quarantine_skipped=quarantine_skipped,
+            stars_filtered=stars_filtered,
+            to_analyze=len(repos_to_analyze),
+        ),
+    )
 
     # Run discovery
     runner = _DiscoveryRunner(
@@ -313,18 +284,29 @@ def discover_sources(
         verify_failures=verify_failures,
         cache=cache,
         quarantine=quarantine,
-        progress=progress,
-        on_progress=on_progress,
+        on_event=on_event,
     )
 
-    if progress:
-        with progress:
-            runner.run()
-    else:
-        runner.run()
+    runner.run()
 
     # Save cache
     if cache:
         cache.save()
 
-    return sort_sources(runner.sources)
+    # Sort results
+    sorted_sources = sort_sources(runner.sources)
+
+    # Emit DiscoveryCompleted with stats
+    stats: Counter[SourceStatus] = Counter()
+    for source in sorted_sources:
+        stats[source.status] += 1
+
+    _emit(
+        on_event,
+        DiscoveryCompleted(
+            results=sorted_sources,
+            stats=dict(stats),
+        ),
+    )
+
+    return sorted_sources

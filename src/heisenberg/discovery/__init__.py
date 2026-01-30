@@ -30,6 +30,18 @@ from .client import (
     gh_api,
     search_repos,
 )
+from .display import DiscoveryDisplay
+from .events import (
+    AnalysisCompleted,
+    AnalysisProgress,
+    AnalysisStarted,
+    DiscoveryCompleted,
+    DiscoveryEvent,
+    EventHandler,
+    QueryCompleted,
+    SearchCompleted,
+    SearchStarted,
+)
 from .models import (
     CACHE_SCHEMA_VERSION,
     CACHE_TTL_DAYS,
@@ -131,4 +143,16 @@ __all__ = [
     # cli
     "create_argument_parser",
     "main",
+    # events
+    "DiscoveryEvent",
+    "EventHandler",
+    "SearchStarted",
+    "QueryCompleted",
+    "SearchCompleted",
+    "AnalysisStarted",
+    "AnalysisProgress",
+    "AnalysisCompleted",
+    "DiscoveryCompleted",
+    # display
+    "DiscoveryDisplay",
 ]
