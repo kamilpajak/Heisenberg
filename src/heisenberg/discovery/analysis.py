@@ -158,7 +158,7 @@ def _is_html_report_dir(dir_path) -> bool:
     dir_path = Path(dir_path)
     has_index_html = (dir_path / "index.html").exists()
     data_dir = dir_path / "data"
-    has_data_content = data_dir.is_dir() and any(data_dir.iterdir())
+    has_data_content = data_dir.is_dir() and next(data_dir.iterdir(), None) is not None
     return has_index_html and has_data_content
 
 
@@ -406,9 +406,20 @@ def analyze_source_with_status(
     if verify_failures and playwright_artifacts and run_id:
         artifact_to_check = playwright_artifacts[0]
         _report_verification_stage(cache, run_id, artifact_sizes, artifact_to_check, report)
-        failure_count = _verify_artifact_failures(
-            repo, run_id, artifact_to_check, cache, run_created_at
-        )
+        try:
+            failure_count = _verify_artifact_failures(
+                repo, run_id, artifact_to_check, cache, run_created_at
+            )
+        except HtmlReportNotSupported:
+            return ProjectSource(
+                repo=repo,
+                stars=stars,
+                status=SourceStatus.UNSUPPORTED_FORMAT,
+                artifact_names=artifact_names,
+                playwright_artifacts=playwright_artifacts,
+                run_id=run_id,
+                run_url=run_url,
+            )
 
     status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
 
@@ -458,11 +469,6 @@ def analyze_source(
         run_id=run_id,
         run_url=run_url,
     )
-
-
-def filter_by_min_stars(sources: list[ProjectSource], min_stars: int = 100) -> list[ProjectSource]:
-    """Filter sources by minimum star count."""
-    return [c for c in sources if c.stars >= min_stars]
 
 
 def sort_sources(sources: list[ProjectSource]) -> list[ProjectSource]:

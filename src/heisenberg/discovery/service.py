@@ -38,6 +38,7 @@ _QUARANTINE_STATUSES = frozenset(
         SourceStatus.NO_FAILED_RUNS,
         SourceStatus.HAS_ARTIFACTS,
         SourceStatus.NO_FAILURES,
+        SourceStatus.UNSUPPORTED_FORMAT,
     }
 )
 

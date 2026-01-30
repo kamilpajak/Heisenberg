@@ -11,7 +11,6 @@ from heisenberg.discovery.analysis import (
     determine_status,
     download_and_check_failures,
     extract_failure_count_from_dir,
-    filter_by_min_stars,
     filter_expired_artifacts,
     find_valid_artifacts,
     is_playwright_artifact,
@@ -127,28 +126,6 @@ class TestFilterExpiredArtifacts:
         artifacts = [{"name": "report1"}]
         result = filter_expired_artifacts(artifacts)
         assert result == ["report1"]
-
-
-class TestFilterByMinStars:
-    """Tests for filter_by_min_stars function."""
-
-    def test_filters_below_threshold(self):
-        """Should filter out repos below min_stars threshold."""
-        sources = [
-            ProjectSource(repo="low/stars", stars=50, status=SourceStatus.COMPATIBLE),
-            ProjectSource(repo="high/stars", stars=500, status=SourceStatus.COMPATIBLE),
-        ]
-        filtered = filter_by_min_stars(sources, min_stars=100)
-        assert len(filtered) == 1
-        assert filtered[0].repo == "high/stars"
-
-    def test_keeps_at_threshold(self):
-        """Should keep repos at exactly min_stars threshold."""
-        sources = [
-            ProjectSource(repo="exact/threshold", stars=100, status=SourceStatus.COMPATIBLE),
-        ]
-        filtered = filter_by_min_stars(sources, min_stars=100)
-        assert len(filtered) == 1
 
 
 class TestSortSources:
@@ -699,6 +676,37 @@ class TestAnalyzeWithStatusUpdates:
         )
 
         assert any("dl" in s.lower() or "download" in s.lower() for s in stages_seen)
+
+    @patch("heisenberg.discovery.analysis._verify_artifact_failures")
+    @patch("heisenberg.discovery.analysis.get_repo_stars")
+    @patch("heisenberg.discovery.analysis.find_valid_artifacts")
+    def test_returns_unsupported_format_on_html_report(
+        self, mock_artifacts, mock_stars, mock_verify
+    ):
+        """Should return UNSUPPORTED_FORMAT when HtmlReportNotSupported is raised."""
+        from heisenberg.core.exceptions import HtmlReportNotSupported
+        from heisenberg.discovery.analysis import analyze_source_with_status
+
+        mock_stars.return_value = 1000
+        mock_artifacts.return_value = (
+            "123",
+            "https://github.com/owner/repo/actions/runs/123",
+            ["playwright-report"],
+            "2024-01-15T10:00:00Z",
+            {"playwright-report": 50_000_000},
+        )
+        mock_verify.side_effect = HtmlReportNotSupported()
+
+        result = analyze_source_with_status(
+            "owner/repo",
+            verify_failures=True,
+        )
+
+        assert result.status == SourceStatus.UNSUPPORTED_FORMAT
+        assert result.repo == "owner/repo"
+        assert result.stars == 1000
+        assert result.playwright_artifacts == ["playwright-report"]
+        assert result.run_id == "123"
 
 
 # =============================================================================

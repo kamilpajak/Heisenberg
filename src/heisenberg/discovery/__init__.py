@@ -12,7 +12,6 @@ from .analysis import (
     determine_status,
     download_and_check_failures,
     extract_failure_count_from_dir,
-    filter_by_min_stars,
     filter_expired_artifacts,
     find_valid_artifacts,
     is_playwright_artifact,
@@ -121,7 +120,6 @@ __all__ = [
     "determine_status",
     "analyze_source_with_status",
     "analyze_source",
-    "filter_by_min_stars",
     "sort_sources",
     # ui
     "COL_REPO",
