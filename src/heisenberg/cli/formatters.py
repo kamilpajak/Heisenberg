@@ -43,12 +43,13 @@ def format_json_output(result, ai_result) -> str:
 
 def format_output(args, result, ai_result) -> str:
     """Format output based on requested format."""
-    if args.output_format == "github-comment":
+    output_format = getattr(args, "output_format", "text")
+    if output_format == "github-comment":
         output = result.to_markdown()
         if ai_result:
             output += "\n\n" + ai_result.to_markdown()
         return output
-    elif args.output_format == "json":
+    elif output_format == "json":
         return format_json_output(result, ai_result)
     return format_text_output(result, ai_result)
 

@@ -23,6 +23,7 @@ def create_parser() -> argparse.ArgumentParser:
     _add_analyze_case_parser(subparsers)
     _add_generate_manifest_parser(subparsers)
     _add_validate_cases_parser(subparsers)
+    _add_discover_parser(subparsers)
 
     return parser
 
@@ -146,11 +147,25 @@ def _add_fetch_github_parser(subparsers) -> None:
         help="Enable AI-powered root cause analysis",
     )
     fetch_parser.add_argument(
+        "--output-format",
+        "-f",
+        choices=["github-comment", "json", "text"],
+        default="text",
+        help="Output format (default: text)",
+    )
+    fetch_parser.add_argument(
         "--provider",
         "-p",
         choices=["anthropic", "openai", "google"],
         default="google",
         help=_PROVIDER_HELP,
+    )
+    fetch_parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        default=None,
+        help="Specific model to use (provider-dependent)",
     )
     fetch_parser.add_argument(
         "--list-artifacts",
@@ -292,4 +307,75 @@ def _add_validate_cases_parser(subparsers) -> None:
         "--json",
         action="store_true",
         help="Output results as JSON",
+    )
+
+
+def _add_discover_parser(subparsers) -> None:
+    """Add the discover subcommand parser."""
+    parser = subparsers.add_parser(
+        "discover",
+        help="Discover GitHub repos with Playwright test artifacts",
+    )
+
+    # Filtering
+    parser.add_argument(
+        "--min-stars",
+        type=int,
+        default=100,
+        metavar="N",
+        help="Minimum stars (default: 100)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=30,
+        metavar="N",
+        help="Max repos to analyze (default: 30)",
+    )
+
+    # Caching
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        dest="no_cache",
+        help="Disable all caching (slowest, freshest results)",
+    )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Ignore quarantine cache (re-check previously filtered repos)",
+    )
+
+    # Verification
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Download artifacts to verify failures exist (slower)",
+    )
+
+    # Output modes
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Show all repos during analysis (not just compatible)",
+    )
+    parser.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Only show final summary",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="Output JSON to stdout (implies --quiet)",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=Path,
+        metavar="FILE",
+        help="Save results to JSON file",
     )

@@ -5,6 +5,7 @@ import asyncio
 from heisenberg.cli.commands import (
     run_analyze,
     run_analyze_case,
+    run_discover,
     run_fetch_github,
     run_freeze,
     run_generate_manifest,
@@ -30,6 +31,8 @@ def main() -> int:
         return run_generate_manifest(args)
     elif args.command == "validate-cases":
         return run_validate_cases(args)
+    elif args.command == "discover":
+        return run_discover(args)
 
     return 1
 
@@ -38,6 +41,7 @@ __all__ = [
     "create_parser",
     "main",
     "run_analyze_case",
+    "run_discover",
     "run_freeze",
     "run_generate_manifest",
     "run_validate_cases",

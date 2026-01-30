@@ -40,7 +40,7 @@ depends_on = ["heisenberg.core", "heisenberg.llm", "heisenberg.integrations", "h
 
 [[modules]]
 path = "heisenberg.cli"
-depends_on = ["heisenberg.core", "heisenberg.analysis", "heisenberg.parsers", "heisenberg.integrations", "heisenberg.playground", "heisenberg.llm"]
+depends_on = ["heisenberg.core", "heisenberg.analysis", "heisenberg.parsers", "heisenberg.integrations", "heisenberg.playground", "heisenberg.llm", "heisenberg.discovery"]
 
 [[modules]]
 path = "heisenberg.backend"

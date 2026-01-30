@@ -12,6 +12,12 @@ from pathlib import Path
 from heisenberg.analysis import analyze_unified_run, analyze_with_ai, run_analysis
 from heisenberg.cli import formatters, github_fetch
 from heisenberg.core.models import PlaywrightTransformer, UnifiedTestRun
+from heisenberg.discovery.display import DiscoveryDisplay
+from heisenberg.discovery.service import (
+    _USE_DEFAULT_CACHE,
+    _USE_DEFAULT_QUARANTINE,
+    discover_sources,
+)
 from heisenberg.integrations.github_client import post_pr_comment
 from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 from heisenberg.playground.freeze import CaseFreezer, FreezeConfig
@@ -240,7 +246,7 @@ def _analyze_report_data(
             except Exception as e:
                 print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
 
-        print(formatters.format_text_output(result, ai_result))
+        print(formatters.format_output(args, result, ai_result))
         return 1 if result.has_failures else 0
     finally:
         temp_path.unlink()
@@ -521,3 +527,57 @@ def run_validate_cases(args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"Error validating cases: {e}", file=sys.stderr)
         return 1
+
+
+def run_discover(args: argparse.Namespace) -> int:
+    """Run the discover command to find GitHub repos with Playwright artifacts."""
+    # JSON mode implies quiet
+    quiet = getattr(args, "quiet", False) or getattr(args, "json_output", False)
+
+    # Determine cache paths
+    cache_path = None if getattr(args, "no_cache", False) else _USE_DEFAULT_CACHE
+    quarantine_path = (
+        None
+        if (getattr(args, "no_cache", False) or getattr(args, "fresh", False))
+        else _USE_DEFAULT_QUARANTINE
+    )
+
+    # Create display handler
+    display = DiscoveryDisplay(verbose=getattr(args, "verbose", False), quiet=quiet)
+
+    # Run discovery
+    sources = discover_sources(
+        global_limit=getattr(args, "limit", 30),
+        verify_failures=getattr(args, "verify", False),
+        on_event=display.handle,
+        cache_path=cache_path,
+        quarantine_path=quarantine_path,
+        min_stars=getattr(args, "min_stars", 100),
+    )
+
+    # JSON output to stdout
+    if getattr(args, "json_output", False):
+        output_data = [
+            {
+                "repo": s.repo,
+                "stars": s.stars,
+                "compatible": s.compatible,
+                "status": s.status.value,
+                "artifacts": s.artifact_names,
+                "playwright_artifacts": s.playwright_artifacts,
+                "run_id": s.run_id,
+                "run_url": s.run_url,
+            }
+            for s in sources
+        ]
+        json.dump(output_data, sys.stdout, indent=2)
+        print()  # Newline at end
+
+    # Save to file if requested
+    output_path = getattr(args, "output", None)
+    if output_path:
+        from heisenberg.discovery.ui import save_results
+
+        save_results(sources, str(output_path))
+
+    return 0
