@@ -1498,6 +1498,139 @@ class TestConvertToUnified:
         assert result.passed_tests == 5
 
 
+class TestAutoSelectArtifact:
+    """Tests for job-aware artifact auto-selection."""
+
+    @pytest.fixture
+    def mock_artifacts(self):
+        """Sample artifacts for testing auto-select."""
+        from heisenberg.integrations.github_artifacts import Artifact
+
+        return [
+            Artifact(
+                id=1001,
+                name="e2e-web-reports",
+                size_in_bytes=38800,
+                expired=False,
+                archive_download_url="https://api.github.com/...",
+            ),
+            Artifact(
+                id=1002,
+                name="blob-report-desktop-1",
+                size_in_bytes=47200,
+                expired=False,
+                archive_download_url="https://api.github.com/...",
+            ),
+            Artifact(
+                id=1003,
+                name="blob-report-desktop-2",
+                size_in_bytes=49700,
+                expired=False,
+                archive_download_url="https://api.github.com/...",
+            ),
+        ]
+
+    @pytest.fixture
+    def mock_jobs(self):
+        """Sample jobs for testing auto-select."""
+        from heisenberg.integrations.github_artifacts import Job
+
+        return [
+            Job(id=111, name="e2e-web (ubuntu-latest)", status="completed", conclusion="failure"),
+            Job(
+                id=222, name="e2e-desktop (ubuntu-latest)", status="completed", conclusion="success"
+            ),
+            Job(id=333, name="npm audit", status="completed", conclusion="failure"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_auto_select_picks_artifact_matching_failed_job(self, mock_artifacts, mock_jobs):
+        """Auto-select should pick artifact matching failed job name."""
+        mock_client = MagicMock()
+        mock_client.get_artifacts = AsyncMock(return_value=mock_artifacts)
+        mock_client.get_jobs = AsyncMock(return_value=mock_jobs)
+        mock_client.download_artifact = AsyncMock(return_value=b"zip_data")
+        mock_client.extract_playwright_report = MagicMock(return_value={"tests": []})
+
+        # Call without artifact_name to trigger auto-select
+        result = await fetch_report_from_run(
+            mock_client, "owner", "repo", 12345, artifact_name=None
+        )
+
+        # Should have selected e2e-web-reports (matches e2e-web job)
+        mock_client.download_artifact.assert_called_once_with("owner", "repo", 1001)
+        assert result == {"tests": []}
+
+    @pytest.mark.asyncio
+    async def test_artifact_name_overrides_auto_select(self, mock_artifacts, mock_jobs):
+        """Explicit --artifact-name should override auto-select."""
+        mock_client = MagicMock()
+        mock_client.get_artifacts = AsyncMock(return_value=mock_artifacts)
+        mock_client.download_artifact = AsyncMock(return_value=b"zip_data")
+        mock_client.extract_playwright_report = MagicMock(return_value={"tests": []})
+
+        # Call with explicit artifact_name
+        result = await fetch_report_from_run(
+            mock_client, "owner", "repo", 12345, artifact_name="blob-report"
+        )
+
+        # Should NOT call get_jobs when artifact_name is provided
+        mock_client.get_jobs.assert_not_called()
+        # Should have selected first matching blob-report artifact
+        mock_client.download_artifact.assert_called_once_with("owner", "repo", 1002)
+        assert result == {"tests": []}
+
+    @pytest.mark.asyncio
+    async def test_auto_select_calls_get_jobs(self, mock_artifacts, mock_jobs):
+        """Auto-select should call get_jobs to get failed job names."""
+        mock_client = MagicMock()
+        mock_client.get_artifacts = AsyncMock(return_value=mock_artifacts)
+        mock_client.get_jobs = AsyncMock(return_value=mock_jobs)
+        mock_client.download_artifact = AsyncMock(return_value=b"zip_data")
+        mock_client.extract_playwright_report = MagicMock(return_value={"tests": []})
+
+        await fetch_report_from_run(mock_client, "owner", "repo", 12345, artifact_name=None)
+
+        mock_client.get_jobs.assert_called_once_with("owner", "repo", 12345)
+
+    @pytest.mark.asyncio
+    async def test_auto_select_falls_back_when_no_job_match(self, mock_artifacts):
+        """Auto-select should fall back to pattern matching when no job matches."""
+        from heisenberg.integrations.github_artifacts import Job
+
+        # Jobs that don't match any artifact names
+        unrelated_jobs = [
+            Job(id=111, name="lint", status="completed", conclusion="failure"),
+            Job(id=222, name="typecheck", status="completed", conclusion="failure"),
+        ]
+
+        mock_client = MagicMock()
+        mock_client.get_artifacts = AsyncMock(return_value=mock_artifacts)
+        mock_client.get_jobs = AsyncMock(return_value=unrelated_jobs)
+        mock_client.download_artifact = AsyncMock(return_value=b"zip_data")
+        mock_client.extract_playwright_report = MagicMock(return_value={"tests": []})
+
+        result = await fetch_report_from_run(
+            mock_client, "owner", "repo", 12345, artifact_name=None
+        )
+
+        # Should still find an artifact (fallback to Playwright patterns)
+        assert result is not None
+        mock_client.download_artifact.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_auto_select_returns_none_when_no_artifacts(self):
+        """Auto-select should return None when no artifacts found."""
+        mock_client = MagicMock()
+        mock_client.get_artifacts = AsyncMock(return_value=[])
+
+        result = await fetch_report_from_run(
+            mock_client, "owner", "repo", 12345, artifact_name=None
+        )
+
+        assert result is None
+
+
 class TestAnalyzeTracesFromZip:
     """Tests for _analyze_traces_from_zip helper function."""
 

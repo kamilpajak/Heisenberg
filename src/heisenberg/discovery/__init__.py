@@ -6,6 +6,8 @@ This package searches GitHub for repositories that:
 3. Have recent failed workflow runs
 """
 
+from heisenberg.core.artifact_selection import PLAYWRIGHT_PATTERNS
+
 from .analysis import (
     analyze_source,
     analyze_source_with_status,
@@ -52,7 +54,6 @@ from .models import (
     GH_MAX_RETRIES,
     GH_RETRY_BASE_DELAY,
     MAX_RUNS_TO_CHECK,
-    PLAYWRIGHT_PATTERNS,
     QUARANTINE_SCHEMA_VERSION,
     QUARANTINE_TTL_HOURS,
     TIMEOUT_API,

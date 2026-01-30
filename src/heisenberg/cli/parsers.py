@@ -136,8 +136,8 @@ def _add_fetch_github_parser(subparsers) -> None:
     )
     fetch_parser.add_argument(
         "--artifact-name",
-        default="playwright",
-        help="Pattern to match artifact name (default: playwright)",
+        default=None,
+        help="Pattern to match artifact name (default: auto-select based on failed jobs)",
     )
     fetch_parser.add_argument(
         "--ai-analysis",

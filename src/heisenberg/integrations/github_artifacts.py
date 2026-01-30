@@ -48,6 +48,16 @@ class WorkflowRun:
 
 
 @dataclass
+class Job:
+    """Represents a GitHub Actions job within a workflow run."""
+
+    id: int
+    name: str
+    status: str
+    conclusion: str | None
+
+
+@dataclass
 class Artifact:
     """Represents a GitHub Actions artifact."""
 
@@ -203,6 +213,37 @@ class GitHubArtifactClient:
                 html_url=run["html_url"],
             )
             for run in data.get("workflow_runs", [])
+        ]
+
+    async def get_jobs(
+        self,
+        owner: str,
+        repo: str,
+        run_id: int,
+    ) -> list[Job]:
+        """Get jobs for a specific workflow run.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            run_id: Workflow run ID
+
+        Returns:
+            List of Job objects
+        """
+        data = await self._request(
+            "GET",
+            f"/repos/{owner}/{repo}/actions/runs/{run_id}/jobs",
+        )
+
+        return [
+            Job(
+                id=job["id"],
+                name=job["name"],
+                status=job["status"],
+                conclusion=job.get("conclusion"),
+            )
+            for job in data.get("jobs", [])
         ]
 
     async def get_artifacts(
@@ -395,7 +436,7 @@ class GitHubArtifactClient:
         repo: str,
         workflow_name: str | None = None,
         conclusion: str = "failure",
-        artifact_name_pattern: str = "playwright",
+        artifact_name_pattern: str | None = None,
     ) -> dict | None:
         """Convenience method to fetch the latest Playwright report.
 
@@ -404,11 +445,14 @@ class GitHubArtifactClient:
             repo: Repository name
             workflow_name: Filter by workflow name (optional)
             conclusion: Filter by conclusion (failure, success, etc.)
-            artifact_name_pattern: Pattern to match artifact names
+            artifact_name_pattern: Pattern to match artifact names. If None,
+                uses job-aware auto-selection based on failed jobs.
 
         Returns:
             Parsed Playwright report or None if not found
         """
+        from heisenberg.core.artifact_selection import is_playwright_artifact, select_best_artifact
+
         # Get recent runs with the specified conclusion
         runs = await self.list_workflow_runs(owner, repo)
 
@@ -427,10 +471,29 @@ class GitHubArtifactClient:
         for run in matching_runs[:5]:  # Check up to 5 most recent runs
             artifacts = await self.get_artifacts(owner, repo, run.id, include_expired=False)
 
-            # Find artifact matching the pattern
-            matching_artifacts = [
-                a for a in artifacts if artifact_name_pattern.lower() in a.name.lower()
-            ]
+            if not artifacts:
+                continue
+
+            if artifact_name_pattern:
+                # Explicit pattern matching
+                matching_artifacts = [
+                    a for a in artifacts if artifact_name_pattern.lower() in a.name.lower()
+                ]
+            else:
+                # Job-aware auto-selection
+                jobs = await self.get_jobs(owner, repo, run.id)
+                failed_jobs = [j.name for j in jobs if j.conclusion == "failure"]
+
+                artifacts_dicts = [
+                    {"name": a.name, "size_in_bytes": a.size_in_bytes} for a in artifacts
+                ]
+
+                best = select_best_artifact(artifacts_dicts, failed_jobs)
+                if best:
+                    matching_artifacts = [a for a in artifacts if a.name == best["name"]]
+                else:
+                    # Fallback to Playwright patterns
+                    matching_artifacts = [a for a in artifacts if is_playwright_artifact(a.name)]
 
             for artifact in matching_artifacts:
                 zip_data = await self.download_artifact(owner, repo, artifact.id)

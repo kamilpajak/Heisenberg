@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -16,17 +15,6 @@ DEFAULT_QUERIES = [
     '"playwright-report" "actions/upload-artifact" path:.github/workflows',
     '"blob-report" path:.github extension:yml',  # Repos with custom upload actions
 ]
-
-PLAYWRIGHT_PATTERNS = [
-    r"^playwright[-_]?report",  # playwright-report, playwright_report
-    r"^blob[-_]?report",  # blob-report (Playwright sharding)
-    r"^playwright[-_]?traces?",  # playwright-trace, playwright-traces
-    r"^trace\.zip$",  # trace.zip
-    r"playwright.*report",  # any-playwright-report
-    r"playwright.*traces?",  # middleware-starter-playwright-traces
-]
-
-_PLAYWRIGHT_REGEX = re.compile("|".join(PLAYWRIGHT_PATTERNS), re.IGNORECASE)
 
 MAX_RUNS_TO_CHECK = 5
 CACHE_TTL_DAYS = 90

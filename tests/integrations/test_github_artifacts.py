@@ -17,6 +17,7 @@ try:
         Artifact,
         GitHubAPIError,
         GitHubArtifactClient,
+        Job,
         WorkflowRun,
     )
 except ImportError:
@@ -24,6 +25,7 @@ except ImportError:
     WorkflowRun = None
     Artifact = None
     GitHubAPIError = None
+    Job = None
 
 
 pytestmark = pytest.mark.skipif(
@@ -373,6 +375,144 @@ class TestGitHubAPIErrors:
                 await client.list_workflow_runs("owner", "repo")
 
             assert exc_info.value.status_code == 401
+
+
+class TestJobDataclass:
+    """Test Job dataclass."""
+
+    def test_job_exists(self):
+        """Job dataclass should exist."""
+        assert Job is not None
+
+    def test_job_has_required_fields(self):
+        """Job should have id, name, status, conclusion."""
+        job = Job(
+            id=123456,
+            name="e2e-web (ubuntu-latest)",
+            status="completed",
+            conclusion="failure",
+        )
+        assert job.id == 123456
+        assert job.name == "e2e-web (ubuntu-latest)"
+        assert job.status == "completed"
+        assert job.conclusion == "failure"
+
+    def test_job_conclusion_can_be_none(self):
+        """Job conclusion should be None for in-progress jobs."""
+        job = Job(
+            id=123456,
+            name="e2e-web",
+            status="in_progress",
+            conclusion=None,
+        )
+        assert job.conclusion is None
+
+
+class TestGetJobs:
+    """Test get_jobs method."""
+
+    @pytest.fixture
+    def mock_jobs_response(self):
+        """Sample API response for workflow run jobs."""
+        return {
+            "total_count": 3,
+            "jobs": [
+                {
+                    "id": 111,
+                    "name": "e2e-web (ubuntu-latest)",
+                    "status": "completed",
+                    "conclusion": "failure",
+                },
+                {
+                    "id": 222,
+                    "name": "e2e-desktop (ubuntu-latest) [1/4]",
+                    "status": "completed",
+                    "conclusion": "success",
+                },
+                {
+                    "id": 333,
+                    "name": "npm audit (ubuntu-latest)",
+                    "status": "completed",
+                    "conclusion": "failure",
+                },
+            ],
+        }
+
+    def test_client_has_get_jobs_method(self):
+        """Client should have get_jobs method."""
+        client = GitHubArtifactClient(token="test-token")
+        assert hasattr(client, "get_jobs")
+        assert callable(client.get_jobs)
+
+    @pytest.mark.asyncio
+    async def test_get_jobs_returns_list(self, mock_jobs_response):
+        """get_jobs should return a list of Job objects."""
+        client = GitHubArtifactClient(token="test-token")
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_jobs_response
+
+            jobs = await client.get_jobs("owner", "repo", run_id=12345)
+
+            assert isinstance(jobs, list)
+            assert len(jobs) == 3
+            assert all(isinstance(j, Job) for j in jobs)
+
+    @pytest.mark.asyncio
+    async def test_get_jobs_parses_job_fields(self, mock_jobs_response):
+        """get_jobs should correctly parse job fields."""
+        client = GitHubArtifactClient(token="test-token")
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_jobs_response
+
+            jobs = await client.get_jobs("owner", "repo", run_id=12345)
+
+            # Check first job (failed e2e-web)
+            assert jobs[0].id == 111
+            assert jobs[0].name == "e2e-web (ubuntu-latest)"
+            assert jobs[0].status == "completed"
+            assert jobs[0].conclusion == "failure"
+
+    @pytest.mark.asyncio
+    async def test_get_jobs_calls_correct_endpoint(self, mock_jobs_response):
+        """get_jobs should call the correct GitHub API endpoint."""
+        client = GitHubArtifactClient(token="test-token")
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_jobs_response
+
+            await client.get_jobs("owner", "repo", run_id=12345)
+
+            mock_request.assert_called_once()
+            call_args = mock_request.call_args
+            assert call_args[0][0] == "GET"
+            assert "/repos/owner/repo/actions/runs/12345/jobs" in call_args[0][1]
+
+    @pytest.mark.asyncio
+    async def test_get_jobs_handles_empty_response(self):
+        """get_jobs should return empty list when no jobs found."""
+        client = GitHubArtifactClient(token="test-token")
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"total_count": 0, "jobs": []}
+
+            jobs = await client.get_jobs("owner", "repo", run_id=12345)
+
+            assert jobs == []
+
+    @pytest.mark.asyncio
+    async def test_get_jobs_handles_api_error(self):
+        """get_jobs should propagate API errors."""
+        client = GitHubArtifactClient(token="test-token")
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.side_effect = GitHubAPIError("Not found", status_code=404)
+
+            with pytest.raises(GitHubAPIError) as exc_info:
+                await client.get_jobs("owner", "repo", run_id=99999)
+
+            assert exc_info.value.status_code == 404
 
 
 class TestFetchAndAnalyzeIntegration:

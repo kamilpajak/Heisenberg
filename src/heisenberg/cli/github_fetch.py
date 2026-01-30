@@ -33,10 +33,46 @@ async def _resolve_run_id(client, owner: str, repo: str, run_id: int | None) -> 
     return failed_runs[0].id
 
 
-async def fetch_report_from_run(client, owner: str, repo: str, run_id: int, artifact_name: str):
-    """Fetch Playwright report from a specific workflow run."""
+async def fetch_report_from_run(
+    client, owner: str, repo: str, run_id: int, artifact_name: str | None
+):
+    """Fetch Playwright report from a specific workflow run.
+
+    Args:
+        client: GitHubArtifactClient instance.
+        owner: Repository owner.
+        repo: Repository name.
+        run_id: Workflow run ID.
+        artifact_name: Optional artifact name pattern. If None, uses job-aware
+            auto-selection to pick the best artifact based on failed jobs.
+
+    Returns:
+        Parsed Playwright report dict, or None if not found.
+    """
+    from heisenberg.core.artifact_selection import is_playwright_artifact, select_best_artifact
+
     artifacts = await client.get_artifacts(owner, repo, run_id=run_id)
-    matching = [a for a in artifacts if artifact_name.lower() in a.name.lower()]
+
+    if not artifacts:
+        return None
+
+    if artifact_name:
+        # Explicit pattern matching (user override)
+        matching = [a for a in artifacts if artifact_name.lower() in a.name.lower()]
+    else:
+        # Job-aware auto-selection
+        jobs = await client.get_jobs(owner, repo, run_id)
+        failed_jobs = [j.name for j in jobs if j.conclusion == "failure"]
+
+        # Convert to dict format expected by select_best_artifact
+        artifacts_dicts = [{"name": a.name, "size_in_bytes": a.size_in_bytes} for a in artifacts]
+
+        best = select_best_artifact(artifacts_dicts, failed_jobs)
+        if best:
+            matching = [a for a in artifacts if a.name == best["name"]]
+        else:
+            # Fallback: try Playwright patterns
+            matching = [a for a in artifacts if is_playwright_artifact(a.name)]
 
     if not matching:
         return None
