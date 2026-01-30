@@ -770,3 +770,98 @@ class TestJsonlReportExtraction:
         result = client.extract_playwright_report(zip_buffer.getvalue())
 
         assert result is None
+
+
+class TestHtmlReportDetection:
+    """Test detection of HTML reports (unsupported format).
+
+    Playwright HTML reports contain:
+    - index.html (bundled web app)
+    - data/*.zip (trace files)
+    - data/*.md (accessibility snapshots)
+
+    These cannot be parsed - we need JSON reporter output.
+    """
+
+    def _create_html_report_zip(self, extra_files: dict[str, bytes] | None = None) -> bytes:
+        """Create a ZIP that mimics Playwright HTML report structure."""
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            # Minimal HTML report structure
+            zf.writestr("index.html", "<html><body>Playwright Report</body></html>")
+            zf.writestr("data/trace-abc123.zip", b"fake trace data")
+            zf.writestr("data/snapshot.md", "# Page snapshot\n```yaml\n- button\n```")
+            if extra_files:
+                for name, content in extra_files.items():
+                    zf.writestr(name, content)
+        return zip_buffer.getvalue()
+
+    def test_detects_html_report_and_raises_specific_error(self):
+        """Should raise HtmlReportNotSupported when HTML report detected."""
+        from heisenberg.integrations.github_artifacts import HtmlReportNotSupported
+
+        client = GitHubArtifactClient(token="test-token")
+        html_zip = self._create_html_report_zip()
+
+        with pytest.raises(HtmlReportNotSupported) as exc_info:
+            client.extract_playwright_report(html_zip)
+
+        assert "HTML report" in str(exc_info.value)
+        assert "JSON reporter" in str(exc_info.value)
+
+    def test_html_report_error_includes_fix_suggestion(self):
+        """Error message should include how to fix the issue."""
+        from heisenberg.integrations.github_artifacts import HtmlReportNotSupported
+
+        client = GitHubArtifactClient(token="test-token")
+        html_zip = self._create_html_report_zip()
+
+        with pytest.raises(HtmlReportNotSupported) as exc_info:
+            client.extract_playwright_report(html_zip)
+
+        error_msg = str(exc_info.value)
+        # Should suggest using JSON reporter
+        assert "reporter" in error_msg.lower()
+
+    def test_html_report_not_confused_with_json_report(self):
+        """ZIP with both index.html AND valid JSON should return JSON (not error)."""
+        client = GitHubArtifactClient(token="test-token")
+
+        # HTML report structure BUT also has valid JSON
+        report_data = {"suites": [], "stats": {"expected": 5, "unexpected": 1}}
+        html_zip = self._create_html_report_zip(
+            extra_files={"report.json": json.dumps(report_data).encode()}
+        )
+
+        # Should NOT raise - JSON takes precedence
+        result = client.extract_playwright_report(html_zip)
+
+        assert result is not None
+        assert result["stats"]["unexpected"] == 1
+
+    def test_plain_html_file_without_data_dir_returns_none(self):
+        """ZIP with only HTML file (no data/ dir) should return None, not error."""
+        client = GitHubArtifactClient(token="test-token")
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("index.html", "<html>not a playwright report</html>")
+
+        # Should return None (not a Playwright report at all)
+        result = client.extract_playwright_report(zip_buffer.getvalue())
+        assert result is None
+
+    def test_html_report_detection_checks_data_directory(self):
+        """HTML report detection requires index.html + data/ directory pattern."""
+        from heisenberg.integrations.github_artifacts import HtmlReportNotSupported
+
+        client = GitHubArtifactClient(token="test-token")
+
+        # Has index.html + data/ with zip files = HTML report pattern
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("index.html", "<html>Playwright</html>")
+            zf.writestr("data/trace.zip", b"trace data")
+
+        with pytest.raises(HtmlReportNotSupported):
+            client.extract_playwright_report(zip_buffer.getvalue())

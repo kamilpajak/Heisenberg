@@ -52,6 +52,7 @@ class SourceStatus(Enum):
     HAS_ARTIFACTS = "has_artifacts"  # Has artifacts but not Playwright
     NO_ARTIFACTS = "no_artifacts"  # Run exists but no artifacts
     NO_FAILED_RUNS = "no_failed_runs"  # No failed workflow runs
+    UNSUPPORTED_FORMAT = "unsupported_format"  # HTML report instead of JSON
 
 
 @dataclass

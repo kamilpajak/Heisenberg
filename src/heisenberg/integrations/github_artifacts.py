@@ -16,6 +16,10 @@ from typing import Any
 
 import httpx
 
+from heisenberg.core.exceptions import HtmlReportNotSupported
+
+__all__ = ["HtmlReportNotSupported"]  # Re-export for backwards compatibility
+
 
 class GitHubAPIError(Exception):
     """Exception raised for GitHub API errors."""
@@ -311,6 +315,18 @@ class GitHubArtifactClient:
         other_files = [f for f in jsonl_files if f not in priority_files]
         return priority_files + other_files
 
+    @staticmethod
+    def _is_html_report(all_files: list[str]) -> bool:
+        """Check if ZIP contains Playwright HTML report (unsupported format).
+
+        HTML report pattern:
+        - Has index.html at root
+        - Has data/ directory with .zip (traces) or .md (snapshots) files
+        """
+        has_index_html = "index.html" in all_files
+        has_data_dir = any(f.startswith("data/") for f in all_files)
+        return has_index_html and has_data_dir
+
     def extract_playwright_report(self, zip_content: bytes, max_depth: int = 3) -> dict | None:
         """Extract Playwright JSON/JSONL report from a zip file.
 
@@ -324,6 +340,9 @@ class GitHubArtifactClient:
 
         Returns:
             Parsed JSON report or None if not found
+
+        Raises:
+            HtmlReportNotSupported: If artifact contains HTML report instead of JSON
         """
         if max_depth <= 0:
             return None
@@ -346,6 +365,11 @@ class GitHubArtifactClient:
                     report = self._try_parse_jsonl_file(zf, jsonl_file)
                     if report:
                         return report
+
+                # Check for HTML report (unsupported) before nested ZIP search
+                # HTML reports have data/*.zip for traces, not report data
+                if self._is_html_report(all_files):
+                    raise HtmlReportNotSupported()
 
                 # If no valid JSON/JSONL found, look for nested ZIP files
                 nested_zips = [name for name in all_files if name.endswith(".zip")]

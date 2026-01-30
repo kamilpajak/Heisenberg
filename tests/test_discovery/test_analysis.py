@@ -881,3 +881,60 @@ class TestExtractFromDirHtml:
         result = extract_failure_count_from_dir(tmp_path)
 
         assert result == 2
+
+
+class TestHtmlReportDetectionInDir:
+    """Tests for detecting unsupported HTML report format in extracted directories.
+
+    Modern Playwright HTML reports have:
+    - index.html (bundled JavaScript app)
+    - data/ directory with trace ZIPs and snapshots
+    - NO extractable JSON data
+
+    These should raise HtmlReportNotSupported, not silently return None.
+    """
+
+    def _create_html_report_structure(self, tmp_path) -> None:
+        """Create a directory structure mimicking Playwright HTML report."""
+        # Modern HTML report structure
+        (tmp_path / "index.html").write_text("<html><body>Playwright Report</body></html>")
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        (data_dir / "trace-abc123.zip").write_bytes(b"fake trace data")
+        (data_dir / "snapshot.md").write_text("# Page snapshot\n```yaml\n- button\n```")
+
+    def test_raises_on_html_report_directory_structure(self, tmp_path):
+        """Should raise HtmlReportNotSupported for modern HTML report."""
+        from heisenberg.integrations.github_artifacts import HtmlReportNotSupported
+
+        self._create_html_report_structure(tmp_path)
+
+        import pytest
+
+        with pytest.raises(HtmlReportNotSupported) as exc_info:
+            extract_failure_count_from_dir(tmp_path)
+
+        assert "HTML report" in str(exc_info.value)
+        assert "JSON reporter" in str(exc_info.value)
+
+    def test_html_report_with_json_still_works(self, tmp_path):
+        """Directory with both HTML structure AND valid JSON should work."""
+        self._create_html_report_structure(tmp_path)
+
+        # Add valid JSON report
+        report_data = {"stats": {"unexpected": 3, "flaky": 0}}
+        (tmp_path / "report.json").write_text(json.dumps(report_data))
+
+        # Should NOT raise - JSON takes precedence
+        result = extract_failure_count_from_dir(tmp_path)
+
+        assert result == 3
+
+    def test_simple_html_file_without_data_dir_returns_none(self, tmp_path):
+        """Single HTML file without data/ dir should return None (not error)."""
+        (tmp_path / "index.html").write_text("<html>not a playwright report</html>")
+
+        # Should return None - not a recognizable format
+        result = extract_failure_count_from_dir(tmp_path)
+
+        assert result is None

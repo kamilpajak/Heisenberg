@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 
+from heisenberg.core.exceptions import HtmlReportNotSupported
+
 from .cache import RunCache
 from .client import (
     download_artifact_to_dir,
@@ -144,6 +146,22 @@ def _extract_from_json_file(json_file) -> int | None:
         return None
 
 
+def _is_html_report_dir(dir_path) -> bool:
+    """Check if directory contains a modern Playwright HTML report (unsupported).
+
+    Modern HTML reports have:
+    - index.html at root (bundled JavaScript app)
+    - data/ directory with trace ZIPs or snapshot files
+    """
+    from pathlib import Path
+
+    dir_path = Path(dir_path)
+    has_index_html = (dir_path / "index.html").exists()
+    data_dir = dir_path / "data"
+    has_data_content = data_dir.is_dir() and any(data_dir.iterdir())
+    return has_index_html and has_data_content
+
+
 def extract_failure_count_from_dir(dir_path) -> int | None:
     """Extract failure count from files in an extracted artifact directory.
 
@@ -151,6 +169,10 @@ def extract_failure_count_from_dir(dir_path) -> int | None:
     1. Nested ZIPs (blob reports with JSON/JSONL)
     2. HTML reports with embedded base64 ZIP
     3. Direct JSON files in artifact root
+
+    Raises:
+        HtmlReportNotSupported: If directory contains modern HTML report
+            (index.html + data/ structure) which cannot be parsed.
     """
     from pathlib import Path
 
@@ -162,7 +184,7 @@ def extract_failure_count_from_dir(dir_path) -> int | None:
         if failures is not None:
             return failures
 
-    # Try HTML files (embedded base64 ZIP)
+    # Try HTML files (embedded base64 ZIP - older format)
     for html_file in dir_path.glob("*.html"):
         failures = _extract_from_html_file(html_file)
         if failures is not None:
@@ -173,6 +195,11 @@ def extract_failure_count_from_dir(dir_path) -> int | None:
         failures = _extract_from_json_file(json_file)
         if failures is not None:
             return failures
+
+    # Check for modern HTML report (unsupported format)
+    # This must come AFTER trying to extract - in case JSON exists alongside
+    if _is_html_report_dir(dir_path):
+        raise HtmlReportNotSupported()
 
     return None
 

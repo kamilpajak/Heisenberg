@@ -14,6 +14,7 @@ from .cache import QuarantineCache, RunCache, get_default_cache_path, get_defaul
 from .client import fetch_stars_batch, search_repos
 from .events import (
     AnalysisCompleted,
+    AnalysisStarted,
     DiscoveryCompleted,
     DiscoveryEvent,
     EventHandler,
@@ -203,8 +204,15 @@ class _DiscoveryRunner:
             )
             self.on_event(event)
 
+    def _emit_analysis_started(self, repo: str, stars: int, index: int) -> None:
+        """Emit AnalysisStarted event."""
+        if not self.on_event:
+            return
+        self.on_event(AnalysisStarted(repo=repo, stars=stars, index=index, total=self.total))
+
     def analyze_repo(self, repo: str, stars: int, index: int) -> ProjectSource | None:
         """Analyze a single repo and emit events."""
+        self._emit_analysis_started(repo, stars, index)
         start_time = time.time()
         result = None
 

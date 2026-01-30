@@ -55,6 +55,7 @@ class DiscoveryDisplay:
         self._stats: Counter[SourceStatus] = Counter()
         self._progress_total = 0
         self._progress_completed = 0
+        self._analysis_started = False  # Track if analysis phase has begun
 
     def handle(self, event: DiscoveryEvent) -> None:
         """Main event dispatcher.
@@ -127,10 +128,20 @@ class DiscoveryDisplay:
     # =========================================================================
 
     def _on_analysis_started(self, event: AnalysisStarted) -> None:
-        """Handle analysis started event."""
-        # In default mode, we don't show individual start events
-        # Could be used for verbose mode or progress bar
-        pass
+        """Handle analysis started event - show progress indicator."""
+        if not self._analysis_started:
+            # Show one-time message when analysis phase begins
+            self._analysis_started = True
+            if not self.verbose:
+                self.console.print(
+                    f"  [dim]Analyzing {event.total} repos (this may take a while)...[/dim]"
+                )
+                self.console.print()
+
+        if self.verbose:
+            # In verbose mode, show which repo is being analyzed
+            stars_str = format_stars(event.stars) if event.stars > 0 else "—"
+            self.console.print(f"  [dim]→ {event.repo} ({stars_str}★)...[/dim]")
 
     def _on_analysis_progress(self, event: AnalysisProgress) -> None:
         """Handle analysis progress event."""

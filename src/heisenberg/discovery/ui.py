@@ -16,6 +16,7 @@ STATUS_ICONS = {
     SourceStatus.HAS_ARTIFACTS: "!",
     SourceStatus.NO_ARTIFACTS: "-",
     SourceStatus.NO_FAILED_RUNS: ".",
+    SourceStatus.UNSUPPORTED_FORMAT: "⚠",
 }
 
 STATUS_COLORS = {
@@ -24,6 +25,7 @@ STATUS_COLORS = {
     SourceStatus.HAS_ARTIFACTS: "yellow",
     SourceStatus.NO_ARTIFACTS: "red",
     SourceStatus.NO_FAILED_RUNS: "dim",
+    SourceStatus.UNSUPPORTED_FORMAT: "magenta",
 }
 
 STATUS_LABELS = {
@@ -32,6 +34,7 @@ STATUS_LABELS = {
     SourceStatus.HAS_ARTIFACTS: "has artifacts",
     SourceStatus.NO_ARTIFACTS: "no artifacts",
     SourceStatus.NO_FAILED_RUNS: "no failed runs",
+    SourceStatus.UNSUPPORTED_FORMAT: "html report",
 }
 
 
