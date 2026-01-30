@@ -84,28 +84,30 @@ class TestSearchRepos:
 
     @patch("time.sleep")
     @patch("subprocess.run")
-    def test_returns_repo_names(self, mock_run, _mock_sleep):
-        """Should return list of repo names."""
+    def test_returns_repo_tuples_with_stars(self, mock_run, _mock_sleep):
+        """Should return list of (repo, stars) tuples."""
         mock_run.return_value = MagicMock(
-            stdout=json.dumps({"items": [{"repository": {"full_name": "owner/repo"}}]}),
+            stdout=json.dumps(
+                {"items": [{"repository": {"full_name": "owner/repo", "stargazers_count": 500}}]}
+            ),
             returncode=0,
         )
 
         results = search_repos("playwright", limit=10)
 
         assert len(results) == 1
-        assert results[0] == "owner/repo"
+        assert results[0] == ("owner/repo", 500)
 
     @patch("time.sleep")
     @patch("subprocess.run")
     def test_deduplicates_across_results(self, mock_run, _mock_sleep):
-        """Should deduplicate repos that appear multiple times."""
+        """Should deduplicate repos that appear multiple times, keeping highest stars."""
         mock_run.return_value = MagicMock(
             stdout=json.dumps(
                 {
                     "items": [
-                        {"repository": {"full_name": "owner/repo"}},
-                        {"repository": {"full_name": "owner/repo"}},
+                        {"repository": {"full_name": "owner/repo", "stargazers_count": 100}},
+                        {"repository": {"full_name": "owner/repo", "stargazers_count": 100}},
                     ]
                 }
             ),
@@ -115,6 +117,21 @@ class TestSearchRepos:
         results = search_repos("query", limit=10)
 
         assert len(results) == 1
+        assert results[0] == ("owner/repo", 100)
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_defaults_to_zero_stars_when_missing(self, mock_run, _mock_sleep):
+        """Should default to 0 stars when stargazers_count is missing."""
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps({"items": [{"repository": {"full_name": "owner/repo"}}]}),
+            returncode=0,
+        )
+
+        results = search_repos("query", limit=10)
+
+        assert len(results) == 1
+        assert results[0] == ("owner/repo", 0)
 
 
 class TestGetRepoStars:
@@ -203,12 +220,13 @@ class TestSubprocessTimeouts:
     @patch("time.sleep")
     @patch("subprocess.run")
     def test_search_repos_returns_empty_on_timeout(self, mock_run, _mock_sleep):
-        """search_repos should return empty list on timeout."""
+        """search_repos should return empty list of tuples on timeout."""
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
 
         result = search_repos("query", limit=10)
 
         assert result == []
+        assert isinstance(result, list)
 
     @patch("time.sleep")
     @patch("subprocess.run")

@@ -163,7 +163,6 @@ def print_source_line(
 def print_summary(
     sources: list[ProjectSource],
     min_stars: int,
-    total_analyzed: int | None = None,
     console=None,
 ) -> None:
     """Print the analysis summary with colors."""
@@ -175,14 +174,8 @@ def print_summary(
         console = Console(highlight=False)
 
     compatible_count = sum(1 for c in sources if c.compatible)
-    analyzed = total_analyzed or len(sources)
 
-    if analyzed != len(sources):
-        console.print(
-            f"Analyzed {analyzed} repositories, {len(sources)} with >={min_stars} stars",
-        )
-    else:
-        console.print(f"Analyzed {len(sources)} repositories (min {min_stars} stars)")
+    console.print(f"Analyzed {len(sources)} repositories (min {min_stars} stars)")
     console.print()
 
     for source in sources:

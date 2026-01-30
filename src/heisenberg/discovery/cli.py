@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 
-from .analysis import filter_by_min_stars
 from .service import _USE_DEFAULT_CACHE, _USE_DEFAULT_QUARANTINE, discover_sources
 from .ui import print_summary, save_results
 
@@ -56,12 +55,10 @@ def main() -> None:
         show_progress=True,  # Use Rich progress display
         cache_path=cache_path,
         quarantine_path=quarantine_path,
+        min_stars=args.min_stars,
     )
 
-    total_analyzed = len(sources)
-    sources = filter_by_min_stars(sources, min_stars=args.min_stars)
-
-    print_summary(sources, args.min_stars, total_analyzed=total_analyzed)
+    print_summary(sources, args.min_stars)
 
     if args.output:
         save_results(sources, args.output)

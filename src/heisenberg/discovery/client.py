@@ -99,10 +99,10 @@ def gh_api(endpoint: str, params: dict | None = None) -> dict | list | None:
         return None
 
 
-def search_repos(query: str, limit: int = 30) -> list[str]:
+def search_repos(query: str, limit: int = 30) -> list[tuple[str, int]]:
     """Search GitHub for repositories matching query.
 
-    Returns list of unique repo names.
+    Returns list of (repo_name, stars) tuples, deduplicated by repo name.
     """
     import urllib.parse
 
@@ -119,14 +119,15 @@ def search_repos(query: str, limit: int = 30) -> list[str]:
     if not data or "items" not in data:
         return []
 
-    seen: set[str] = set()
+    seen: dict[str, int] = {}
     for item in data["items"][:limit]:
         repo_data = item.get("repository", {})
         repo_name = repo_data.get("full_name", "")
-        if repo_name:
-            seen.add(repo_name)
+        if repo_name and repo_name not in seen:
+            stars = repo_data.get("stargazers_count", 0)
+            seen[repo_name] = stars
 
-    return list(seen)
+    return list(seen.items())
 
 
 def get_repo_stars(repo: str) -> int | None:

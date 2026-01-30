@@ -72,22 +72,34 @@ def _collect_repos_from_queries(
     queries: list[str],
     global_limit: int,
     quarantine: QuarantineCache | None,
-) -> tuple[list[str], int]:
-    """Collect repos from search queries, skipping quarantined ones."""
-    all_repos: set[str] = set()
+    min_stars: int = 0,
+) -> tuple[list[tuple[str, int]], int, int]:
+    """Collect repos from search queries, skipping quarantined and low-star ones.
+
+    Returns:
+        Tuple of (repos_with_stars, quarantine_skipped, stars_filtered)
+        where repos_with_stars is list of (repo, stars) tuples.
+    """
+    all_repos: dict[str, int] = {}
     quarantine_skipped = 0
+    stars_filtered = 0
 
     for query in queries:
         results = search_repos(query, limit=global_limit)
-        for repo in results:
+        for repo, stars in results:
+            if repo in all_repos:
+                continue
             if quarantine and quarantine.is_quarantined(repo):
                 quarantine_skipped += 1
+            elif stars < min_stars:
+                stars_filtered += 1
             else:
-                all_repos.add(repo)
+                all_repos[repo] = stars
         if len(all_repos) >= global_limit:
             break
 
-    return list(all_repos)[:global_limit], quarantine_skipped
+    repos_list = list(all_repos.items())[:global_limit]
+    return repos_list, quarantine_skipped, stars_filtered
 
 
 def _update_quarantine(quarantine: QuarantineCache | None, result: ProjectSource | None) -> None:
@@ -136,7 +148,7 @@ def _format_complete_description(
 class _DiscoveryRunner:
     """Encapsulates state and methods for running discovery."""
 
-    repos: list[str]
+    repos: list[tuple[str, int]]  # (repo_name, stars) tuples
     verify_failures: bool
     cache: RunCache | None
     quarantine: QuarantineCache | None
@@ -193,7 +205,7 @@ class _DiscoveryRunner:
             )
             self.on_progress(info)
 
-    def analyze_repo(self, repo: str) -> ProjectSource | None:
+    def analyze_repo(self, repo: str, stars: int) -> ProjectSource | None:
         """Analyze a single repo and report progress."""
         start_time = time.time()
         result = None
@@ -207,6 +219,7 @@ class _DiscoveryRunner:
         try:
             result = analyze_source_with_status(
                 repo,
+                stars=stars,
                 verify_failures=self.verify_failures,
                 on_status=on_status if self.progress else None,
                 cache=self.cache,
@@ -225,7 +238,7 @@ class _DiscoveryRunner:
         """Add all repos as tasks to Rich progress."""
         if not self.progress:
             return
-        for repo in self.repos:
+        for repo, _stars in self.repos:
             task_id = self.progress.add_task(
                 _format_waiting_description(repo), total=1, start=False
             )
@@ -235,7 +248,9 @@ class _DiscoveryRunner:
         """Run parallel discovery."""
         self.add_progress_tasks()
         with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(self.analyze_repo, repo): repo for repo in self.repos}
+            futures = {
+                executor.submit(self.analyze_repo, repo, stars): repo for repo, stars in self.repos
+            }
             for future in as_completed(futures):
                 result = future.result()
                 if result is not None:
@@ -250,8 +265,20 @@ def discover_sources(
     show_progress: bool = False,
     cache_path: str | None | object = _USE_DEFAULT_CACHE,
     quarantine_path: str | None | object = _USE_DEFAULT_QUARANTINE,
+    min_stars: int = 0,
 ) -> list[ProjectSource]:
-    """Discover source projects from GitHub."""
+    """Discover source projects from GitHub.
+
+    Args:
+        global_limit: Maximum number of repos to analyze.
+        queries: Search queries (defaults to DEFAULT_QUERIES).
+        verify_failures: Download artifacts to verify actual failures.
+        on_progress: Callback for progress updates.
+        show_progress: Show Rich progress display.
+        cache_path: Path to run cache, or None to disable.
+        quarantine_path: Path to quarantine cache, or None to disable.
+        min_stars: Minimum stars required (repos below this are filtered before analysis).
+    """
     queries = queries or DEFAULT_QUERIES
 
     # Initialize caches
@@ -263,13 +290,19 @@ def discover_sources(
         QuarantineCache(cache_path=actual_quarantine_path) if actual_quarantine_path else None
     )
 
-    # Collect repos
-    repos_to_analyze, quarantine_skipped = _collect_repos_from_queries(
-        queries, global_limit, quarantine
+    # Collect repos (filtering by min_stars happens here)
+    repos_to_analyze, quarantine_skipped, stars_filtered = _collect_repos_from_queries(
+        queries, global_limit, quarantine, min_stars
     )
 
-    if show_progress and quarantine_skipped > 0:
-        print(f"  ({quarantine_skipped} repos quarantined, analyzing {len(repos_to_analyze)})\n")
+    if show_progress:
+        skip_parts = []
+        if quarantine_skipped > 0:
+            skip_parts.append(f"{quarantine_skipped} quarantined")
+        if stars_filtered > 0:
+            skip_parts.append(f"{stars_filtered} below {min_stars} stars")
+        if skip_parts:
+            print(f"  ({', '.join(skip_parts)}, analyzing {len(repos_to_analyze)})\n")
 
     # Create progress display
     progress = create_progress_display() if show_progress else None
