@@ -455,3 +455,67 @@ class TestGhSubprocess:
         assert len(backoff_delays) == GH_MAX_RETRIES
         for i in range(1, len(backoff_delays)):
             assert backoff_delays[i] > backoff_delays[i - 1]
+
+
+# =============================================================================
+# BATCH STAR FETCHING
+# =============================================================================
+
+
+class TestFetchStarsBatch:
+    """Tests for fetch_stars_batch function."""
+
+    @patch("heisenberg.discovery.client.get_repo_stars")
+    def test_returns_dict_of_repo_to_stars(self, mock_get_stars):
+        """Should return dict mapping repo names to star counts."""
+        from heisenberg.discovery.client import fetch_stars_batch
+
+        mock_get_stars.side_effect = lambda repo: {"a/x": 100, "b/y": 200}[repo]
+
+        result = fetch_stars_batch(["a/x", "b/y"])
+
+        assert result == {"a/x": 100, "b/y": 200}
+
+    @patch("heisenberg.discovery.client.get_repo_stars")
+    def test_handles_api_failures_gracefully(self, mock_get_stars):
+        """Should use 0 for repos where API call failed (returned None)."""
+        from heisenberg.discovery.client import fetch_stars_batch
+
+        mock_get_stars.side_effect = lambda repo: 100 if repo == "a/x" else None
+
+        result = fetch_stars_batch(["a/x", "b/y"])
+
+        assert result == {"a/x": 100, "b/y": 0}
+
+    @patch("heisenberg.discovery.client.get_repo_stars")
+    def test_returns_empty_dict_for_empty_input(self, mock_get_stars):
+        """Should return empty dict when given empty list."""
+        from heisenberg.discovery.client import fetch_stars_batch
+
+        result = fetch_stars_batch([])
+
+        assert result == {}
+        mock_get_stars.assert_not_called()
+
+    @patch("heisenberg.discovery.client.get_repo_stars")
+    def test_fetches_in_parallel(self, mock_get_stars):
+        """Should use ThreadPoolExecutor for parallel fetching."""
+        from heisenberg.discovery.client import fetch_stars_batch
+
+        mock_get_stars.return_value = 50
+
+        result = fetch_stars_batch(["a/1", "b/2", "c/3"])
+
+        assert len(result) == 3
+        assert mock_get_stars.call_count == 3
+
+    @patch("heisenberg.discovery.client.get_repo_stars")
+    def test_all_failures_returns_all_zeros(self, mock_get_stars):
+        """Should return 0 for all repos when all API calls fail."""
+        from heisenberg.discovery.client import fetch_stars_batch
+
+        mock_get_stars.return_value = None
+
+        result = fetch_stars_batch(["a/x", "b/y"])
+
+        assert result == {"a/x": 0, "b/y": 0}

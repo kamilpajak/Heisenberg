@@ -42,14 +42,23 @@ class TestMinStarsFiltering:
     """Tests for min_stars filtering before analysis."""
 
     @patch("time.sleep")
+    @patch("heisenberg.discovery.service.fetch_stars_batch")
     @patch("heisenberg.discovery.service.analyze_source_with_status")
     @patch("heisenberg.discovery.service.search_repos")
-    def test_filters_by_min_stars_before_analysis(self, mock_search, mock_analyze, _mock_sleep):
+    def test_filters_by_min_stars_before_analysis(
+        self, mock_search, mock_analyze, mock_fetch_stars, _mock_sleep
+    ):
         """Repos with stars < min_stars should be filtered BEFORE analysis."""
+        # Code Search returns 0 stars (API limitation)
         mock_search.return_value = [
-            ("popular/repo", 500),
-            ("unpopular/repo", 50),
+            ("popular/repo", 0),
+            ("unpopular/repo", 0),
         ]
+        # fetch_stars_batch returns real stars
+        mock_fetch_stars.return_value = {
+            "popular/repo": 500,
+            "unpopular/repo": 50,
+        }
         mock_analyze.return_value = ProjectSource(
             repo="popular/repo",
             stars=500,
@@ -68,7 +77,7 @@ class TestMinStarsFiltering:
     @patch("heisenberg.discovery.service.analyze_source_with_status")
     @patch("heisenberg.discovery.service.search_repos")
     def test_min_stars_zero_includes_all_repos(self, mock_search, mock_analyze, _mock_sleep):
-        """min_stars=0 should include all repos."""
+        """min_stars=0 should include all repos without fetching stars."""
         mock_search.return_value = [
             ("any/repo", 0),
         ]
@@ -85,11 +94,15 @@ class TestMinStarsFiltering:
         assert mock_analyze.call_count == 1
 
     @patch("time.sleep")
+    @patch("heisenberg.discovery.service.fetch_stars_batch")
     @patch("heisenberg.discovery.service.analyze_source_with_status")
     @patch("heisenberg.discovery.service.search_repos")
-    def test_passes_stars_to_analyze(self, mock_search, mock_analyze, _mock_sleep):
-        """Stars from search should be passed to analyze_source_with_status."""
-        mock_search.return_value = [("owner/repo", 1234)]
+    def test_passes_stars_to_analyze(
+        self, mock_search, mock_analyze, mock_fetch_stars, _mock_sleep
+    ):
+        """Fetched stars should be passed to analyze_source_with_status."""
+        mock_search.return_value = [("owner/repo", 0)]
+        mock_fetch_stars.return_value = {"owner/repo": 1234}
         mock_analyze.return_value = ProjectSource(
             repo="owner/repo",
             stars=1234,

@@ -143,6 +143,33 @@ def get_repo_stars(repo: str) -> int | None:
     return None
 
 
+def fetch_stars_batch(repos: list[str], max_workers: int = 5) -> dict[str, int]:
+    """Fetch star counts for multiple repos in parallel.
+
+    Args:
+        repos: List of repo names in "owner/repo" format.
+        max_workers: Maximum concurrent API calls.
+
+    Returns:
+        Dict mapping repo name to star count. Uses 0 for failed API calls.
+    """
+    if not repos:
+        return {}
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    results: dict[str, int] = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(get_repo_stars, repo): repo for repo in repos}
+        for future in as_completed(futures):
+            repo = futures[future]
+            stars = future.result()
+            results[repo] = stars if stars is not None else 0
+
+    return results
+
+
 def get_failed_runs(repo: str, limit: int = MAX_RUNS_TO_CHECK) -> list[dict]:
     """Get recent failed workflow runs for a repository."""
     cmd = ["gh", "api", "-X", "GET", f"/repos/{repo}/actions/runs?status=failure&per_page={limit}"]

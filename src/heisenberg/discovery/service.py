@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from .analysis import analyze_source_with_status, sort_sources
 from .cache import QuarantineCache, RunCache, get_default_cache_path, get_default_quarantine_path
-from .client import search_repos
+from .client import fetch_stars_batch, search_repos
 from .events import (
     AnalysisCompleted,
     DiscoveryCompleted,
@@ -82,29 +82,30 @@ def _collect_repos_from_queries(
 ) -> tuple[list[tuple[str, int]], int, int]:
     """Collect repos from search queries, skipping quarantined and low-star ones.
 
+    When min_stars > 0, fetches real star counts via Repository API (Code Search
+    API doesn't return stars). This is lazy - no fetch when min_stars = 0.
+
     Emits QueryCompleted events for each query.
 
     Returns:
         Tuple of (repos_with_stars, quarantine_skipped, stars_filtered)
         where repos_with_stars is list of (repo, stars) tuples.
     """
-    all_repos: dict[str, int] = {}
+    # Phase 1: Collect repos from queries, filtering only by quarantine
+    all_repos: set[str] = set()
     quarantine_skipped = 0
-    stars_filtered = 0
 
     for query_idx, query in enumerate(queries):
         repos_before = len(all_repos)
         results = search_repos(query, limit=global_limit)
 
-        for repo, stars in results:
+        for repo, _ in results:  # Ignore stars from Code Search (always 0)
             if repo in all_repos:
                 continue
             if quarantine and quarantine.is_quarantined(repo):
                 quarantine_skipped += 1
-            elif stars < min_stars:
-                stars_filtered += 1
             else:
-                all_repos[repo] = stars
+                all_repos.add(repo)
 
         new_repos = len(all_repos) - repos_before
         query_preview = query[:40] if len(query) <= 40 else query[:37] + "..."
@@ -122,7 +123,22 @@ def _collect_repos_from_queries(
         if len(all_repos) >= global_limit:
             break
 
-    repos_list = list(all_repos.items())[:global_limit]
+    # Phase 2: Fetch real stars if min_stars filter is active (lazy loading)
+    stars_filtered = 0
+    if min_stars > 0 and all_repos:
+        stars_map = fetch_stars_batch(list(all_repos))
+        # Filter by min_stars using real star counts
+        repos_with_stars: dict[str, int] = {}
+        for repo, stars in stars_map.items():
+            if stars >= min_stars:
+                repos_with_stars[repo] = stars
+            else:
+                stars_filtered += 1
+    else:
+        # No min_stars filter - use 0 as placeholder (stars not needed)
+        repos_with_stars = dict.fromkeys(all_repos, 0)
+
+    repos_list = list(repos_with_stars.items())[:global_limit]
     return repos_list, quarantine_skipped, stars_filtered
 
 

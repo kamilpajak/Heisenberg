@@ -24,6 +24,7 @@ from .cache import QuarantineCache, RunCache, get_default_cache_path, get_defaul
 from .cli import create_argument_parser, main
 from .client import (
     download_artifact_to_dir,
+    fetch_stars_batch,
     get_failed_runs,
     get_repo_stars,
     get_run_artifacts,
@@ -105,6 +106,7 @@ __all__ = [
     "gh_api",
     "search_repos",
     "get_repo_stars",
+    "fetch_stars_batch",
     "get_failed_runs",
     "get_run_artifacts",
     "download_artifact_to_dir",

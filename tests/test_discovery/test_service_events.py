@@ -130,13 +130,17 @@ class TestAnalysisPhaseEvents:
         assert "repo2" in repos_analyzed
 
     @patch("time.sleep")
+    @patch("heisenberg.discovery.service.fetch_stars_batch")
     @patch("heisenberg.discovery.service.analyze_source_with_status")
     @patch("heisenberg.discovery.service.search_repos")
-    def test_analysis_completed_has_status_and_stars(self, mock_search, mock_analyze, _mock_sleep):
+    def test_analysis_completed_has_status_and_stars(
+        self, mock_search, mock_analyze, mock_fetch_stars, _mock_sleep
+    ):
         """AnalysisCompleted should include status and stars."""
         from heisenberg.discovery.service import discover_sources
 
-        mock_search.return_value = [("owner/repo", 5000)]
+        mock_search.return_value = [("owner/repo", 0)]
+        mock_fetch_stars.return_value = {"owner/repo": 5000}
         mock_analyze.return_value = ProjectSource(
             repo="owner/repo",
             stars=5000,
@@ -147,7 +151,10 @@ class TestAnalysisPhaseEvents:
 
         discover_sources(
             global_limit=10,
+            min_stars=100,  # Trigger star fetching
             on_event=events.append,
+            quarantine_path=None,
+            cache_path=None,
         )
 
         analysis_events = [e for e in events if isinstance(e, AnalysisCompleted)]
@@ -289,3 +296,125 @@ class TestNoEventHandler:
         )
 
         assert len(results) == 1
+
+
+class TestLazyStarFetching:
+    """Tests for lazy star fetching when min_stars filter is active."""
+
+    @patch("time.sleep")
+    @patch("heisenberg.discovery.service.fetch_stars_batch")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
+    def test_fetches_stars_when_min_stars_positive(
+        self, mock_search, mock_analyze, mock_fetch_stars, _mock_sleep
+    ):
+        """Should call fetch_stars_batch when min_stars > 0."""
+        from heisenberg.discovery.service import discover_sources
+
+        # Code Search returns 0 stars (API limitation)
+        mock_search.return_value = [("owner/repo", 0)]
+        mock_fetch_stars.return_value = {"owner/repo": 5000}
+        mock_analyze.return_value = ProjectSource(
+            repo="owner/repo", stars=5000, status=SourceStatus.COMPATIBLE
+        )
+
+        discover_sources(
+            global_limit=10,
+            queries=["test"],
+            min_stars=100,
+            quarantine_path=None,
+            cache_path=None,
+        )
+
+        mock_fetch_stars.assert_called_once()
+
+    @patch("time.sleep")
+    @patch("heisenberg.discovery.service.fetch_stars_batch")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
+    def test_skips_star_fetch_when_min_stars_zero(
+        self, mock_search, mock_analyze, mock_fetch_stars, _mock_sleep
+    ):
+        """Should NOT call fetch_stars_batch when min_stars = 0."""
+        from heisenberg.discovery.service import discover_sources
+
+        mock_search.return_value = [("owner/repo", 0)]
+        mock_analyze.return_value = ProjectSource(
+            repo="owner/repo", stars=0, status=SourceStatus.COMPATIBLE
+        )
+
+        discover_sources(
+            global_limit=10,
+            queries=["test"],
+            min_stars=0,
+            quarantine_path=None,
+            cache_path=None,
+        )
+
+        mock_fetch_stars.assert_not_called()
+
+    @patch("time.sleep")
+    @patch("heisenberg.discovery.service.fetch_stars_batch")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
+    def test_filters_repos_below_min_stars_after_fetch(
+        self, mock_search, mock_analyze, mock_fetch_stars, _mock_sleep
+    ):
+        """Should filter out repos below min_stars after fetching real stars."""
+        from heisenberg.discovery.service import discover_sources
+
+        mock_search.return_value = [("high/stars", 0), ("low/stars", 0)]
+        mock_fetch_stars.return_value = {"high/stars": 5000, "low/stars": 50}
+        mock_analyze.return_value = ProjectSource(
+            repo="high/stars", stars=5000, status=SourceStatus.COMPATIBLE
+        )
+        events: list[DiscoveryEvent] = []
+
+        discover_sources(
+            global_limit=10,
+            queries=["test"],
+            min_stars=100,
+            on_event=events.append,
+            quarantine_path=None,
+            cache_path=None,
+        )
+
+        # Only high/stars should be analyzed (low/stars filtered out)
+        mock_analyze.assert_called_once()
+        call_args = mock_analyze.call_args
+        assert call_args[0][0] == "high/stars"
+
+        # SearchCompleted should show 1 filtered by stars
+        search_completed = [e for e in events if isinstance(e, SearchCompleted)][0]
+        assert search_completed.stars_filtered == 1
+        assert search_completed.to_analyze == 1
+
+    @patch("time.sleep")
+    @patch("heisenberg.discovery.service.fetch_stars_batch")
+    @patch("heisenberg.discovery.service.analyze_source_with_status")
+    @patch("heisenberg.discovery.service.search_repos")
+    def test_analysis_receives_real_stars(
+        self, mock_search, mock_analyze, mock_fetch_stars, _mock_sleep
+    ):
+        """AnalysisCompleted event should have real star count after fetch."""
+        from heisenberg.discovery.service import discover_sources
+
+        mock_search.return_value = [("owner/repo", 0)]
+        mock_fetch_stars.return_value = {"owner/repo": 8500}
+        mock_analyze.return_value = ProjectSource(
+            repo="owner/repo", stars=8500, status=SourceStatus.COMPATIBLE
+        )
+        events: list[DiscoveryEvent] = []
+
+        discover_sources(
+            global_limit=10,
+            queries=["test"],
+            min_stars=100,
+            on_event=events.append,
+            quarantine_path=None,
+            cache_path=None,
+        )
+
+        analysis_events = [e for e in events if isinstance(e, AnalysisCompleted)]
+        assert len(analysis_events) == 1
+        assert analysis_events[0].stars == 8500
