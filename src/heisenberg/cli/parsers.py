@@ -317,6 +317,13 @@ def _add_discover_parser(subparsers) -> None:
         help="Discover GitHub repos with Playwright test artifacts",
     )
 
+    # Single repo mode
+    parser.add_argument(
+        "--repo",
+        metavar="OWNER/REPO",
+        help="Check specific repository instead of searching GitHub",
+    )
+
     # Filtering
     parser.add_argument(
         "--min-stars",

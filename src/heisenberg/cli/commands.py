@@ -12,7 +12,9 @@ from pathlib import Path
 from heisenberg.analysis import analyze_unified_run, analyze_with_ai, run_analysis
 from heisenberg.cli import formatters, github_fetch
 from heisenberg.core.models import PlaywrightTransformer, UnifiedTestRun
+from heisenberg.discovery.analysis import analyze_source_with_status
 from heisenberg.discovery.display import DiscoveryDisplay
+from heisenberg.discovery.models import SourceStatus
 from heisenberg.discovery.service import (
     _USE_DEFAULT_CACHE,
     _USE_DEFAULT_QUARANTINE,
@@ -529,8 +531,62 @@ def run_validate_cases(args: argparse.Namespace) -> int:
         return 1
 
 
+# Human-readable status messages for single repo mode
+_STATUS_MESSAGES: dict[SourceStatus, str] = {
+    SourceStatus.COMPATIBLE: "Compatible - has Playwright artifacts with test failures",
+    SourceStatus.NO_FAILURES: "No failures - Playwright artifacts exist but all tests pass",
+    SourceStatus.HAS_ARTIFACTS: "Not Playwright - has artifacts but not Playwright format",
+    SourceStatus.NO_ARTIFACTS: "No artifacts - workflow run exists but no artifacts found",
+    SourceStatus.NO_FAILED_RUNS: "No failed runs - no recent failed workflow runs",
+    SourceStatus.UNSUPPORTED_FORMAT: "HTML report - requires JSONL blob reporter format",
+    SourceStatus.RATE_LIMITED: "Rate limited - GitHub API rate limit exceeded",
+}
+
+
+def _check_single_repo(args: argparse.Namespace) -> int:
+    """Check a single repository for compatibility with Heisenberg."""
+    source = analyze_source_with_status(
+        repo=args.repo,
+        verify_failures=not args.quick,
+    )
+
+    # JSON output
+    if args.json_output:
+        output_data = {
+            "repo": source.repo,
+            "stars": source.stars,
+            "compatible": source.compatible,
+            "status": source.status.value,
+            "artifacts": source.artifact_names,
+            "playwright_artifacts": source.playwright_artifacts,
+            "run_id": source.run_id,
+            "run_url": source.run_url,
+        }
+        json.dump(output_data, sys.stdout, indent=2)
+        print()
+    else:
+        # Human-readable output
+        message = _STATUS_MESSAGES.get(source.status, f"Unknown status: {source.status}")
+        icon = "\u2713" if source.compatible else "\u2717"
+        print(f"\n{args.repo}")
+        print(f"  {icon} {message}")
+        if source.stars:
+            print(f"  Stars: {source.stars:,}")
+        if source.artifact_names:
+            print(f"  Artifacts: {', '.join(source.artifact_names)}")
+        if source.run_url:
+            print(f"  Run: {source.run_url}")
+        print()
+
+    return 0 if source.compatible else 1
+
+
 def run_discover(args: argparse.Namespace) -> int:
     """Run the discover command to find GitHub repos with Playwright artifacts."""
+    # Single repo mode - check specific repository
+    if args.repo:
+        return _check_single_repo(args)
+
     # JSON mode implies quiet
     quiet = args.quiet or args.json_output
 
