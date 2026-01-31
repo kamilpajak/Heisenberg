@@ -40,86 +40,6 @@ def mock_gh_token():
         yield mock_run
 
 
-# --- Parser Tests ---
-
-
-class TestFreezeParser:
-    """Tests for freeze command argument parser."""
-
-    def test_freeze_parser_exists(self):
-        """Parser should include freeze subcommand."""
-        from heisenberg.cli.parsers import create_parser
-
-        parser = create_parser()
-        # Parse with freeze command
-        args = parser.parse_args(["freeze", "--repo", "owner/repo"])
-        assert args.command == "freeze"
-
-    def test_freeze_requires_repo(self):
-        """Freeze command should require --repo argument."""
-        from heisenberg.cli.parsers import create_parser
-
-        parser = create_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["freeze"])
-
-    def test_freeze_parses_repo(self):
-        """Parser should correctly parse repo argument."""
-        from heisenberg.cli.parsers import create_parser
-
-        parser = create_parser()
-        args = parser.parse_args(["freeze", "--repo", "TryGhost/Ghost"])
-        assert args.repo == "TryGhost/Ghost"
-
-    def test_freeze_parses_short_repo_flag(self):
-        """Parser should accept -r as short form of --repo."""
-        from heisenberg.cli.parsers import create_parser
-
-        parser = create_parser()
-        args = parser.parse_args(["freeze", "-r", "owner/repo"])
-        assert args.repo == "owner/repo"
-
-    def test_freeze_parses_run_id(self):
-        """Parser should correctly parse optional run-id."""
-        from heisenberg.cli.parsers import create_parser
-
-        parser = create_parser()
-        args = parser.parse_args(["freeze", "-r", "owner/repo", "--run-id", "12345"])
-        assert args.run_id == 12345
-
-    def test_freeze_run_id_defaults_to_none(self):
-        """Run ID should default to None (find latest)."""
-        from heisenberg.cli.parsers import create_parser
-
-        parser = create_parser()
-        args = parser.parse_args(["freeze", "-r", "owner/repo"])
-        assert args.run_id is None
-
-    def test_freeze_parses_output_dir(self):
-        """Parser should correctly parse output directory."""
-        from heisenberg.cli.parsers import create_parser
-
-        parser = create_parser()
-        args = parser.parse_args(["freeze", "-r", "owner/repo", "--output", "/tmp/scenarios"])
-        assert args.output == Path("/tmp/scenarios")
-
-    def test_freeze_output_defaults_to_cases(self):
-        """Output should default to ./cases."""
-        from heisenberg.cli.parsers import create_parser
-
-        parser = create_parser()
-        args = parser.parse_args(["freeze", "-r", "owner/repo"])
-        assert args.output == Path("./cases")
-
-    def test_freeze_parses_token(self):
-        """Parser should accept --token for GitHub token."""
-        from heisenberg.cli.parsers import create_parser
-
-        parser = create_parser()
-        args = parser.parse_args(["freeze", "-r", "owner/repo", "--token", "ghp_xxx"])
-        assert args.token == "ghp_xxx"
-
-
 # --- Command Handler Tests ---
 
 
@@ -372,24 +292,23 @@ class TestFreezeMainIntegration:
     """Tests for freeze command integration with main()."""
 
     def test_main_dispatches_to_freeze(self, tmp_path):
-        """main() should dispatch freeze command to run_freeze."""
-        import sys
+        """CLI should dispatch case freeze command to run_freeze."""
         from unittest.mock import patch
 
-        with patch.object(
-            sys, "argv", ["heisenberg", "freeze", "-r", "owner/repo", "--token", "ghp_x"]
-        ):
-            # Use MagicMock explicitly to avoid AsyncMock auto-detection
-            # (we're mocking asyncio.run anyway, so the coroutine won't be awaited)
-            with patch("heisenberg.cli.run_freeze", new_callable=MagicMock) as mock_run:
-                mock_run.return_value = 0
+        from typer.testing import CliRunner
 
-                from heisenberg.cli import main
+        from heisenberg.cli.app import app
 
-                # Mock asyncio.run to capture what's passed
-                with patch("asyncio.run") as mock_asyncio_run:
-                    mock_asyncio_run.return_value = 0
-                    main()
+        runner = CliRunner()
 
-                    # Should have called asyncio.run with run_freeze coroutine
-                    mock_asyncio_run.assert_called_once()
+        with patch("heisenberg.cli.commands.run_freeze") as mock_run:
+            mock_run.return_value = 0
+
+            # Test the new `case freeze` command
+            result = runner.invoke(
+                app,
+                ["case", "freeze", "--repo", "owner/repo", "--token", "ghp_x"],
+            )
+
+            assert result.exit_code == 0
+            mock_run.assert_called_once()

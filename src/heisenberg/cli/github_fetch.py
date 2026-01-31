@@ -392,7 +392,9 @@ async def fetch_and_merge_blobs(
         print(f"Using latest failed run: {run_id}", file=sys.stderr)
 
     artifacts = await client.get_artifacts(owner, repo, run_id=run_id)
-    matching = [a for a in artifacts if artifact_name.lower() in a.name.lower()]
+    # Default to matching "blob" if no artifact name specified
+    pattern = (artifact_name or "blob").lower()
+    matching = [a for a in artifacts if pattern in a.name.lower()]
 
     if not matching:
         return None
