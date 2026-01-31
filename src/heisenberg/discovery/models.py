@@ -61,6 +61,22 @@ class ProgressInfo:
     message: str | None = None  # Optional extra message
 
 
+@dataclass(frozen=True)
+class ArtifactDiscoveryResult:
+    """Result of finding valid artifacts from failed runs.
+
+    Replaces the 6-tuple previously returned by find_valid_artifacts().
+    Frozen for immutability and safe passing between layers.
+    """
+
+    run_id: str | None
+    run_url: str | None
+    artifact_names: list[str]
+    run_created_at: str | None
+    sizes: dict[str, int]
+    ids: dict[str, int]
+
+
 @dataclass
 class ProjectSource:
     """A source project for testing."""

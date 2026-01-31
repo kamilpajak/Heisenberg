@@ -21,6 +21,7 @@ from .client import (
     get_run_artifacts,
 )
 from .models import (
+    ArtifactDiscoveryResult,
     GitHubRateLimitError,
     ProjectSource,
     SourceStatus,
@@ -299,21 +300,25 @@ def _artifact_ids(artifacts: list[dict]) -> dict[str, int]:
     return {a["name"]: a["id"] for a in artifacts if not a.get("expired", False)}
 
 
-def find_valid_artifacts(
-    repo: str,
-) -> tuple[str | None, str | None, list[str], str | None, dict[str, int], dict[str, int]]:
+def find_valid_artifacts(repo: str) -> ArtifactDiscoveryResult:
     """Find valid (non-expired) Playwright artifacts from recent failed runs.
 
     Prioritizes runs with Playwright artifacts over runs with other artifacts.
 
     Returns:
-        Tuple of (run_id, run_url, artifact_names, run_created_at, artifact_sizes, artifact_ids)
-        for first run with Playwright artifacts, or first run with any artifacts,
-        or (first_run_id, first_run_url, [], run_created_at, {}, {}) if none.
+        ArtifactDiscoveryResult with run info and artifacts,
+        or result with None values if no runs/artifacts found.
     """
     runs = get_failed_runs(repo)
     if not runs:
-        return None, None, [], None, {}, {}
+        return ArtifactDiscoveryResult(
+            run_id=None,
+            run_url=None,
+            artifact_names=[],
+            run_created_at=None,
+            sizes={},
+            ids={},
+        )
 
     # First pass: look for runs with Playwright artifacts
     for run in runs:
@@ -326,13 +331,13 @@ def find_valid_artifacts(
         playwright_names = [a for a in valid_names if is_playwright_artifact(a)]
 
         if playwright_names:
-            return (
-                run_id,
-                run_url,
-                valid_names,
-                run_created_at,
-                _artifact_sizes(artifacts),
-                _artifact_ids(artifacts),
+            return ArtifactDiscoveryResult(
+                run_id=run_id,
+                run_url=run_url,
+                artifact_names=valid_names,
+                run_created_at=run_created_at,
+                sizes=_artifact_sizes(artifacts),
+                ids=_artifact_ids(artifacts),
             )
 
     # Second pass: return first run with any artifacts
@@ -345,24 +350,24 @@ def find_valid_artifacts(
         valid_names = filter_expired_artifacts(artifacts)
 
         if valid_names:
-            return (
-                run_id,
-                run_url,
-                valid_names,
-                run_created_at,
-                _artifact_sizes(artifacts),
-                _artifact_ids(artifacts),
+            return ArtifactDiscoveryResult(
+                run_id=run_id,
+                run_url=run_url,
+                artifact_names=valid_names,
+                run_created_at=run_created_at,
+                sizes=_artifact_sizes(artifacts),
+                ids=_artifact_ids(artifacts),
             )
 
     # No artifacts found, return first run info
     first_run = runs[0]
-    return (
-        str(first_run["id"]),
-        first_run.get("html_url", ""),
-        [],
-        first_run.get("created_at"),
-        {},
-        {},
+    return ArtifactDiscoveryResult(
+        run_id=str(first_run["id"]),
+        run_url=first_run.get("html_url", ""),
+        artifact_names=[],
+        run_created_at=first_run.get("created_at"),
+        sizes={},
+        ids={},
     )
 
 
@@ -451,21 +456,19 @@ def analyze_source_with_status(
             stars = get_repo_stars(repo) or 0
 
         report("fetching runs")
-        run_id, run_url, artifact_names, run_created_at, artifact_sizes, artifact_ids = (
-            find_valid_artifacts(repo)
-        )
-        playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
+        discovery = find_valid_artifacts(repo)
+        playwright_artifacts = [a for a in discovery.artifact_names if is_playwright_artifact(a)]
 
         failure_count = None
-        if verify_failures and artifact_names and run_id:
+        if verify_failures and discovery.artifact_names and discovery.run_id:
             # Use job-aware artifact selection for better accuracy
             report("checking jobs")
-            failed_jobs = get_failed_jobs(repo, run_id)
+            failed_jobs = get_failed_jobs(repo, discovery.run_id)
 
             # Build artifact list with metadata for selection
             artifacts_with_meta = [
-                {"name": name, "size_in_bytes": artifact_sizes.get(name, 0)}
-                for name in artifact_names
+                {"name": name, "size_in_bytes": discovery.sizes.get(name, 0)}
+                for name in discovery.artifact_names
             ]
 
             # Select best artifact based on failed jobs and naming patterns
@@ -477,33 +480,42 @@ def analyze_source_with_status(
                 artifact_to_check = playwright_artifacts[0]
 
             if artifact_to_check:
-                _report_verification_stage(cache, run_id, artifact_sizes, artifact_to_check, report)
-                artifact_id = artifact_ids.get(artifact_to_check)
+                _report_verification_stage(
+                    cache, discovery.run_id, discovery.sizes, artifact_to_check, report
+                )
+                artifact_id = discovery.ids.get(artifact_to_check)
                 try:
                     failure_count = _verify_artifact_failures(
-                        repo, run_id, artifact_to_check, cache, run_created_at, artifact_id
+                        repo,
+                        discovery.run_id,
+                        artifact_to_check,
+                        cache,
+                        discovery.run_created_at,
+                        artifact_id,
                     )
                 except HtmlReportNotSupported:
                     return ProjectSource(
                         repo=repo,
                         stars=stars,
                         status=SourceStatus.UNSUPPORTED_FORMAT,
-                        artifact_names=artifact_names,
+                        artifact_names=discovery.artifact_names,
                         playwright_artifacts=playwright_artifacts,
-                        run_id=run_id,
-                        run_url=run_url,
+                        run_id=discovery.run_id,
+                        run_url=discovery.run_url,
                     )
 
-        status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
+        status = determine_status(
+            discovery.run_id, discovery.artifact_names, playwright_artifacts, failure_count
+        )
 
         return ProjectSource(
             repo=repo,
             stars=stars,
             status=status,
-            artifact_names=artifact_names,
+            artifact_names=discovery.artifact_names,
             playwright_artifacts=playwright_artifacts,
-            run_id=run_id,
-            run_url=run_url,
+            run_id=discovery.run_id,
+            run_url=discovery.run_url,
         )
     except GitHubRateLimitError:
         return ProjectSource(
@@ -529,14 +541,14 @@ def analyze_source(
         if stars is None:
             stars = get_repo_stars(repo) or 0
 
-        run_id, run_url, artifact_names, _, _, artifact_ids = find_valid_artifacts(repo)
-        playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
+        discovery = find_valid_artifacts(repo)
+        playwright_artifacts = [a for a in discovery.artifact_names if is_playwright_artifact(a)]
 
         # Optionally verify that artifact has actual failures
         failure_count = None
-        if verify_failures and playwright_artifacts and run_id:
+        if verify_failures and playwright_artifacts and discovery.run_id:
             artifact_name = playwright_artifacts[0]
-            artifact_id = artifact_ids.get(artifact_name)
+            artifact_id = discovery.ids.get(artifact_name)
             try:
                 has_failures = verify_has_failures(repo, artifact_name, artifact_id)
                 failure_count = 1 if has_failures else 0
@@ -545,22 +557,24 @@ def analyze_source(
                     repo=repo,
                     stars=stars,
                     status=SourceStatus.UNSUPPORTED_FORMAT,
-                    artifact_names=artifact_names,
+                    artifact_names=discovery.artifact_names,
                     playwright_artifacts=playwright_artifacts,
-                    run_id=run_id,
-                    run_url=run_url,
+                    run_id=discovery.run_id,
+                    run_url=discovery.run_url,
                 )
 
-        status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
+        status = determine_status(
+            discovery.run_id, discovery.artifact_names, playwright_artifacts, failure_count
+        )
 
         return ProjectSource(
             repo=repo,
             stars=stars,
             status=status,
-            artifact_names=artifact_names,
+            artifact_names=discovery.artifact_names,
             playwright_artifacts=playwright_artifacts,
-            run_id=run_id,
-            run_url=run_url,
+            run_id=discovery.run_id,
+            run_url=discovery.run_url,
         )
     except GitHubRateLimitError:
         return ProjectSource(

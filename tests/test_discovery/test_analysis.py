@@ -18,6 +18,7 @@ from heisenberg.discovery.analysis import (
     verify_has_failures,
 )
 from heisenberg.discovery.models import (
+    ArtifactDiscoveryResult,
     ProjectSource,
     SourceStatus,
 )
@@ -265,11 +266,11 @@ class TestFindValidArtifacts:
 
         mock_get_artifacts.side_effect = artifacts_side_effect
 
-        run_id, run_url, artifacts, run_created_at, _, _ = find_valid_artifacts("owner/repo")
+        result = find_valid_artifacts("owner/repo")
 
-        assert run_id == "200"
-        assert "playwright-report" in artifacts
-        assert run_created_at == "2024-01-02T00:00:00Z"
+        assert result.run_id == "200"
+        assert "playwright-report" in result.artifact_names
+        assert result.run_created_at == "2024-01-02T00:00:00Z"
 
     @patch("heisenberg.discovery.analysis.get_run_artifacts")
     @patch("heisenberg.discovery.analysis.get_failed_runs")
@@ -283,10 +284,10 @@ class TestFindValidArtifacts:
             {"id": 1002, "name": "trace.zip", "expired": False},
         ]
 
-        run_id, run_url, artifacts, run_created_at, _, _ = find_valid_artifacts("owner/repo")
+        result = find_valid_artifacts("owner/repo")
 
-        assert "playwright-report" not in artifacts
-        assert "trace.zip" in artifacts
+        assert "playwright-report" not in result.artifact_names
+        assert "trace.zip" in result.artifact_names
 
 
 class TestAnalyzeCandidate:
@@ -298,13 +299,13 @@ class TestAnalyzeCandidate:
         """Should use stars provided as argument, not make API call."""
         from heisenberg.discovery.analysis import analyze_source
 
-        mock_find_artifacts.return_value = (
-            "123",
-            "url",
-            ["playwright-report"],
-            "2024-01-15T10:00:00Z",
-            {"playwright-report": 50_000_000},
-            {"playwright-report": 12345},
+        mock_find_artifacts.return_value = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="url",
+            artifact_names=["playwright-report"],
+            run_created_at="2024-01-15T10:00:00Z",
+            sizes={"playwright-report": 50_000_000},
+            ids={"playwright-report": 12345},
         )
         mock_get_stars.return_value = 999
 
@@ -319,13 +320,13 @@ class TestAnalyzeCandidate:
         """Should fetch stars via API when not provided."""
         from heisenberg.discovery.analysis import analyze_source
 
-        mock_find_artifacts.return_value = (
-            "123",
-            "url",
-            ["playwright-report"],
-            "2024-01-15T10:00:00Z",
-            {"playwright-report": 50_000_000},
-            {"playwright-report": 12345},
+        mock_find_artifacts.return_value = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="url",
+            artifact_names=["playwright-report"],
+            run_created_at="2024-01-15T10:00:00Z",
+            sizes={"playwright-report": 50_000_000},
+            ids={"playwright-report": 12345},
         )
         mock_get_stars.return_value = 1234
 
@@ -340,13 +341,13 @@ class TestAnalyzeCandidate:
         """Should set correct status based on artifacts (without verification)."""
         from heisenberg.discovery.analysis import analyze_source
 
-        mock_find_artifacts.return_value = (
-            "123",
-            "url",
-            ["playwright-report"],
-            "2024-01-15T10:00:00Z",
-            {"playwright-report": 50_000_000},
-            {"playwright-report": 12345},
+        mock_find_artifacts.return_value = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="url",
+            artifact_names=["playwright-report"],
+            run_created_at="2024-01-15T10:00:00Z",
+            sizes={"playwright-report": 50_000_000},
+            ids={"playwright-report": 12345},
         )
         mock_get_stars.return_value = 100
 
@@ -490,13 +491,13 @@ class TestAnalyzeSourceWithVerification:
         from heisenberg.discovery.analysis import analyze_source
 
         mock_stars.return_value = 100
-        mock_artifacts.return_value = (
-            "123",
-            "url",
-            ["playwright-report"],
-            "2024-01-15T10:00:00Z",
-            {"playwright-report": 50_000_000},
-            {"playwright-report": 12345},
+        mock_artifacts.return_value = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="url",
+            artifact_names=["playwright-report"],
+            run_created_at="2024-01-15T10:00:00Z",
+            sizes={"playwright-report": 50_000_000},
+            ids={"playwright-report": 12345},
         )
         mock_verify.return_value = True
 
@@ -515,13 +516,13 @@ class TestAnalyzeSourceWithVerification:
         from heisenberg.discovery.analysis import analyze_source
 
         mock_stars.return_value = 100
-        mock_artifacts.return_value = (
-            "123",
-            "url",
-            ["playwright-report"],
-            "2024-01-15T10:00:00Z",
-            {"playwright-report": 50_000_000},
-            {"playwright-report": 12345},
+        mock_artifacts.return_value = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="url",
+            artifact_names=["playwright-report"],
+            run_created_at="2024-01-15T10:00:00Z",
+            sizes={"playwright-report": 50_000_000},
+            ids={"playwright-report": 12345},
         )
         mock_verify.return_value = False
 
@@ -537,13 +538,13 @@ class TestAnalyzeSourceWithVerification:
         from heisenberg.discovery.analysis import analyze_source
 
         mock_stars.return_value = 100
-        mock_artifacts.return_value = (
-            "123",
-            "url",
-            ["playwright-report"],
-            "2024-01-15T10:00:00Z",
-            {"playwright-report": 50_000_000},
-            {"playwright-report": 12345},
+        mock_artifacts.return_value = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="url",
+            artifact_names=["playwright-report"],
+            run_created_at="2024-01-15T10:00:00Z",
+            sizes={"playwright-report": 50_000_000},
+            ids={"playwright-report": 12345},
         )
 
         source = analyze_source("owner/repo", verify_failures=False)
@@ -609,11 +610,11 @@ class TestCheckMultipleRuns:
 
         mock_get_artifacts.side_effect = artifacts_side_effect
 
-        run_id, run_url, artifacts, run_created_at, _, _ = find_valid_artifacts("owner/repo")
+        result = find_valid_artifacts("owner/repo")
 
-        assert run_id == "200"
-        assert "blob-report-1" in artifacts
-        assert run_created_at == "2024-01-02T00:00:00Z"
+        assert result.run_id == "200"
+        assert "blob-report-1" in result.artifact_names
+        assert result.run_created_at == "2024-01-02T00:00:00Z"
 
 
 # =============================================================================
@@ -740,10 +741,10 @@ class TestFindValidArtifactsReturnsRunCreatedAt:
             {"id": 1001, "name": "playwright-report", "expired": False}
         ]
 
-        run_id, run_url, artifacts, run_created_at, _, _ = find_valid_artifacts("owner/repo")
+        result = find_valid_artifacts("owner/repo")
 
-        assert run_id == "100"
-        assert run_created_at == "2024-01-15T10:30:00Z"
+        assert result.run_id == "100"
+        assert result.run_created_at == "2024-01-15T10:30:00Z"
 
 
 class TestFindValidArtifactsReturnsArtifactIds:
@@ -761,9 +762,9 @@ class TestFindValidArtifactsReturnsArtifactIds:
             {"id": 888, "name": "trace.zip", "expired": False},
         ]
 
-        _, _, _, _, _, artifact_ids = find_valid_artifacts("owner/repo")
+        result = find_valid_artifacts("owner/repo")
 
-        assert artifact_ids == {"playwright-report": 999, "trace.zip": 888}
+        assert result.ids == {"playwright-report": 999, "trace.zip": 888}
 
     @patch("heisenberg.discovery.analysis.get_run_artifacts")
     @patch("heisenberg.discovery.analysis.get_failed_runs")
@@ -777,10 +778,10 @@ class TestFindValidArtifactsReturnsArtifactIds:
             {"id": 222, "name": "expired", "expired": True},
         ]
 
-        _, _, _, _, _, artifact_ids = find_valid_artifacts("owner/repo")
+        result = find_valid_artifacts("owner/repo")
 
-        assert "valid" in artifact_ids
-        assert "expired" not in artifact_ids
+        assert "valid" in result.ids
+        assert "expired" not in result.ids
 
     @patch("heisenberg.discovery.analysis.get_run_artifacts")
     @patch("heisenberg.discovery.analysis.get_failed_runs")
@@ -791,9 +792,9 @@ class TestFindValidArtifactsReturnsArtifactIds:
         ]
         mock_get_artifacts.return_value = []
 
-        _, _, _, _, _, artifact_ids = find_valid_artifacts("owner/repo")
+        result = find_valid_artifacts("owner/repo")
 
-        assert artifact_ids == {}
+        assert result.ids == {}
 
 
 class TestAnalyzeWithStatusUpdates:
@@ -812,13 +813,13 @@ class TestAnalyzeWithStatusUpdates:
         from heisenberg.discovery.analysis import analyze_source_with_status
 
         mock_stars.return_value = 1000
-        mock_artifacts.return_value = (
-            "123",
-            "url",
-            ["playwright-report"],
-            "2024-01-15T10:00:00Z",
-            {"playwright-report": 50_000_000},
-            {"playwright-report": 12345},
+        mock_artifacts.return_value = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="url",
+            artifact_names=["playwright-report"],
+            run_created_at="2024-01-15T10:00:00Z",
+            sizes={"playwright-report": 50_000_000},
+            ids={"playwright-report": 12345},
         )
 
         stages_seen = []
@@ -846,13 +847,13 @@ class TestAnalyzeWithStatusUpdates:
         from heisenberg.discovery.analysis import analyze_source_with_status
 
         mock_stars.return_value = 1000
-        mock_artifacts.return_value = (
-            "123",
-            "url",
-            ["playwright-report"],
-            "2024-01-15T10:00:00Z",
-            {"playwright-report": 50_000_000},
-            {"playwright-report": 12345},
+        mock_artifacts.return_value = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="url",
+            artifact_names=["playwright-report"],
+            run_created_at="2024-01-15T10:00:00Z",
+            sizes={"playwright-report": 50_000_000},
+            ids={"playwright-report": 12345},
         )
         mock_jobs.return_value = []
         mock_verify.return_value = 1
@@ -882,13 +883,13 @@ class TestAnalyzeWithStatusUpdates:
         from heisenberg.discovery.analysis import analyze_source_with_status
 
         mock_stars.return_value = 1000
-        mock_artifacts.return_value = (
-            "123",
-            "https://github.com/owner/repo/actions/runs/123",
-            ["playwright-report"],
-            "2024-01-15T10:00:00Z",
-            {"playwright-report": 50_000_000},
-            {"playwright-report": 12345},
+        mock_artifacts.return_value = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="https://github.com/owner/repo/actions/runs/123",
+            artifact_names=["playwright-report"],
+            run_created_at="2024-01-15T10:00:00Z",
+            sizes={"playwright-report": 50_000_000},
+            ids={"playwright-report": 12345},
         )
         mock_jobs.return_value = []
         mock_verify.side_effect = HtmlReportNotSupported()
@@ -1142,3 +1143,122 @@ class TestHtmlReportDetectionInDir:
         result = extract_failure_count_from_dir(tmp_path)
 
         assert result is None
+
+
+# =============================================================================
+# ARTIFACT DISCOVERY RESULT DATACLASS TESTS
+# =============================================================================
+
+
+class TestArtifactDiscoveryResult:
+    """Tests for ArtifactDiscoveryResult dataclass - replaces 6-tuple."""
+
+    def test_dataclass_exists_and_importable(self):
+        """ArtifactDiscoveryResult should be importable from models."""
+        from heisenberg.discovery.models import ArtifactDiscoveryResult
+
+        assert ArtifactDiscoveryResult is not None
+
+    def test_has_all_required_fields(self):
+        """Should have all fields from the original 6-tuple."""
+        from heisenberg.discovery.models import ArtifactDiscoveryResult
+
+        result = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="https://github.com/owner/repo/actions/runs/123",
+            artifact_names=["playwright-report", "trace.zip"],
+            run_created_at="2024-01-15T10:00:00Z",
+            sizes={"playwright-report": 50_000_000},
+            ids={"playwright-report": 12345},
+        )
+
+        assert result.run_id == "123"
+        assert result.run_url == "https://github.com/owner/repo/actions/runs/123"
+        assert result.artifact_names == ["playwright-report", "trace.zip"]
+        assert result.run_created_at == "2024-01-15T10:00:00Z"
+        assert result.sizes == {"playwright-report": 50_000_000}
+        assert result.ids == {"playwright-report": 12345}
+
+    def test_supports_none_values(self):
+        """Should support None for optional fields (no runs/artifacts found)."""
+        from heisenberg.discovery.models import ArtifactDiscoveryResult
+
+        result = ArtifactDiscoveryResult(
+            run_id=None,
+            run_url=None,
+            artifact_names=[],
+            run_created_at=None,
+            sizes={},
+            ids={},
+        )
+
+        assert result.run_id is None
+        assert result.run_url is None
+        assert result.artifact_names == []
+
+    def test_is_frozen_immutable(self):
+        """Should be frozen (immutable) for safety."""
+        import dataclasses
+
+        from heisenberg.discovery.models import ArtifactDiscoveryResult
+
+        result = ArtifactDiscoveryResult(
+            run_id="123",
+            run_url="url",
+            artifact_names=[],
+            run_created_at=None,
+            sizes={},
+            ids={},
+        )
+
+        assert dataclasses.is_dataclass(result)
+
+        # Should raise FrozenInstanceError when trying to modify
+        import pytest
+
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            result.run_id = "456"
+
+
+class TestFindValidArtifactsReturnsDataclass:
+    """Tests for find_valid_artifacts returning ArtifactDiscoveryResult."""
+
+    @patch("heisenberg.discovery.analysis.get_run_artifacts")
+    @patch("heisenberg.discovery.analysis.get_failed_runs")
+    def test_returns_dataclass_instead_of_tuple(self, mock_get_runs, mock_get_artifacts):
+        """find_valid_artifacts should return ArtifactDiscoveryResult, not tuple."""
+        from heisenberg.discovery.models import ArtifactDiscoveryResult
+
+        mock_get_runs.return_value = [
+            {"id": 100, "html_url": "url1", "created_at": "2024-01-15T10:00:00Z"},
+        ]
+        mock_get_artifacts.return_value = [
+            {"id": 999, "name": "playwright-report", "expired": False, "size_in_bytes": 1000},
+        ]
+
+        result = find_valid_artifacts("owner/repo")
+
+        assert isinstance(result, ArtifactDiscoveryResult)
+        assert result.run_id == "100"
+        assert result.run_url == "url1"
+        assert result.artifact_names == ["playwright-report"]
+        assert result.run_created_at == "2024-01-15T10:00:00Z"
+        assert result.sizes == {"playwright-report": 1000}
+        assert result.ids == {"playwright-report": 999}
+
+    @patch("heisenberg.discovery.analysis.get_run_artifacts")
+    @patch("heisenberg.discovery.analysis.get_failed_runs")
+    def test_dataclass_when_no_runs(self, mock_get_runs, mock_get_artifacts):
+        """Should return dataclass with None values when no runs found."""
+        from heisenberg.discovery.models import ArtifactDiscoveryResult
+
+        mock_get_runs.return_value = []
+
+        result = find_valid_artifacts("owner/repo")
+
+        assert isinstance(result, ArtifactDiscoveryResult)
+        assert result.run_id is None
+        assert result.run_url is None
+        assert result.artifact_names == []
+        assert result.sizes == {}
+        assert result.ids == {}
