@@ -18,9 +18,8 @@ DEFAULT_QUERIES = [
 
 MAX_RUNS_TO_CHECK = 5
 CACHE_TTL_DAYS = 90
-CACHE_SCHEMA_VERSION = 1
 QUARANTINE_TTL_HOURS = 24
-QUARANTINE_SCHEMA_VERSION = 1
+DISCOVERY_SCHEMA_VERSION = 3  # Unified schema for all discovery caches
 TIMEOUT_API = 30  # seconds — for gh API calls
 TIMEOUT_DOWNLOAD = 120  # seconds — for artifact downloads
 GH_MAX_CONCURRENT = 4  # max concurrent gh CLI processes
@@ -41,6 +40,13 @@ class SourceStatus(Enum):
     NO_ARTIFACTS = "no_artifacts"  # Run exists but no artifacts
     NO_FAILED_RUNS = "no_failed_runs"  # No failed workflow runs
     UNSUPPORTED_FORMAT = "unsupported_format"  # HTML report instead of JSON
+    RATE_LIMITED = "rate_limited"  # GitHub API rate limit hit
+
+
+class GitHubRateLimitError(Exception):
+    """Raised when GitHub API rate limit is exceeded."""
+
+    pass
 
 
 @dataclass

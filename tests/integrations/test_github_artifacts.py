@@ -912,6 +912,92 @@ class TestJsonlReportExtraction:
         assert result is None
 
 
+class TestEventBasedJsonlExtraction:
+    """Test extraction of event-based JSONL format (modern Playwright blob reports).
+
+    Modern Playwright blob reports use event-based JSONL where each line is an event:
+    - {"method": "onBegin", "params": {...}}
+    - {"method": "onTestBegin", "params": {...}}
+    - {"method": "onTestEnd", "params": {...}}
+    - {"method": "onEnd", "params": {"result": {"status": "failed", ...}}}
+
+    The onEnd event contains the final test run status.
+    """
+
+    def _create_jsonl_content(self, objects: list[dict]) -> str:
+        """Create JSONL content from list of objects."""
+        return "\n".join(json.dumps(obj) for obj in objects)
+
+    def test_extracts_report_from_event_based_jsonl(self):
+        """Should extract report from event-based JSONL (onEnd with failed status)."""
+        client = GitHubArtifactClient(token="test-token")
+
+        # Real blob report format from nasa-gcn/gcn.nasa.gov
+        jsonl_events = [
+            {"method": "onBegin", "params": {"config": {"timeout": 30000}}},
+            {"method": "onTestBegin", "params": {"test": {"title": "should work"}}},
+            {
+                "method": "onTestEnd",
+                "params": {"test": {"title": "should work"}, "result": {"status": "failed"}},
+            },
+            {
+                "method": "onEnd",
+                "params": {
+                    "result": {"status": "failed", "startTime": 1234567890, "duration": 5000}
+                },
+            },
+        ]
+
+        inner_zip = io.BytesIO()
+        with zipfile.ZipFile(inner_zip, "w") as zf:
+            zf.writestr("report.jsonl", self._create_jsonl_content(jsonl_events))
+
+        outer_zip = io.BytesIO()
+        with zipfile.ZipFile(outer_zip, "w") as zf:
+            zf.writestr("report-3.zip", inner_zip.getvalue())
+
+        result = client.extract_playwright_report(outer_zip.getvalue())
+
+        assert result is not None
+        # Should return the onEnd event data or a synthesized report
+        assert "status" in result or "result" in result or "stats" in result
+
+    def test_extracts_passing_event_based_jsonl(self):
+        """Should extract report from event-based JSONL with passing status."""
+        client = GitHubArtifactClient(token="test-token")
+
+        jsonl_events = [
+            {"method": "onEnd", "params": {"result": {"status": "passed", "duration": 1000}}},
+        ]
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report.jsonl", self._create_jsonl_content(jsonl_events))
+
+        result = client.extract_playwright_report(zip_buffer.getvalue())
+
+        assert result is not None
+
+    def test_returns_none_for_jsonl_without_onend(self):
+        """Should return None if JSONL has no onEnd event."""
+        client = GitHubArtifactClient(token="test-token")
+
+        jsonl_events = [
+            {"method": "onBegin", "params": {"config": {}}},
+            {"method": "onTestBegin", "params": {"test": {"title": "test"}}},
+            # No onEnd event
+        ]
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report.jsonl", self._create_jsonl_content(jsonl_events))
+
+        result = client.extract_playwright_report(zip_buffer.getvalue())
+
+        # Should return None - no complete report
+        assert result is None
+
+
 class TestHtmlReportDetection:
     """Test detection of HTML reports (unsupported format).
 

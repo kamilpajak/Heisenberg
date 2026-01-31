@@ -13,6 +13,7 @@ from heisenberg.core.exceptions import HtmlReportNotSupported
 
 from .cache import RunCache
 from .client import (
+    download_artifact_by_id,
     download_artifact_to_dir,
     get_failed_jobs,
     get_failed_runs,
@@ -20,6 +21,7 @@ from .client import (
     get_run_artifacts,
 )
 from .models import (
+    GitHubRateLimitError,
     ProjectSource,
     SourceStatus,
 )
@@ -166,16 +168,17 @@ def extract_failure_count_from_dir(dir_path) -> int | None:
 
     Handles Playwright report formats in priority order:
     1. Nested ZIPs (blob reports with JSON/JSONL)
-    2. HTML reports with embedded base64 ZIP
-    3. Direct JSON files in artifact root
+    2. Direct JSON files in artifact root
+    3. HTML reports with embedded base64 ZIP (legacy single-file format)
 
     Raises:
         HtmlReportNotSupported: If directory contains modern HTML report
-            (index.html + data/ structure) which cannot be parsed.
+            (index.html + data/ structure) without usable JSON data.
     """
     from pathlib import Path
 
     dir_path = Path(dir_path)
+    is_html_report = _is_html_report_dir(dir_path)
 
     # Try nested ZIP files (blob reports)
     for zip_file in dir_path.glob("*.zip"):
@@ -183,30 +186,39 @@ def extract_failure_count_from_dir(dir_path) -> int | None:
         if failures is not None:
             return failures
 
-    # Try HTML files (embedded base64 ZIP - older format)
-    for html_file in dir_path.glob("*.html"):
-        failures = _extract_from_html_file(html_file)
-        if failures is not None:
-            return failures
-
-    # Try direct JSON files
+    # Try direct JSON files (check BEFORE HTML to support dual-reporter setups)
     for json_file in dir_path.rglob("*.json"):
         failures = _extract_from_json_file(json_file)
         if failures is not None:
             return failures
 
-    # Check for modern HTML report (unsupported format)
-    # This must come AFTER trying to extract - in case JSON exists alongside
-    if _is_html_report_dir(dir_path):
+    # If it's a modern HTML report directory without JSON, reject it
+    # Must check BEFORE trying HTML extraction because modern HTML reports have
+    # embedded base64 data in index.html that _extract_from_html_file can parse
+    if is_html_report:
         raise HtmlReportNotSupported()
+
+    # Try HTML files (embedded base64 ZIP - legacy single-file format only)
+    for html_file in dir_path.glob("*.html"):
+        failures = _extract_from_html_file(html_file)
+        if failures is not None:
+            return failures
 
     return None
 
 
-def download_and_check_failures(repo: str, artifact_name: str) -> int | None:
+def download_and_check_failures(
+    repo: str, artifact_name: str, artifact_id: int | None = None
+) -> int | None:
     """Download artifact and extract failure count.
 
-    Uses optimized direct file reading instead of re-zipping.
+    Uses direct S3 download when artifact_id is provided (1 API call),
+    otherwise falls back to gh CLI download (~100+ API calls).
+
+    Args:
+        repo: Repository in owner/repo format
+        artifact_name: Name of the artifact
+        artifact_id: Optional artifact ID for direct S3 download
 
     Returns:
         Number of failures found, or None if download/parsing failed.
@@ -214,18 +226,25 @@ def download_and_check_failures(repo: str, artifact_name: str) -> int | None:
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        if not download_artifact_to_dir(repo, artifact_name, tmpdir):
-            return None
+        # Use direct S3 download when artifact_id is available (1 API call)
+        if artifact_id is not None:
+            if not download_artifact_by_id(artifact_id, tmpdir, repo=repo):
+                return None
+        else:
+            # Fallback to old method (~100+ API calls)
+            if not download_artifact_to_dir(repo, artifact_name, tmpdir):
+                return None
 
         return extract_failure_count_from_dir(tmpdir)
 
 
-def verify_has_failures(repo: str, artifact_name: str) -> bool:
+def verify_has_failures(repo: str, artifact_name: str, artifact_id: int | None = None) -> bool:
     """Verify that an artifact contains actual test failures.
 
     Downloads the artifact and checks if it has non-zero failure count.
+    Uses direct S3 download when artifact_id is provided.
     """
-    failure_count = download_and_check_failures(repo, artifact_name)
+    failure_count = download_and_check_failures(repo, artifact_name, artifact_id)
     return failure_count is not None and failure_count > 0
 
 
@@ -235,6 +254,7 @@ def verify_has_failures_cached(
     artifact_name: str,
     cache: RunCache,
     run_created_at: str,
+    artifact_id: int | None = None,
 ) -> bool:
     """Verify that an artifact contains actual test failures, using cache.
 
@@ -244,6 +264,7 @@ def verify_has_failures_cached(
         artifact_name: Name of the artifact to check
         cache: RunCache instance for caching results
         run_created_at: ISO timestamp of when the run was created on GitHub
+        artifact_id: Optional artifact ID for direct S3 download
 
     Returns:
         True if artifact has non-zero failure count.
@@ -253,8 +274,8 @@ def verify_has_failures_cached(
     if cached_count is not None:
         return cached_count > 0
 
-    # Cache miss - download and verify
-    failure_count = download_and_check_failures(repo, artifact_name)
+    # Cache miss - download and verify (uses direct S3 if artifact_id provided)
+    failure_count = download_and_check_failures(repo, artifact_name, artifact_id)
 
     # Store result in cache (even if None or 0)
     if failure_count is not None:
@@ -273,21 +294,26 @@ def _artifact_sizes(artifacts: list[dict]) -> dict[str, int]:
     return {a["name"]: a.get("size_in_bytes", 0) for a in artifacts if not a.get("expired", False)}
 
 
+def _artifact_ids(artifacts: list[dict]) -> dict[str, int]:
+    """Extract {name: id} for non-expired artifacts."""
+    return {a["name"]: a["id"] for a in artifacts if not a.get("expired", False)}
+
+
 def find_valid_artifacts(
     repo: str,
-) -> tuple[str | None, str | None, list[str], str | None, dict[str, int]]:
+) -> tuple[str | None, str | None, list[str], str | None, dict[str, int], dict[str, int]]:
     """Find valid (non-expired) Playwright artifacts from recent failed runs.
 
     Prioritizes runs with Playwright artifacts over runs with other artifacts.
 
     Returns:
-        Tuple of (run_id, run_url, artifact_names, run_created_at, artifact_sizes)
+        Tuple of (run_id, run_url, artifact_names, run_created_at, artifact_sizes, artifact_ids)
         for first run with Playwright artifacts, or first run with any artifacts,
-        or (first_run_id, first_run_url, [], run_created_at, {}) if none.
+        or (first_run_id, first_run_url, [], run_created_at, {}, {}) if none.
     """
     runs = get_failed_runs(repo)
     if not runs:
-        return None, None, [], None, {}
+        return None, None, [], None, {}, {}
 
     # First pass: look for runs with Playwright artifacts
     for run in runs:
@@ -300,7 +326,14 @@ def find_valid_artifacts(
         playwright_names = [a for a in valid_names if is_playwright_artifact(a)]
 
         if playwright_names:
-            return run_id, run_url, valid_names, run_created_at, _artifact_sizes(artifacts)
+            return (
+                run_id,
+                run_url,
+                valid_names,
+                run_created_at,
+                _artifact_sizes(artifacts),
+                _artifact_ids(artifacts),
+            )
 
     # Second pass: return first run with any artifacts
     for run in runs:
@@ -312,11 +345,25 @@ def find_valid_artifacts(
         valid_names = filter_expired_artifacts(artifacts)
 
         if valid_names:
-            return run_id, run_url, valid_names, run_created_at, _artifact_sizes(artifacts)
+            return (
+                run_id,
+                run_url,
+                valid_names,
+                run_created_at,
+                _artifact_sizes(artifacts),
+                _artifact_ids(artifacts),
+            )
 
     # No artifacts found, return first run info
     first_run = runs[0]
-    return str(first_run["id"]), first_run.get("html_url", ""), [], first_run.get("created_at"), {}
+    return (
+        str(first_run["id"]),
+        first_run.get("html_url", ""),
+        [],
+        first_run.get("created_at"),
+        {},
+        {},
+    )
 
 
 def determine_status(
@@ -369,21 +416,26 @@ def _verify_artifact_failures(
     artifact_name: str,
     cache: RunCache | None,
     run_created_at: str | None,
+    artifact_id: int | None = None,
 ) -> int:
-    """Verify failures in artifact, using cache if available."""
+    """Verify failures in artifact, using cache if available.
+
+    Uses direct S3 download when artifact_id is provided (1 API call),
+    otherwise falls back to gh CLI download (~100+ API calls).
+    """
     if cache and run_created_at:
         has_failures = verify_has_failures_cached(
-            repo, run_id, artifact_name, cache, run_created_at
+            repo, run_id, artifact_name, cache, run_created_at, artifact_id
         )
     else:
-        has_failures = verify_has_failures(repo, artifact_name)
+        has_failures = verify_has_failures(repo, artifact_name, artifact_id)
     return 1 if has_failures else 0
 
 
 def analyze_source_with_status(
     repo: str,
     stars: int | None = None,
-    verify_failures: bool = False,
+    verify_failures: bool = True,
     on_status: Callable[[str], None] | None = None,
     cache: RunCache | None = None,
 ) -> ProjectSource:
@@ -393,39 +445,101 @@ def analyze_source_with_status(
         if on_status:
             on_status(stage)
 
-    report("fetching info")
-    if stars is None:
-        stars = get_repo_stars(repo) or 0
+    try:
+        report("fetching info")
+        if stars is None:
+            stars = get_repo_stars(repo) or 0
 
-    report("fetching runs")
-    run_id, run_url, artifact_names, run_created_at, artifact_sizes = find_valid_artifacts(repo)
-    playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
+        report("fetching runs")
+        run_id, run_url, artifact_names, run_created_at, artifact_sizes, artifact_ids = (
+            find_valid_artifacts(repo)
+        )
+        playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
 
-    failure_count = None
-    if verify_failures and artifact_names and run_id:
-        # Use job-aware artifact selection for better accuracy
-        report("checking jobs")
-        failed_jobs = get_failed_jobs(repo, run_id)
+        failure_count = None
+        if verify_failures and artifact_names and run_id:
+            # Use job-aware artifact selection for better accuracy
+            report("checking jobs")
+            failed_jobs = get_failed_jobs(repo, run_id)
 
-        # Build artifact list with metadata for selection
-        artifacts_with_meta = [
-            {"name": name, "size_in_bytes": artifact_sizes.get(name, 0)} for name in artifact_names
-        ]
+            # Build artifact list with metadata for selection
+            artifacts_with_meta = [
+                {"name": name, "size_in_bytes": artifact_sizes.get(name, 0)}
+                for name in artifact_names
+            ]
 
-        # Select best artifact based on failed jobs and naming patterns
-        best_artifact = select_best_artifact(artifacts_with_meta, failed_jobs)
-        artifact_to_check = best_artifact["name"] if best_artifact else None
+            # Select best artifact based on failed jobs and naming patterns
+            best_artifact = select_best_artifact(artifacts_with_meta, failed_jobs)
+            artifact_to_check = best_artifact["name"] if best_artifact else None
 
-        # Fallback to first playwright artifact if job-aware selection fails
-        if not artifact_to_check and playwright_artifacts:
-            artifact_to_check = playwright_artifacts[0]
+            # Fallback to first playwright artifact if job-aware selection fails
+            if not artifact_to_check and playwright_artifacts:
+                artifact_to_check = playwright_artifacts[0]
 
-        if artifact_to_check:
-            _report_verification_stage(cache, run_id, artifact_sizes, artifact_to_check, report)
+            if artifact_to_check:
+                _report_verification_stage(cache, run_id, artifact_sizes, artifact_to_check, report)
+                artifact_id = artifact_ids.get(artifact_to_check)
+                try:
+                    failure_count = _verify_artifact_failures(
+                        repo, run_id, artifact_to_check, cache, run_created_at, artifact_id
+                    )
+                except HtmlReportNotSupported:
+                    return ProjectSource(
+                        repo=repo,
+                        stars=stars,
+                        status=SourceStatus.UNSUPPORTED_FORMAT,
+                        artifact_names=artifact_names,
+                        playwright_artifacts=playwright_artifacts,
+                        run_id=run_id,
+                        run_url=run_url,
+                    )
+
+        status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
+
+        return ProjectSource(
+            repo=repo,
+            stars=stars,
+            status=status,
+            artifact_names=artifact_names,
+            playwright_artifacts=playwright_artifacts,
+            run_id=run_id,
+            run_url=run_url,
+        )
+    except GitHubRateLimitError:
+        return ProjectSource(
+            repo=repo,
+            stars=stars or 0,
+            status=SourceStatus.RATE_LIMITED,
+        )
+
+
+def analyze_source(
+    repo: str,
+    stars: int | None = None,
+    verify_failures: bool = True,
+) -> ProjectSource:
+    """Analyze a repository as a source for testing.
+
+    Args:
+        repo: Repository in owner/repo format
+        stars: Star count (fetched if None)
+        verify_failures: Download artifact to verify it has failures (default: True)
+    """
+    try:
+        if stars is None:
+            stars = get_repo_stars(repo) or 0
+
+        run_id, run_url, artifact_names, _, _, artifact_ids = find_valid_artifacts(repo)
+        playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
+
+        # Optionally verify that artifact has actual failures
+        failure_count = None
+        if verify_failures and playwright_artifacts and run_id:
+            artifact_name = playwright_artifacts[0]
+            artifact_id = artifact_ids.get(artifact_name)
             try:
-                failure_count = _verify_artifact_failures(
-                    repo, run_id, artifact_to_check, cache, run_created_at
-                )
+                has_failures = verify_has_failures(repo, artifact_name, artifact_id)
+                failure_count = 1 if has_failures else 0
             except HtmlReportNotSupported:
                 return ProjectSource(
                     repo=repo,
@@ -437,54 +551,23 @@ def analyze_source_with_status(
                     run_url=run_url,
                 )
 
-    status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
+        status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
 
-    return ProjectSource(
-        repo=repo,
-        stars=stars,
-        status=status,
-        artifact_names=artifact_names,
-        playwright_artifacts=playwright_artifacts,
-        run_id=run_id,
-        run_url=run_url,
-    )
-
-
-def analyze_source(
-    repo: str,
-    stars: int | None = None,
-    verify_failures: bool = False,
-) -> ProjectSource:
-    """Analyze a repository as a source for testing.
-
-    Args:
-        repo: Repository in owner/repo format
-        stars: Star count (fetched if None)
-        verify_failures: If True, download artifact to verify it has failures
-    """
-    if stars is None:
-        stars = get_repo_stars(repo) or 0
-
-    run_id, run_url, artifact_names, _, _ = find_valid_artifacts(repo)
-    playwright_artifacts = [a for a in artifact_names if is_playwright_artifact(a)]
-
-    # Optionally verify that artifact has actual failures
-    failure_count = None
-    if verify_failures and playwright_artifacts and run_id:
-        has_failures = verify_has_failures(repo, playwright_artifacts[0])
-        failure_count = 1 if has_failures else 0
-
-    status = determine_status(run_id, artifact_names, playwright_artifacts, failure_count)
-
-    return ProjectSource(
-        repo=repo,
-        stars=stars,
-        status=status,
-        artifact_names=artifact_names,
-        playwright_artifacts=playwright_artifacts,
-        run_id=run_id,
-        run_url=run_url,
-    )
+        return ProjectSource(
+            repo=repo,
+            stars=stars,
+            status=status,
+            artifact_names=artifact_names,
+            playwright_artifacts=playwright_artifacts,
+            run_id=run_id,
+            run_url=run_url,
+        )
+    except GitHubRateLimitError:
+        return ProjectSource(
+            repo=repo,
+            stars=stars or 0,
+            status=SourceStatus.RATE_LIMITED,
+        )
 
 
 def sort_sources(sources: list[ProjectSource]) -> list[ProjectSource]:

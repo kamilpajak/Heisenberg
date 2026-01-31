@@ -17,6 +17,7 @@ STATUS_ICONS = {
     SourceStatus.NO_ARTIFACTS: "-",
     SourceStatus.NO_FAILED_RUNS: ".",
     SourceStatus.UNSUPPORTED_FORMAT: "⚠",
+    SourceStatus.RATE_LIMITED: "⏱",
 }
 
 STATUS_COLORS = {
@@ -26,15 +27,17 @@ STATUS_COLORS = {
     SourceStatus.NO_ARTIFACTS: "red",
     SourceStatus.NO_FAILED_RUNS: "dim",
     SourceStatus.UNSUPPORTED_FORMAT: "magenta",
+    SourceStatus.RATE_LIMITED: "red",
 }
 
 STATUS_LABELS = {
     SourceStatus.COMPATIBLE: "compatible",
     SourceStatus.NO_FAILURES: "tests passing",
-    SourceStatus.HAS_ARTIFACTS: "has artifacts",
+    SourceStatus.HAS_ARTIFACTS: "other artifacts",
     SourceStatus.NO_ARTIFACTS: "no artifacts",
     SourceStatus.NO_FAILED_RUNS: "no failed runs",
     SourceStatus.UNSUPPORTED_FORMAT: "html report",
+    SourceStatus.RATE_LIMITED: "rate limited",
 }
 
 
@@ -55,7 +58,7 @@ def format_size(size_bytes: int) -> str:
 
 
 COL_REPO = 40
-COL_STATUS = 14
+COL_STATUS = 16
 COL_TRAIL = 7
 
 

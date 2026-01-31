@@ -348,9 +348,9 @@ def _add_discover_parser(subparsers) -> None:
 
     # Verification
     parser.add_argument(
-        "--verify",
+        "--quick",
         action="store_true",
-        help="Download artifacts to verify failures exist (slower)",
+        help="Skip failure verification (faster, may include repos with 0 failures)",
     )
 
     # Output modes

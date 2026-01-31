@@ -304,8 +304,35 @@ class GitHubArtifactClient:
 
     @staticmethod
     def _is_playwright_report(data: Any) -> bool:
-        """Check if data looks like a Playwright report."""
-        return isinstance(data, dict) and ("suites" in data or "stats" in data)
+        """Check if data looks like a Playwright report.
+
+        Supports two formats:
+        1. Classic format: {"suites": [...], "stats": {...}}
+        2. Event-based format: {"method": "onEnd", "params": {"result": {...}}}
+        """
+        if not isinstance(data, dict):
+            return False
+        # Classic format
+        if "suites" in data or "stats" in data:
+            return True
+        # Event-based format (onEnd event from blob reports)
+        if data.get("method") == "onEnd" and "params" in data:
+            return True
+        return False
+
+    @staticmethod
+    def _normalize_report(data: dict) -> dict:
+        """Normalize report data to a standard format.
+
+        Converts event-based format to a format with 'result' key for consistency.
+        """
+        # Event-based format: extract the result from params
+        if data.get("method") == "onEnd" and "params" in data:
+            result = data["params"].get("result", {})
+            # Return a normalized structure that includes the status
+            return {"result": result, "status": result.get("status")}
+        # Classic format: return as-is
+        return data
 
     @staticmethod
     def _try_parse_json_file(zf: zipfile.ZipFile, filename: str) -> dict | None:
@@ -325,7 +352,7 @@ class GitHubArtifactClient:
 
         JSONL (JSON Lines) is used by Playwright blob reports. Each line is
         a separate JSON object. We search for a line containing report data
-        (suites or stats keys).
+        (suites, stats, or onEnd event).
         """
         try:
             content = zf.read(filename).decode("utf-8")
@@ -335,7 +362,7 @@ class GitHubArtifactClient:
                 try:
                     data = json.loads(line)
                     if GitHubArtifactClient._is_playwright_report(data):
-                        return data
+                        return GitHubArtifactClient._normalize_report(data)
                 except json.JSONDecodeError:
                     continue
         except (KeyError, UnicodeDecodeError):

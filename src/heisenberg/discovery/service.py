@@ -35,6 +35,7 @@ _USE_DEFAULT_CACHE = object()  # Sentinel for "use default cache path"
 _USE_DEFAULT_QUARANTINE = object()  # Sentinel for "use default quarantine path"
 
 # Statuses that should be quarantined (not worth re-checking)
+# Note: RATE_LIMITED is NOT quarantined - it should be retried later
 _QUARANTINE_STATUSES = frozenset(
     {
         SourceStatus.NO_ARTIFACTS,
@@ -253,7 +254,7 @@ class _DiscoveryRunner:
 def discover_sources(
     global_limit: int = 30,
     queries: list[str] | None = None,
-    verify_failures: bool = False,
+    verify_failures: bool = True,
     on_event: EventHandler | None = None,
     cache_path: str | None | object = _USE_DEFAULT_CACHE,
     quarantine_path: str | None | object = _USE_DEFAULT_QUARANTINE,
@@ -264,7 +265,7 @@ def discover_sources(
     Args:
         global_limit: Maximum number of repos to analyze.
         queries: Search queries (defaults to DEFAULT_QUERIES).
-        verify_failures: Download artifacts to verify actual failures.
+        verify_failures: Download artifacts to verify actual failures (default: True).
         on_event: Event handler for UI updates.
         cache_path: Path to run cache, or None to disable.
         quarantine_path: Path to quarantine cache, or None to disable.

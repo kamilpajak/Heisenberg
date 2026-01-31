@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timedelta
 
 from heisenberg.discovery.cache import QuarantineCache, get_default_quarantine_path
-from heisenberg.discovery.models import QUARANTINE_TTL_HOURS
+from heisenberg.discovery.models import DISCOVERY_SCHEMA_VERSION, QUARANTINE_TTL_HOURS
 
 # =============================================================================
 # QUARANTINE CACHE TESTS
@@ -116,7 +116,7 @@ class TestQuarantinePersistence:
         cache_file.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": DISCOVERY_SCHEMA_VERSION,
                     "repos": {
                         "owner/repo": {
                             "status": "no_artifacts",
@@ -165,7 +165,7 @@ class TestQuarantineSchemaVersion:
         data = json.loads(cache_file.read_text())
 
         assert "schema_version" in data
-        assert data["schema_version"] == 1
+        assert data["schema_version"] == DISCOVERY_SCHEMA_VERSION
 
     def test_ignores_old_schema_version(self, tmp_path):
         """Should ignore cache with older schema version."""
@@ -202,7 +202,7 @@ class TestQuarantinePruning:
         cache_file.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": DISCOVERY_SCHEMA_VERSION,
                     "repos": {
                         "old/repo": {"status": "no_artifacts", "quarantined_at": old_time},
                         "recent/repo": {"status": "no_artifacts", "quarantined_at": recent_time},
@@ -223,7 +223,7 @@ class TestQuarantinePruning:
         cache_file.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": DISCOVERY_SCHEMA_VERSION,
                     "repos": {
                         "corrupt/repo": {"status": "no_artifacts", "quarantined_at": "not-a-date"},
                         "missing/date": {"status": "no_artifacts"},
@@ -252,7 +252,7 @@ class TestQuarantinePruning:
         cache_file.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": DISCOVERY_SCHEMA_VERSION,
                     "repos": {
                         "old/repo": {"status": "no_artifacts", "quarantined_at": old_time},
                         "recent/repo": {"status": "no_artifacts", "quarantined_at": recent_time},
@@ -276,7 +276,7 @@ class TestQuarantinePruning:
 
         original_content = json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": DISCOVERY_SCHEMA_VERSION,
                 "repos": {
                     "valid/repo": {"status": "no_artifacts", "quarantined_at": recent_time},
                 },

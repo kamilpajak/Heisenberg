@@ -81,8 +81,8 @@ class TestFormatStatusLabel:
         assert format_status_label(SourceStatus.NO_FAILURES) == "tests passing"
 
     def test_has_artifacts_label(self):
-        """HAS_ARTIFACTS status should return 'has artifacts'."""
-        assert format_status_label(SourceStatus.HAS_ARTIFACTS) == "has artifacts"
+        """HAS_ARTIFACTS status should return 'other artifacts'."""
+        assert format_status_label(SourceStatus.HAS_ARTIFACTS) == "other artifacts"
 
     def test_no_artifacts_label(self):
         """NO_ARTIFACTS status should return 'no artifacts'."""

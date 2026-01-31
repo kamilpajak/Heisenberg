@@ -544,7 +544,7 @@ def run_discover(args: argparse.Namespace) -> int:
     # Run discovery
     sources = discover_sources(
         global_limit=args.limit,
-        verify_failures=args.verify,
+        verify_failures=not args.quick,
         on_event=display.handle,
         cache_path=cache_path,
         quarantine_path=quarantine_path,

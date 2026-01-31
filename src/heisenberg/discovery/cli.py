@@ -49,9 +49,9 @@ def create_argument_parser() -> argparse.ArgumentParser:
 
     # Verification
     parser.add_argument(
-        "--verify",
+        "--quick",
         action="store_true",
-        help="Download artifacts to verify failures exist (slower)",
+        help="Skip failure verification (faster, may include repos with 0 failures)",
     )
 
     # Output modes
@@ -102,7 +102,7 @@ def main() -> None:
     # Run discovery
     sources = discover_sources(
         global_limit=args.limit,
-        verify_failures=args.verify,
+        verify_failures=not args.quick,
         on_event=display.handle,
         cache_path=cache_path,
         quarantine_path=quarantine_path,

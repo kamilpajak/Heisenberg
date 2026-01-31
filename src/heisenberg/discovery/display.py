@@ -20,6 +20,7 @@ from .events import (
     SearchStarted,
 )
 from .models import SourceStatus
+from .ui import format_status_label
 
 
 def format_stars(stars: int) -> str:
@@ -232,7 +233,7 @@ class DiscoveryDisplay:
             if status != SourceStatus.COMPATIBLE:
                 count = event.stats.get(status, 0)
                 if count > 0:
-                    label = status.value.replace("_", " ")
+                    label = format_status_label(status)
                     other_counts.append(f"{count} {label}")
 
         if other_counts:

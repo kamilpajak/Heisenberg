@@ -292,17 +292,19 @@ class TestRateLimitHandling:
 
     @patch("time.sleep")
     @patch("subprocess.run")
-    def test_handles_rate_limit_error_gracefully(self, mock_run, _mock_sleep):
-        """gh_api should return None after retries are exhausted."""
+    def test_raises_rate_limit_error_after_retries(self, mock_run, _mock_sleep):
+        """gh_api should raise GitHubRateLimitError after retries are exhausted."""
         from subprocess import CalledProcessError
+
+        import pytest
+
+        from heisenberg.discovery.client import gh_api
+        from heisenberg.discovery.models import GitHubRateLimitError
 
         mock_run.side_effect = CalledProcessError(1, "gh", stderr="API rate limit exceeded")
 
-        from heisenberg.discovery.client import gh_api
-
-        result = gh_api("/repos/owner/repo")
-
-        assert result is None
+        with pytest.raises(GitHubRateLimitError):
+            gh_api("/repos/owner/repo")
 
 
 class TestIsRateLimitError:
@@ -373,14 +375,16 @@ class TestGhSubprocess:
     @patch("random.uniform", return_value=0.1)
     @patch("time.sleep")
     @patch("subprocess.run")
-    def test_raises_after_max_retries(self, mock_run, mock_sleep, _mock_random):
-        """Should raise CalledProcessError after exhausting all retries."""
+    def test_raises_rate_limit_error_after_max_retries(self, mock_run, mock_sleep, _mock_random):
+        """Should raise GitHubRateLimitError after exhausting all retries."""
         import pytest
+
+        from heisenberg.discovery.models import GitHubRateLimitError
 
         rate_error = subprocess.CalledProcessError(1, "gh", stderr="rate limit exceeded")
         mock_run.side_effect = rate_error
 
-        with pytest.raises(subprocess.CalledProcessError):
+        with pytest.raises(GitHubRateLimitError):
             _gh_subprocess(["gh", "api", "/test"])
 
         assert mock_run.call_count == GH_MAX_RETRIES + 1
@@ -445,10 +449,12 @@ class TestGhSubprocess:
         """Retry backoff delays should increase exponentially."""
         import pytest
 
+        from heisenberg.discovery.models import GitHubRateLimitError
+
         rate_error = subprocess.CalledProcessError(1, "gh", stderr="rate limit")
         mock_run.side_effect = rate_error
 
-        with pytest.raises(subprocess.CalledProcessError):
+        with pytest.raises(GitHubRateLimitError):
             _gh_subprocess(["gh", "api", "/test"])
 
         backoff_delays = [call[0][0] for call in mock_sleep.call_args_list if call[0][0] >= 1.0]

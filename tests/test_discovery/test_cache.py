@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from heisenberg.discovery.cache import RunCache, get_default_cache_path
-from heisenberg.discovery.models import CACHE_TTL_DAYS
+from heisenberg.discovery.models import CACHE_TTL_DAYS, DISCOVERY_SCHEMA_VERSION
 
 # =============================================================================
 # RUN CACHE TESTS
@@ -133,7 +133,7 @@ class TestRunCacheTimezoneAware:
         cache_file.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": DISCOVERY_SCHEMA_VERSION,
                     "runs": {
                         "old-run": {"failure_count": 5, "run_created_at": old_date},
                         "recent-run": {"failure_count": 3, "run_created_at": recent_date},
@@ -166,7 +166,7 @@ class TestRunCacheTimezoneAware:
         cache_file.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": DISCOVERY_SCHEMA_VERSION,
                     "runs": {
                         "naive-run": {"failure_count": 1, "run_created_at": naive_date},
                         "aware-run": {"failure_count": 2, "run_created_at": aware_date},
@@ -208,7 +208,7 @@ class TestRunCachePersistence:
         cache_file.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": DISCOVERY_SCHEMA_VERSION,
                     "runs": {
                         "existing-run": {
                             "failure_count": 10,
@@ -259,7 +259,7 @@ class TestRunCacheSchemaVersion:
         data = json.loads(cache_file.read_text())
 
         assert "schema_version" in data
-        assert data["schema_version"] == 1
+        assert data["schema_version"] == DISCOVERY_SCHEMA_VERSION
 
     def test_cache_ignores_old_schema_version(self, tmp_path):
         """Should ignore cache with older schema version."""
@@ -457,7 +457,7 @@ class TestRunCacheThreadSafety:
 
         assert len(errors) == 0
         cache2 = RunCache(cache_path=cache_file)
-        assert cache2._data["schema_version"] == 1
+        assert cache2._data["schema_version"] == DISCOVERY_SCHEMA_VERSION
 
 
 class TestRunCachePruning:
@@ -473,7 +473,7 @@ class TestRunCachePruning:
         cache_file.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": DISCOVERY_SCHEMA_VERSION,
                     "runs": {
                         "old-run": {"failure_count": 5, "run_created_at": old_date},
                         "recent-run": {"failure_count": 3, "run_created_at": recent_date},
@@ -494,7 +494,7 @@ class TestRunCachePruning:
         cache_file.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": DISCOVERY_SCHEMA_VERSION,
                     "runs": {
                         "corrupt-run": {"failure_count": 5, "run_created_at": "not-a-date"},
                         "missing-date-run": {"failure_count": 3},
@@ -523,7 +523,7 @@ class TestRunCachePruning:
         cache_file.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": DISCOVERY_SCHEMA_VERSION,
                     "runs": {
                         "old-run": {"failure_count": 5, "run_created_at": old_date},
                         "recent-run": {"failure_count": 3, "run_created_at": recent_date},
@@ -547,7 +547,7 @@ class TestRunCachePruning:
 
         original_content = json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": DISCOVERY_SCHEMA_VERSION,
                 "runs": {
                     "run-1": {"failure_count": 5, "run_created_at": recent_date},
                 },

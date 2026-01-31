@@ -25,6 +25,7 @@ from .analysis import (
 from .cache import QuarantineCache, RunCache, get_default_cache_path, get_default_quarantine_path
 from .cli import create_argument_parser, main
 from .client import (
+    download_artifact_by_id,
     download_artifact_to_dir,
     fetch_stars_batch,
     get_failed_jobs,
@@ -47,14 +48,13 @@ from .events import (
     SearchStarted,
 )
 from .models import (
-    CACHE_SCHEMA_VERSION,
     CACHE_TTL_DAYS,
     DEFAULT_QUERIES,
+    DISCOVERY_SCHEMA_VERSION,
     GH_MAX_CONCURRENT,
     GH_MAX_RETRIES,
     GH_RETRY_BASE_DELAY,
     MAX_RUNS_TO_CHECK,
-    QUARANTINE_SCHEMA_VERSION,
     QUARANTINE_TTL_HOURS,
     TIMEOUT_API,
     TIMEOUT_DOWNLOAD,
@@ -88,7 +88,8 @@ __all__ = [
     "PLAYWRIGHT_PATTERNS",
     "MAX_RUNS_TO_CHECK",
     "CACHE_TTL_DAYS",
-    "CACHE_SCHEMA_VERSION",
+    "QUARANTINE_TTL_HOURS",
+    "DISCOVERY_SCHEMA_VERSION",
     "TIMEOUT_API",
     "TIMEOUT_DOWNLOAD",
     "GH_MAX_CONCURRENT",
@@ -97,8 +98,6 @@ __all__ = [
     "SourceStatus",
     "ProgressInfo",
     "ProjectSource",
-    "QUARANTINE_TTL_HOURS",
-    "QUARANTINE_SCHEMA_VERSION",
     # cache
     "get_default_cache_path",
     "get_default_quarantine_path",
@@ -112,6 +111,7 @@ __all__ = [
     "get_failed_jobs",
     "get_failed_runs",
     "get_run_artifacts",
+    "download_artifact_by_id",
     "download_artifact_to_dir",
     # analysis
     "is_playwright_artifact",
