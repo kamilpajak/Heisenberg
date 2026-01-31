@@ -1382,7 +1382,7 @@ class TestAnalyzeReportData:
 
             result = _analyze_report_data(report_data, args)
 
-        assert result == 1
+        assert result == 0  # Success - analysis completed
 
     def test_runs_ai_analysis_with_context(self, tmp_path, capsys):
         """Should run AI analysis with provided context."""
@@ -1465,7 +1465,7 @@ class TestAnalyzeReportData:
 
             result = _analyze_report_data(report_data, args)
 
-        assert result == 1
+        assert result == 0  # Success - analysis completed (AI failure is warning)
         captured = capsys.readouterr()
         assert "AI analysis failed" in captured.err
 

@@ -169,7 +169,7 @@ def run_analyze(args: argparse.Namespace) -> int:
 
     _post_github_comment(args, result)
 
-    return 1 if result.has_failures else 0
+    return 0  # Success - analysis completed
 
 
 def _run_junit_analyze(args: argparse.Namespace) -> int:
@@ -208,7 +208,7 @@ def _run_junit_analyze(args: argparse.Namespace) -> int:
     else:
         print(formatters.format_junit_text(report, ai_result))
 
-    return 1 if report.total_failed > 0 else 0
+    return 0  # Success - analysis completed
 
 
 def _analyze_report_data(
@@ -249,7 +249,7 @@ def _analyze_report_data(
                 print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
 
         print(formatters.format_output(args, result, ai_result))
-        return 1 if result.has_failures else 0
+        return 0  # Success - analysis completed
     finally:
         temp_path.unlink()
 
