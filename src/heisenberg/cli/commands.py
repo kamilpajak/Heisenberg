@@ -318,20 +318,16 @@ async def run_fetch_github(args: argparse.Namespace) -> int:
         if args.list_artifacts:
             return await github_fetch.list_artifacts(token, owner, repo, args.run_id)
 
-        if args.merge_blobs:
-            report_data = await github_fetch.fetch_and_merge_blobs(
-                token, owner, repo, args.run_id, args.artifact_name
-            )
-        else:
-            client = GitHubArtifactClient(token=token)
-            if args.run_id:
-                report_data = await github_fetch.fetch_report_from_run(
-                    client, owner, repo, args.run_id, args.artifact_name
-                )
-            else:
-                report_data = await client.fetch_latest_report(
-                    owner, repo, artifact_name_pattern=args.artifact_name
-                )
+        client = GitHubArtifactClient(token=token)
+        run_id = args.run_id
+        if run_id is None:
+            run_id = await github_fetch._resolve_run_id(client, owner, repo, None)
+        if run_id is None:
+            print("No failed workflow runs found", file=sys.stderr)
+            return 1
+        report_data = await github_fetch.fetch_report(
+            client, owner, repo, run_id, args.artifact_name
+        )
 
         if not report_data:
             msg = (

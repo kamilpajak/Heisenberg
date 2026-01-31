@@ -146,13 +146,6 @@ def analyze(
             help="List available artifacts (debug mode)",
         ),
     ] = False,
-    merge_blobs: Annotated[
-        bool,
-        typer.Option(
-            "--merge-blobs",
-            help="Merge Playwright blob reports",
-        ),
-    ] = False,
     include_logs: Annotated[
         bool,
         typer.Option(
@@ -194,7 +187,6 @@ def analyze(
                 output=output,
                 artifact_name=artifact_name,
                 list_artifacts=list_artifacts,
-                merge_blobs=merge_blobs,
                 include_logs=include_logs,
                 include_screenshots=include_screenshots,
                 include_traces=include_traces,
@@ -261,7 +253,6 @@ async def _analyze_github(
     output: Path | None,
     artifact_name: str | None,
     list_artifacts: bool,
-    merge_blobs: bool,
     include_logs: bool,
     include_screenshots: bool,
     include_traces: bool,
@@ -283,7 +274,6 @@ async def _analyze_github(
         output=output,
         artifact_name=artifact_name,
         list_artifacts=list_artifacts,
-        merge_blobs=merge_blobs,
         include_logs=include_logs,
         include_screenshots=include_screenshots,
         include_traces=include_traces,

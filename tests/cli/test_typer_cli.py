@@ -209,7 +209,6 @@ class TestAnalyzeCommand:
             [
                 "analyze",
                 "owner/repo",
-                "--merge-blobs",
                 "--include-logs",
                 "--ai-analysis",
             ],
@@ -217,7 +216,6 @@ class TestAnalyzeCommand:
 
         assert result.exit_code == 0
         args = mock_run_fetch.call_args[0][0]
-        assert args.merge_blobs is True
         assert args.include_logs is True
         assert args.ai_analysis is True
 

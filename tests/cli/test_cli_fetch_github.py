@@ -396,29 +396,6 @@ class TestListArtifactsFunctionality:
             )
 
 
-class TestMergeBlobsFlag:
-    """Test --merge-blobs flag for processing Playwright blob reports."""
-
-    def test_has_merge_blobs_argument(self):
-        """analyze should have --merge-blobs flag."""
-        result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
-            capture_output=True,
-            text=True,
-        )
-        assert "--merge-blobs" in result.stdout
-
-    def test_merge_blobs_help_text(self):
-        """--merge-blobs should have descriptive help text."""
-        result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
-            capture_output=True,
-            text=True,
-        )
-        # Help should mention merging or blob reports
-        assert "merge" in result.stdout.lower() or "blob" in result.stdout.lower()
-
-
 class TestMergeBlobsFunctionality:
     """Test --merge-blobs behavior with mocked dependencies."""
 
@@ -1020,7 +997,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
@@ -1048,7 +1024,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
@@ -1075,7 +1050,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=True,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
@@ -1105,7 +1079,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=True,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
@@ -1137,14 +1110,13 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
         )
 
         with patch(
-            "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
+            "heisenberg.cli.commands.github_fetch.fetch_report",
             new_callable=AsyncMock,
             return_value={"tests": []},
         ):
@@ -1170,14 +1142,13 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
         )
 
         with patch(
-            "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
+            "heisenberg.cli.commands.github_fetch.fetch_report",
             new_callable=AsyncMock,
             return_value=None,
         ):
@@ -1203,7 +1174,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=True,
             include_screenshots=False,
             include_traces=False,
@@ -1211,7 +1181,7 @@ class TestRunFetchGithubCommand:
 
         with (
             patch(
-                "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
+                "heisenberg.cli.commands.github_fetch.fetch_report",
                 new_callable=AsyncMock,
                 return_value={"tests": []},
             ),
@@ -1229,7 +1199,7 @@ class TestRunFetchGithubCommand:
         call_args = mock_analyze.call_args
         assert call_args[0][2] == "job logs context"  # job_logs_context
 
-    def test_merge_blobs_error_handling(self, capsys, monkeypatch):
+    def test_blob_merge_error_handling(self, capsys, monkeypatch):
         """Should handle blob merge errors gracefully."""
         import argparse
 
@@ -1246,15 +1216,12 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=True,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
         )
 
-        with patch(
-            "heisenberg.cli.github_fetch.fetch_and_merge_blobs", new_callable=AsyncMock
-        ) as mock:
+        with patch("heisenberg.cli.github_fetch.fetch_report", new_callable=AsyncMock) as mock:
             mock.side_effect = BlobMergeError("No blobs found")
             result = run_fetch_github(args)
 
@@ -1277,7 +1244,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=True,
             include_traces=False,
@@ -1285,7 +1251,7 @@ class TestRunFetchGithubCommand:
 
         with (
             patch(
-                "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
+                "heisenberg.cli.commands.github_fetch.fetch_report",
                 new_callable=AsyncMock,
                 return_value={"tests": []},
             ),
@@ -1318,7 +1284,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=True,
@@ -1326,7 +1291,7 @@ class TestRunFetchGithubCommand:
 
         with (
             patch(
-                "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
+                "heisenberg.cli.commands.github_fetch.fetch_report",
                 new_callable=AsyncMock,
                 return_value={"tests": []},
             ),

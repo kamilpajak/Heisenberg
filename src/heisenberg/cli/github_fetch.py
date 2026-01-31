@@ -81,6 +81,78 @@ async def fetch_report_from_run(
     return client.extract_playwright_report(zip_data)
 
 
+async def fetch_report(
+    client,
+    owner: str,
+    repo: str,
+    run_id: int,
+    artifact_name: str | None = None,
+) -> dict | None:
+    """Fetch Playwright report with automatic format detection.
+
+    Automatically detects whether the artifact contains:
+    - JSON report: parsed directly
+    - Blob reports: merged using Playwright CLI
+    - HTML report: returns None (unsupported)
+
+    Args:
+        client: GitHubArtifactClient instance.
+        owner: Repository owner.
+        repo: Repository name.
+        run_id: Workflow run ID.
+        artifact_name: Optional artifact name pattern.
+
+    Returns:
+        Parsed Playwright report dict, or None if not found/unsupported.
+    """
+    from heisenberg.core.artifact_selection import is_playwright_artifact, select_best_artifact
+    from heisenberg.utils.merging import (
+        ReportType,
+        detect_report_type,
+        extract_blob_zips,
+        merge_blob_reports,
+    )
+
+    artifacts = await client.get_artifacts(owner, repo, run_id=run_id)
+
+    if not artifacts:
+        return None
+
+    if artifact_name:
+        matching = [a for a in artifacts if artifact_name.lower() in a.name.lower()]
+    else:
+        jobs = await client.get_jobs(owner, repo, run_id)
+        failed_jobs = [j.name for j in jobs if j.conclusion == "failure"]
+
+        artifacts_dicts = [{"name": a.name, "size_in_bytes": a.size_in_bytes} for a in artifacts]
+
+        best = select_best_artifact(artifacts_dicts, failed_jobs)
+        if best:
+            matching = [a for a in artifacts if a.name == best["name"]]
+        else:
+            matching = [a for a in artifacts if is_playwright_artifact(a.name)]
+
+    if not matching:
+        return None
+
+    zip_data = await client.download_artifact(owner, repo, matching[0].id)
+    report_type = detect_report_type(zip_data)
+
+    if report_type == ReportType.JSON:
+        return client.extract_playwright_report(zip_data)
+    elif report_type == ReportType.BLOB:
+        print("Detected blob report, merging...", file=sys.stderr)
+        blob_zips = extract_blob_zips(zip_data)
+        if not blob_zips:
+            return None
+        return await merge_blob_reports(blob_zips=blob_zips)
+    elif report_type == ReportType.HTML:
+        print("HTML report detected - requires JSON or blob format", file=sys.stderr)
+        return None
+    else:
+        return None
+
+
 async def fetch_and_process_job_logs(
     token: str,
     owner: str,
