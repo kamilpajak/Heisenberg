@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import json
 import subprocess
+import tempfile
 import threading
+import zipfile
+
+import requests
 
 from .models import (
     GH_MAX_CONCURRENT,
@@ -13,6 +17,7 @@ from .models import (
     MAX_RUNS_TO_CHECK,
     TIMEOUT_API,
     TIMEOUT_DOWNLOAD,
+    GitHubRateLimitError,
 )
 
 _gh_semaphore = threading.Semaphore(GH_MAX_CONCURRENT)
@@ -53,7 +58,8 @@ def _gh_subprocess(
         CompletedProcess on success
 
     Raises:
-        subprocess.CalledProcessError: On non-rate-limit errors or after max retries
+        GitHubRateLimitError: When rate limit is hit after max retries
+        subprocess.CalledProcessError: On non-rate-limit errors
         subprocess.TimeoutExpired: On timeout (not retried)
     """
     import random
@@ -72,9 +78,12 @@ def _gh_subprocess(
                     timeout=timeout,
                 )
             except subprocess.CalledProcessError as e:
-                if not _is_rate_limit_error(e) or attempt >= GH_MAX_RETRIES:
+                if _is_rate_limit_error(e):
+                    last_error = e
+                    if attempt >= GH_MAX_RETRIES:
+                        raise GitHubRateLimitError("GitHub API rate limit exceeded") from e
+                else:
                     raise
-                last_error = e
             # Note: TimeoutExpired is not caught - it propagates immediately (not retried)
 
         # Semaphore released — exponential backoff before retry
@@ -85,7 +94,11 @@ def _gh_subprocess(
 
 
 def gh_api(endpoint: str, params: dict | None = None) -> dict | list | None:
-    """Call GitHub API via gh CLI."""
+    """Call GitHub API via gh CLI.
+
+    Raises:
+        GitHubRateLimitError: When rate limit is exceeded.
+    """
     cmd = ["gh", "api", endpoint]
     if params:
         for k, v in params.items():
@@ -99,10 +112,10 @@ def gh_api(endpoint: str, params: dict | None = None) -> dict | list | None:
         return None
 
 
-def search_repos(query: str, limit: int = 30) -> list[str]:
+def search_repos(query: str, limit: int = 30) -> list[tuple[str, int]]:
     """Search GitHub for repositories matching query.
 
-    Returns list of unique repo names.
+    Returns list of (repo_name, stars) tuples, deduplicated by repo name.
     """
     import urllib.parse
 
@@ -119,14 +132,15 @@ def search_repos(query: str, limit: int = 30) -> list[str]:
     if not data or "items" not in data:
         return []
 
-    seen: set[str] = set()
+    seen: dict[str, int] = {}
     for item in data["items"][:limit]:
         repo_data = item.get("repository", {})
         repo_name = repo_data.get("full_name", "")
-        if repo_name:
-            seen.add(repo_name)
+        if repo_name and repo_name not in seen:
+            stars = repo_data.get("stargazers_count", 0)
+            seen[repo_name] = stars
 
-    return list(seen)
+    return list(seen.items())
 
 
 def get_repo_stars(repo: str) -> int | None:
@@ -142,8 +156,64 @@ def get_repo_stars(repo: str) -> int | None:
     return None
 
 
+def fetch_stars_batch(repos: list[str], max_workers: int = 5) -> dict[str, int]:
+    """Fetch star counts for multiple repos in parallel.
+
+    Args:
+        repos: List of repo names in "owner/repo" format.
+        max_workers: Maximum concurrent API calls.
+
+    Returns:
+        Dict mapping repo name to star count. Uses 0 for failed API calls.
+    """
+    if not repos:
+        return {}
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    results: dict[str, int] = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(get_repo_stars, repo): repo for repo in repos}
+        for future in as_completed(futures):
+            repo = futures[future]
+            stars = future.result()
+            results[repo] = stars if stars is not None else 0
+
+    return results
+
+
+def get_failed_jobs(repo: str, run_id: str) -> list[str]:
+    """Get names of failed jobs in a workflow run.
+
+    Args:
+        repo: Repository in owner/repo format
+        run_id: Workflow run ID
+
+    Returns:
+        List of job names that have conclusion="failure".
+        Empty list on API error or when no jobs failed.
+    """
+    cmd = ["gh", "api", "-X", "GET", f"/repos/{repo}/actions/runs/{run_id}/jobs"]
+    try:
+        result = _gh_subprocess(cmd, timeout=TIMEOUT_API)
+        data = json.loads(result.stdout)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        return []
+
+    if not isinstance(data, dict):
+        return []
+
+    jobs = data.get("jobs", [])
+    return [job["name"] for job in jobs if job.get("conclusion") == "failure"]
+
+
 def get_failed_runs(repo: str, limit: int = MAX_RUNS_TO_CHECK) -> list[dict]:
-    """Get recent failed workflow runs for a repository."""
+    """Get recent failed workflow runs for a repository.
+
+    Raises:
+        GitHubRateLimitError: When rate limit is exceeded.
+    """
     cmd = ["gh", "api", "-X", "GET", f"/repos/{repo}/actions/runs?status=failure&per_page={limit}"]
     try:
         result = _gh_subprocess(cmd, timeout=TIMEOUT_API)
@@ -178,4 +248,79 @@ def download_artifact_to_dir(repo: str, artifact_name: str, target_dir: str) -> 
         _gh_subprocess(cmd, timeout=TIMEOUT_DOWNLOAD, text=False)
         return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return False
+
+
+def _get_gh_token() -> str | None:
+    """Get GitHub token from gh CLI."""
+    try:
+        result = subprocess.run(
+            ["gh", "auth", "token"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except (subprocess.SubprocessError, OSError):
+        return None
+
+
+def download_artifact_by_id(artifact_id: int, target_dir: str, repo: str | None = None) -> bool:
+    """Download artifact directly via blob storage (bypasses rate limit).
+
+    This function uses 1 API call to get the redirect URL to blob storage,
+    then downloads directly. The blob storage download does NOT count against
+    GitHub's rate limit, making this ~100x more efficient than `gh run download`.
+
+    Args:
+        artifact_id: GitHub artifact ID
+        target_dir: Directory to extract artifact contents to
+        repo: Repository in owner/repo format (required for API endpoint)
+
+    Returns:
+        True if download and extraction succeeded, False otherwise.
+    """
+    if not repo:
+        return False
+
+    token = _get_gh_token()
+    if not token:
+        return False
+
+    # Request the download URL - GitHub returns 302 redirect to blob storage
+    download_api_url = f"https://api.github.com/repos/{repo}/actions/artifacts/{artifact_id}/zip"
+
+    try:
+        # Get redirect URL (1 API call)
+        response = requests.get(
+            download_api_url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+            },
+            allow_redirects=False,
+            timeout=TIMEOUT_API,
+        )
+
+        if response.status_code != 302:
+            return False
+
+        blob_url = response.headers.get("Location")
+        if not blob_url:
+            return False
+
+        # Download from blob storage (no auth needed, doesn't count against rate limit)
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+            with requests.get(blob_url, stream=True, timeout=TIMEOUT_DOWNLOAD) as r:
+                r.raise_for_status()
+                for chunk in r.iter_content(chunk_size=8192):
+                    tmp_file.write(chunk)
+
+        # Extract zip to target directory
+        with zipfile.ZipFile(tmp_path, "r") as zf:
+            zf.extractall(target_dir)
+
+        return True
+    except Exception:  # noqa: S110, BLE001 - graceful degradation on download/extract
         return False

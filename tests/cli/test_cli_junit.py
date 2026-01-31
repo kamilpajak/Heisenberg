@@ -101,7 +101,7 @@ class TestRunJunitAnalyze:
         result = _run_junit_analyze(args)
         captured = capsys.readouterr()
 
-        assert result == 1
+        assert result == 0  # Success - analysis completed
         assert "JUnit" in captured.out
 
     def test_run_junit_analyze_returns_zero_for_passing(self, passing_junit_xml: Path, capsys):
@@ -250,7 +250,7 @@ class TestRunJunitAnalyze:
             exit_code = _run_junit_analyze(args)
             captured = capsys.readouterr()
 
-            assert exit_code == 1  # Still returns 1 for failed tests
+            assert exit_code == 0  # Success - analysis completed (AI failure is warning)
             assert "Warning" in captured.err
 
 
@@ -274,7 +274,7 @@ class TestRunAnalyzeJunitDispatch:
         result = run_analyze(args)
         captured = capsys.readouterr()
 
-        assert result == 1
+        assert result == 0  # Success - analysis completed
         assert "JUnit" in captured.out
 
 

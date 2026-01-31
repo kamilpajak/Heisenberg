@@ -16,6 +16,10 @@ from typing import Any
 
 import httpx
 
+from heisenberg.core.exceptions import HtmlReportNotSupported
+
+__all__ = ["HtmlReportNotSupported"]  # Re-export for backwards compatibility
+
 
 class GitHubAPIError(Exception):
     """Exception raised for GitHub API errors."""
@@ -41,6 +45,16 @@ class WorkflowRun:
     conclusion: str | None
     created_at: str
     html_url: str
+
+
+@dataclass
+class Job:
+    """Represents a GitHub Actions job within a workflow run."""
+
+    id: int
+    name: str
+    status: str
+    conclusion: str | None
 
 
 @dataclass
@@ -201,6 +215,37 @@ class GitHubArtifactClient:
             for run in data.get("workflow_runs", [])
         ]
 
+    async def get_jobs(
+        self,
+        owner: str,
+        repo: str,
+        run_id: int,
+    ) -> list[Job]:
+        """Get jobs for a specific workflow run.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            run_id: Workflow run ID
+
+        Returns:
+            List of Job objects
+        """
+        data = await self._request(
+            "GET",
+            f"/repos/{owner}/{repo}/actions/runs/{run_id}/jobs",
+        )
+
+        return [
+            Job(
+                id=job["id"],
+                name=job["name"],
+                status=job["status"],
+                conclusion=job.get("conclusion"),
+            )
+            for job in data.get("jobs", [])
+        ]
+
     async def get_artifacts(
         self,
         owner: str,
@@ -259,8 +304,35 @@ class GitHubArtifactClient:
 
     @staticmethod
     def _is_playwright_report(data: Any) -> bool:
-        """Check if data looks like a Playwright report."""
-        return isinstance(data, dict) and ("suites" in data or "stats" in data)
+        """Check if data looks like a Playwright report.
+
+        Supports two formats:
+        1. Classic format: {"suites": [...], "stats": {...}}
+        2. Event-based format: {"method": "onEnd", "params": {"result": {...}}}
+        """
+        if not isinstance(data, dict):
+            return False
+        # Classic format
+        if "suites" in data or "stats" in data:
+            return True
+        # Event-based format (onEnd event from blob reports)
+        if data.get("method") == "onEnd" and "params" in data:
+            return True
+        return False
+
+    @staticmethod
+    def _normalize_report(data: dict) -> dict:
+        """Normalize report data to a standard format.
+
+        Converts event-based format to a format with 'result' key for consistency.
+        """
+        # Event-based format: extract the result from params
+        if data.get("method") == "onEnd" and "params" in data:
+            result = data["params"].get("result", {})
+            # Return a normalized structure that includes the status
+            return {"result": result, "status": result.get("status")}
+        # Classic format: return as-is
+        return data
 
     @staticmethod
     def _try_parse_json_file(zf: zipfile.ZipFile, filename: str) -> dict | None:
@@ -280,7 +352,7 @@ class GitHubArtifactClient:
 
         JSONL (JSON Lines) is used by Playwright blob reports. Each line is
         a separate JSON object. We search for a line containing report data
-        (suites or stats keys).
+        (suites, stats, or onEnd event).
         """
         try:
             content = zf.read(filename).decode("utf-8")
@@ -290,7 +362,7 @@ class GitHubArtifactClient:
                 try:
                     data = json.loads(line)
                     if GitHubArtifactClient._is_playwright_report(data):
-                        return data
+                        return GitHubArtifactClient._normalize_report(data)
                 except json.JSONDecodeError:
                     continue
         except (KeyError, UnicodeDecodeError):
@@ -311,6 +383,18 @@ class GitHubArtifactClient:
         other_files = [f for f in jsonl_files if f not in priority_files]
         return priority_files + other_files
 
+    @staticmethod
+    def _is_html_report(all_files: list[str]) -> bool:
+        """Check if ZIP contains Playwright HTML report (unsupported format).
+
+        HTML report pattern:
+        - Has index.html at root
+        - Has data/ directory with .zip (traces) or .md (snapshots) files
+        """
+        has_index_html = "index.html" in all_files
+        has_data_dir = any(f.startswith("data/") for f in all_files)
+        return has_index_html and has_data_dir
+
     def extract_playwright_report(self, zip_content: bytes, max_depth: int = 3) -> dict | None:
         """Extract Playwright JSON/JSONL report from a zip file.
 
@@ -324,6 +408,9 @@ class GitHubArtifactClient:
 
         Returns:
             Parsed JSON report or None if not found
+
+        Raises:
+            HtmlReportNotSupported: If artifact contains HTML report instead of JSON
         """
         if max_depth <= 0:
             return None
@@ -346,6 +433,11 @@ class GitHubArtifactClient:
                     report = self._try_parse_jsonl_file(zf, jsonl_file)
                     if report:
                         return report
+
+                # Check for HTML report (unsupported) before nested ZIP search
+                # HTML reports have data/*.zip for traces, not report data
+                if self._is_html_report(all_files):
+                    raise HtmlReportNotSupported()
 
                 # If no valid JSON/JSONL found, look for nested ZIP files
                 nested_zips = [name for name in all_files if name.endswith(".zip")]
@@ -371,7 +463,7 @@ class GitHubArtifactClient:
         repo: str,
         workflow_name: str | None = None,
         conclusion: str = "failure",
-        artifact_name_pattern: str = "playwright",
+        artifact_name_pattern: str | None = None,
     ) -> dict | None:
         """Convenience method to fetch the latest Playwright report.
 
@@ -380,11 +472,14 @@ class GitHubArtifactClient:
             repo: Repository name
             workflow_name: Filter by workflow name (optional)
             conclusion: Filter by conclusion (failure, success, etc.)
-            artifact_name_pattern: Pattern to match artifact names
+            artifact_name_pattern: Pattern to match artifact names. If None,
+                uses job-aware auto-selection based on failed jobs.
 
         Returns:
             Parsed Playwright report or None if not found
         """
+        from heisenberg.core.artifact_selection import is_playwright_artifact, select_best_artifact
+
         # Get recent runs with the specified conclusion
         runs = await self.list_workflow_runs(owner, repo)
 
@@ -403,10 +498,29 @@ class GitHubArtifactClient:
         for run in matching_runs[:5]:  # Check up to 5 most recent runs
             artifacts = await self.get_artifacts(owner, repo, run.id, include_expired=False)
 
-            # Find artifact matching the pattern
-            matching_artifacts = [
-                a for a in artifacts if artifact_name_pattern.lower() in a.name.lower()
-            ]
+            if not artifacts:
+                continue
+
+            if artifact_name_pattern:
+                # Explicit pattern matching
+                matching_artifacts = [
+                    a for a in artifacts if artifact_name_pattern.lower() in a.name.lower()
+                ]
+            else:
+                # Job-aware auto-selection
+                jobs = await self.get_jobs(owner, repo, run.id)
+                failed_jobs = [j.name for j in jobs if j.conclusion == "failure"]
+
+                artifacts_dicts = [
+                    {"name": a.name, "size_in_bytes": a.size_in_bytes} for a in artifacts
+                ]
+
+                best = select_best_artifact(artifacts_dicts, failed_jobs)
+                if best:
+                    matching_artifacts = [a for a in artifacts if a.name == best["name"]]
+                else:
+                    # Fallback to Playwright patterns
+                    matching_artifacts = [a for a in artifacts if is_playwright_artifact(a.name)]
 
             for artifact in matching_artifacts:
                 zip_data = await self.download_artifact(owner, repo, artifact.id)

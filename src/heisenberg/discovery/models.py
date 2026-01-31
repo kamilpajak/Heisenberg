@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -17,22 +16,10 @@ DEFAULT_QUERIES = [
     '"blob-report" path:.github extension:yml',  # Repos with custom upload actions
 ]
 
-PLAYWRIGHT_PATTERNS = [
-    r"^playwright[-_]?report",  # playwright-report, playwright_report
-    r"^blob[-_]?report",  # blob-report (Playwright sharding)
-    r"^playwright[-_]?traces?",  # playwright-trace, playwright-traces
-    r"^trace\.zip$",  # trace.zip
-    r"playwright.*report",  # any-playwright-report
-    r"playwright.*traces?",  # middleware-starter-playwright-traces
-]
-
-_PLAYWRIGHT_REGEX = re.compile("|".join(PLAYWRIGHT_PATTERNS), re.IGNORECASE)
-
 MAX_RUNS_TO_CHECK = 5
 CACHE_TTL_DAYS = 90
-CACHE_SCHEMA_VERSION = 1
 QUARANTINE_TTL_HOURS = 24
-QUARANTINE_SCHEMA_VERSION = 1
+DISCOVERY_SCHEMA_VERSION = 3  # Unified schema for all discovery caches
 TIMEOUT_API = 30  # seconds — for gh API calls
 TIMEOUT_DOWNLOAD = 120  # seconds — for artifact downloads
 GH_MAX_CONCURRENT = 4  # max concurrent gh CLI processes
@@ -52,6 +39,14 @@ class SourceStatus(Enum):
     HAS_ARTIFACTS = "has_artifacts"  # Has artifacts but not Playwright
     NO_ARTIFACTS = "no_artifacts"  # Run exists but no artifacts
     NO_FAILED_RUNS = "no_failed_runs"  # No failed workflow runs
+    UNSUPPORTED_FORMAT = "unsupported_format"  # HTML report instead of JSON
+    RATE_LIMITED = "rate_limited"  # GitHub API rate limit hit
+
+
+class GitHubRateLimitError(Exception):
+    """Raised when GitHub API rate limit is exceeded."""
+
+    pass
 
 
 @dataclass
@@ -64,6 +59,22 @@ class ProgressInfo:
     status: str  # SourceStatus value
     elapsed_ms: int  # Time taken in milliseconds
     message: str | None = None  # Optional extra message
+
+
+@dataclass(frozen=True)
+class ArtifactDiscoveryResult:
+    """Result of finding valid artifacts from failed runs.
+
+    Replaces the 6-tuple previously returned by find_valid_artifacts().
+    Frozen for immutability and safe passing between layers.
+    """
+
+    run_id: str | None
+    run_url: str | None
+    artifact_names: list[str]
+    run_created_at: str | None
+    sizes: dict[str, int]
+    ids: dict[str, int]
 
 
 @dataclass

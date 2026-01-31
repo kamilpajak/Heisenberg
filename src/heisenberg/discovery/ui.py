@@ -16,6 +16,8 @@ STATUS_ICONS = {
     SourceStatus.HAS_ARTIFACTS: "!",
     SourceStatus.NO_ARTIFACTS: "-",
     SourceStatus.NO_FAILED_RUNS: ".",
+    SourceStatus.UNSUPPORTED_FORMAT: "⚠",
+    SourceStatus.RATE_LIMITED: "⏱",
 }
 
 STATUS_COLORS = {
@@ -24,14 +26,18 @@ STATUS_COLORS = {
     SourceStatus.HAS_ARTIFACTS: "yellow",
     SourceStatus.NO_ARTIFACTS: "red",
     SourceStatus.NO_FAILED_RUNS: "dim",
+    SourceStatus.UNSUPPORTED_FORMAT: "magenta",
+    SourceStatus.RATE_LIMITED: "red",
 }
 
 STATUS_LABELS = {
     SourceStatus.COMPATIBLE: "compatible",
     SourceStatus.NO_FAILURES: "tests passing",
-    SourceStatus.HAS_ARTIFACTS: "has artifacts",
+    SourceStatus.HAS_ARTIFACTS: "other artifacts",
     SourceStatus.NO_ARTIFACTS: "no artifacts",
     SourceStatus.NO_FAILED_RUNS: "no failed runs",
+    SourceStatus.UNSUPPORTED_FORMAT: "html report",
+    SourceStatus.RATE_LIMITED: "rate limited",
 }
 
 
@@ -52,7 +58,7 @@ def format_size(size_bytes: int) -> str:
 
 
 COL_REPO = 40
-COL_STATUS = 14
+COL_STATUS = 16
 COL_TRAIL = 7
 
 
@@ -163,7 +169,6 @@ def print_source_line(
 def print_summary(
     sources: list[ProjectSource],
     min_stars: int,
-    total_analyzed: int | None = None,
     console=None,
 ) -> None:
     """Print the analysis summary with colors."""
@@ -175,14 +180,8 @@ def print_summary(
         console = Console(highlight=False)
 
     compatible_count = sum(1 for c in sources if c.compatible)
-    analyzed = total_analyzed or len(sources)
 
-    if analyzed != len(sources):
-        console.print(
-            f"Analyzed {analyzed} repositories, {len(sources)} with >={min_stars} stars",
-        )
-    else:
-        console.print(f"Analyzed {len(sources)} repositories (min {min_stars} stars)")
+    console.print(f"Analyzed {len(sources)} repositories (min {min_stars} stars)")
     console.print()
 
     for source in sources:

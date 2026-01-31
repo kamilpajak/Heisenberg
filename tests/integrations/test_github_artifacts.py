@@ -17,6 +17,7 @@ try:
         Artifact,
         GitHubAPIError,
         GitHubArtifactClient,
+        Job,
         WorkflowRun,
     )
 except ImportError:
@@ -24,6 +25,7 @@ except ImportError:
     WorkflowRun = None
     Artifact = None
     GitHubAPIError = None
+    Job = None
 
 
 pytestmark = pytest.mark.skipif(
@@ -373,6 +375,144 @@ class TestGitHubAPIErrors:
                 await client.list_workflow_runs("owner", "repo")
 
             assert exc_info.value.status_code == 401
+
+
+class TestJobDataclass:
+    """Test Job dataclass."""
+
+    def test_job_exists(self):
+        """Job dataclass should exist."""
+        assert Job is not None
+
+    def test_job_has_required_fields(self):
+        """Job should have id, name, status, conclusion."""
+        job = Job(
+            id=123456,
+            name="e2e-web (ubuntu-latest)",
+            status="completed",
+            conclusion="failure",
+        )
+        assert job.id == 123456
+        assert job.name == "e2e-web (ubuntu-latest)"
+        assert job.status == "completed"
+        assert job.conclusion == "failure"
+
+    def test_job_conclusion_can_be_none(self):
+        """Job conclusion should be None for in-progress jobs."""
+        job = Job(
+            id=123456,
+            name="e2e-web",
+            status="in_progress",
+            conclusion=None,
+        )
+        assert job.conclusion is None
+
+
+class TestGetJobs:
+    """Test get_jobs method."""
+
+    @pytest.fixture
+    def mock_jobs_response(self):
+        """Sample API response for workflow run jobs."""
+        return {
+            "total_count": 3,
+            "jobs": [
+                {
+                    "id": 111,
+                    "name": "e2e-web (ubuntu-latest)",
+                    "status": "completed",
+                    "conclusion": "failure",
+                },
+                {
+                    "id": 222,
+                    "name": "e2e-desktop (ubuntu-latest) [1/4]",
+                    "status": "completed",
+                    "conclusion": "success",
+                },
+                {
+                    "id": 333,
+                    "name": "npm audit (ubuntu-latest)",
+                    "status": "completed",
+                    "conclusion": "failure",
+                },
+            ],
+        }
+
+    def test_client_has_get_jobs_method(self):
+        """Client should have get_jobs method."""
+        client = GitHubArtifactClient(token="test-token")
+        assert hasattr(client, "get_jobs")
+        assert callable(client.get_jobs)
+
+    @pytest.mark.asyncio
+    async def test_get_jobs_returns_list(self, mock_jobs_response):
+        """get_jobs should return a list of Job objects."""
+        client = GitHubArtifactClient(token="test-token")
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_jobs_response
+
+            jobs = await client.get_jobs("owner", "repo", run_id=12345)
+
+            assert isinstance(jobs, list)
+            assert len(jobs) == 3
+            assert all(isinstance(j, Job) for j in jobs)
+
+    @pytest.mark.asyncio
+    async def test_get_jobs_parses_job_fields(self, mock_jobs_response):
+        """get_jobs should correctly parse job fields."""
+        client = GitHubArtifactClient(token="test-token")
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_jobs_response
+
+            jobs = await client.get_jobs("owner", "repo", run_id=12345)
+
+            # Check first job (failed e2e-web)
+            assert jobs[0].id == 111
+            assert jobs[0].name == "e2e-web (ubuntu-latest)"
+            assert jobs[0].status == "completed"
+            assert jobs[0].conclusion == "failure"
+
+    @pytest.mark.asyncio
+    async def test_get_jobs_calls_correct_endpoint(self, mock_jobs_response):
+        """get_jobs should call the correct GitHub API endpoint."""
+        client = GitHubArtifactClient(token="test-token")
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_jobs_response
+
+            await client.get_jobs("owner", "repo", run_id=12345)
+
+            mock_request.assert_called_once()
+            call_args = mock_request.call_args
+            assert call_args[0][0] == "GET"
+            assert "/repos/owner/repo/actions/runs/12345/jobs" in call_args[0][1]
+
+    @pytest.mark.asyncio
+    async def test_get_jobs_handles_empty_response(self):
+        """get_jobs should return empty list when no jobs found."""
+        client = GitHubArtifactClient(token="test-token")
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = {"total_count": 0, "jobs": []}
+
+            jobs = await client.get_jobs("owner", "repo", run_id=12345)
+
+            assert jobs == []
+
+    @pytest.mark.asyncio
+    async def test_get_jobs_handles_api_error(self):
+        """get_jobs should propagate API errors."""
+        client = GitHubArtifactClient(token="test-token")
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.side_effect = GitHubAPIError("Not found", status_code=404)
+
+            with pytest.raises(GitHubAPIError) as exc_info:
+                await client.get_jobs("owner", "repo", run_id=99999)
+
+            assert exc_info.value.status_code == 404
 
 
 class TestFetchAndAnalyzeIntegration:
@@ -770,3 +910,184 @@ class TestJsonlReportExtraction:
         result = client.extract_playwright_report(zip_buffer.getvalue())
 
         assert result is None
+
+
+class TestEventBasedJsonlExtraction:
+    """Test extraction of event-based JSONL format (modern Playwright blob reports).
+
+    Modern Playwright blob reports use event-based JSONL where each line is an event:
+    - {"method": "onBegin", "params": {...}}
+    - {"method": "onTestBegin", "params": {...}}
+    - {"method": "onTestEnd", "params": {...}}
+    - {"method": "onEnd", "params": {"result": {"status": "failed", ...}}}
+
+    The onEnd event contains the final test run status.
+    """
+
+    def _create_jsonl_content(self, objects: list[dict]) -> str:
+        """Create JSONL content from list of objects."""
+        return "\n".join(json.dumps(obj) for obj in objects)
+
+    def test_extracts_report_from_event_based_jsonl(self):
+        """Should extract report from event-based JSONL (onEnd with failed status)."""
+        client = GitHubArtifactClient(token="test-token")
+
+        # Real blob report format from nasa-gcn/gcn.nasa.gov
+        jsonl_events = [
+            {"method": "onBegin", "params": {"config": {"timeout": 30000}}},
+            {"method": "onTestBegin", "params": {"test": {"title": "should work"}}},
+            {
+                "method": "onTestEnd",
+                "params": {"test": {"title": "should work"}, "result": {"status": "failed"}},
+            },
+            {
+                "method": "onEnd",
+                "params": {
+                    "result": {"status": "failed", "startTime": 1234567890, "duration": 5000}
+                },
+            },
+        ]
+
+        inner_zip = io.BytesIO()
+        with zipfile.ZipFile(inner_zip, "w") as zf:
+            zf.writestr("report.jsonl", self._create_jsonl_content(jsonl_events))
+
+        outer_zip = io.BytesIO()
+        with zipfile.ZipFile(outer_zip, "w") as zf:
+            zf.writestr("report-3.zip", inner_zip.getvalue())
+
+        result = client.extract_playwright_report(outer_zip.getvalue())
+
+        assert result is not None
+        # Should return the onEnd event data or a synthesized report
+        assert "status" in result or "result" in result or "stats" in result
+
+    def test_extracts_passing_event_based_jsonl(self):
+        """Should extract report from event-based JSONL with passing status."""
+        client = GitHubArtifactClient(token="test-token")
+
+        jsonl_events = [
+            {"method": "onEnd", "params": {"result": {"status": "passed", "duration": 1000}}},
+        ]
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report.jsonl", self._create_jsonl_content(jsonl_events))
+
+        result = client.extract_playwright_report(zip_buffer.getvalue())
+
+        assert result is not None
+
+    def test_returns_none_for_jsonl_without_onend(self):
+        """Should return None if JSONL has no onEnd event."""
+        client = GitHubArtifactClient(token="test-token")
+
+        jsonl_events = [
+            {"method": "onBegin", "params": {"config": {}}},
+            {"method": "onTestBegin", "params": {"test": {"title": "test"}}},
+            # No onEnd event
+        ]
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("report.jsonl", self._create_jsonl_content(jsonl_events))
+
+        result = client.extract_playwright_report(zip_buffer.getvalue())
+
+        # Should return None - no complete report
+        assert result is None
+
+
+class TestHtmlReportDetection:
+    """Test detection of HTML reports (unsupported format).
+
+    Playwright HTML reports contain:
+    - index.html (bundled web app)
+    - data/*.zip (trace files)
+    - data/*.md (accessibility snapshots)
+
+    These cannot be parsed - we need JSON reporter output.
+    """
+
+    def _create_html_report_zip(self, extra_files: dict[str, bytes] | None = None) -> bytes:
+        """Create a ZIP that mimics Playwright HTML report structure."""
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            # Minimal HTML report structure
+            zf.writestr("index.html", "<html><body>Playwright Report</body></html>")
+            zf.writestr("data/trace-abc123.zip", b"fake trace data")
+            zf.writestr("data/snapshot.md", "# Page snapshot\n```yaml\n- button\n```")
+            if extra_files:
+                for name, content in extra_files.items():
+                    zf.writestr(name, content)
+        return zip_buffer.getvalue()
+
+    def test_detects_html_report_and_raises_specific_error(self):
+        """Should raise HtmlReportNotSupported when HTML report detected."""
+        from heisenberg.integrations.github_artifacts import HtmlReportNotSupported
+
+        client = GitHubArtifactClient(token="test-token")
+        html_zip = self._create_html_report_zip()
+
+        with pytest.raises(HtmlReportNotSupported) as exc_info:
+            client.extract_playwright_report(html_zip)
+
+        assert "HTML report" in str(exc_info.value)
+        assert "JSON reporter" in str(exc_info.value)
+
+    def test_html_report_error_includes_fix_suggestion(self):
+        """Error message should include how to fix the issue."""
+        from heisenberg.integrations.github_artifacts import HtmlReportNotSupported
+
+        client = GitHubArtifactClient(token="test-token")
+        html_zip = self._create_html_report_zip()
+
+        with pytest.raises(HtmlReportNotSupported) as exc_info:
+            client.extract_playwright_report(html_zip)
+
+        error_msg = str(exc_info.value)
+        # Should suggest using JSON reporter
+        assert "reporter" in error_msg.lower()
+
+    def test_html_report_not_confused_with_json_report(self):
+        """ZIP with both index.html AND valid JSON should return JSON (not error)."""
+        client = GitHubArtifactClient(token="test-token")
+
+        # HTML report structure BUT also has valid JSON
+        report_data = {"suites": [], "stats": {"expected": 5, "unexpected": 1}}
+        html_zip = self._create_html_report_zip(
+            extra_files={"report.json": json.dumps(report_data).encode()}
+        )
+
+        # Should NOT raise - JSON takes precedence
+        result = client.extract_playwright_report(html_zip)
+
+        assert result is not None
+        assert result["stats"]["unexpected"] == 1
+
+    def test_plain_html_file_without_data_dir_returns_none(self):
+        """ZIP with only HTML file (no data/ dir) should return None, not error."""
+        client = GitHubArtifactClient(token="test-token")
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("index.html", "<html>not a playwright report</html>")
+
+        # Should return None (not a Playwright report at all)
+        result = client.extract_playwright_report(zip_buffer.getvalue())
+        assert result is None
+
+    def test_html_report_detection_checks_data_directory(self):
+        """HTML report detection requires index.html + data/ directory pattern."""
+        from heisenberg.integrations.github_artifacts import HtmlReportNotSupported
+
+        client = GitHubArtifactClient(token="test-token")
+
+        # Has index.html + data/ with zip files = HTML report pattern
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("index.html", "<html>Playwright</html>")
+            zf.writestr("data/trace.zip", b"trace data")
+
+        with pytest.raises(HtmlReportNotSupported):
+            client.extract_playwright_report(zip_buffer.getvalue())

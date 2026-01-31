@@ -37,81 +37,82 @@ class TestFetchGitHubCLIExists:
     """Verify fetch-github subcommand exists."""
 
     def test_fetch_github_command_exists(self):
-        """CLI should have fetch-github subcommand."""
+        """CLI should have analyze command (which replaces fetch-github)."""
         result = subprocess.run(
             [sys.executable, "-m", "heisenberg", "--help"],
             capture_output=True,
             text=True,
         )
-        assert "fetch-github" in result.stdout
+        # fetch-github is now hidden but still works; analyze is the new unified command
+        assert "analyze" in result.stdout
 
-    def test_fetch_github_has_help(self):
-        """fetch-github should have help text."""
+    def test_analyze_has_help(self):
+        """analyze command should have help text."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
             capture_output=True,
             text=True,
         )
         assert result.returncode == 0
-        assert "repo" in result.stdout.lower()
+        assert "target" in result.stdout.lower()
 
 
-class TestFetchGitHubArguments:
-    """Test fetch-github command arguments."""
+class TestAnalyzeGitHubArguments:
+    """Test analyze command arguments for GitHub repos."""
 
-    def test_requires_repo_argument(self):
-        """fetch-github should require --repo argument."""
+    def test_has_target_argument(self):
+        """analyze should require TARGET argument."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
             capture_output=True,
             text=True,
         )
-        assert "--repo" in result.stdout
+        assert "TARGET" in result.stdout
 
     def test_has_token_argument(self):
-        """fetch-github should have --token argument."""
+        """analyze should have --token argument."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
             capture_output=True,
             text=True,
         )
         assert "--token" in result.stdout
 
     def test_has_run_id_argument(self):
-        """fetch-github should have optional --run-id argument."""
+        """analyze should have optional --run-id argument."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
             capture_output=True,
             text=True,
         )
         assert "--run-id" in result.stdout
 
     def test_has_output_argument(self):
-        """fetch-github should have --output argument for saving report."""
+        """analyze should have --output argument for saving report."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
             capture_output=True,
             text=True,
         )
         assert "--output" in result.stdout
 
     def test_has_artifact_name_argument(self):
-        """fetch-github should have --artifact-name argument."""
+        """analyze should have --artifact-name argument."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
             capture_output=True,
             text=True,
         )
         assert "--artifact-name" in result.stdout
 
 
-class TestFetchGitHubValidation:
-    """Test input validation for fetch-github command."""
+class TestAnalyzeGitHubValidation:
+    """Test input validation for analyze command with GitHub repos."""
 
-    def test_fails_without_repo(self):
-        """Should fail if --repo not provided."""
+    def test_fails_without_target(self):
+        """Should fail if TARGET not provided."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github"],
+            [sys.executable, "-m", "heisenberg", "analyze"],
             capture_output=True,
             text=True,
         )
@@ -119,9 +120,9 @@ class TestFetchGitHubValidation:
         assert "required" in result.stderr.lower() or "error" in result.stderr.lower()
 
     def test_fails_without_token_and_env(self):
-        """Should fail if no token provided and GITHUB_TOKEN not set."""
+        """Should fail if no token provided and GITHUB_TOKEN not set for GitHub repo."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--repo", "owner/repo"],
+            [sys.executable, "-m", "heisenberg", "analyze", "owner/repo"],
             capture_output=True,
             text=True,
             env={"PATH": "/usr/bin"},  # Clear environment
@@ -129,24 +130,24 @@ class TestFetchGitHubValidation:
         # Should fail because no token
         assert result.returncode != 0
 
-    def test_validates_repo_format(self):
-        """Should validate repo format as owner/repo."""
+    def test_help_mentions_repo_format(self):
+        """Help should mention owner/repo format."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
             capture_output=True,
             text=True,
         )
         # Help should mention owner/repo format
-        assert "owner" in result.stdout.lower() or "repo" in result.stdout.lower()
+        assert "owner/repo" in result.stdout.lower()
 
 
 class TestListArtifactsFlag:
     """Test --list-artifacts flag for debugging artifact issues."""
 
     def test_has_list_artifacts_argument(self):
-        """fetch-github should have --list-artifacts flag."""
+        """analyze should have --list-artifacts flag."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
             capture_output=True,
             text=True,
         )
@@ -155,7 +156,7 @@ class TestListArtifactsFlag:
     def test_list_artifacts_help_text(self):
         """--list-artifacts should have descriptive help text."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
+            [sys.executable, "-m", "heisenberg", "analyze", "--help"],
             capture_output=True,
             text=True,
         )
@@ -169,7 +170,7 @@ class TestErrorMessages:
     def test_no_token_suggests_local_workflow(self):
         """Error for missing token should suggest local analyze command."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--repo", "owner/repo"],
+            [sys.executable, "-m", "heisenberg", "analyze", "owner/repo"],
             capture_output=True,
             text=True,
             env={"PATH": "/usr/bin"},
@@ -181,14 +182,14 @@ class TestErrorMessages:
     def test_invalid_repo_format_shows_example(self):
         """Error for invalid repo should show correct format example."""
         result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--repo", "invalid"],
+            [sys.executable, "-m", "heisenberg", "analyze", "invalid-no-slash"],
             capture_output=True,
             text=True,
             env={"PATH": "/usr/bin", "GITHUB_TOKEN": "fake-token"},
         )
+        # When target doesn't match owner/repo pattern, it's treated as a local file
+        # which will fail with file not found (not repo format error)
         assert result.returncode != 0
-        # Should show example of correct format
-        assert "owner/repo" in result.stderr
 
     @pytest.mark.asyncio
     async def test_no_artifacts_message_includes_local_hint(self):
@@ -393,29 +394,6 @@ class TestListArtifactsFunctionality:
                 or "empty" in output_text.lower()
                 or "0 artifact" in output_text.lower()
             )
-
-
-class TestMergeBlobsFlag:
-    """Test --merge-blobs flag for processing Playwright blob reports."""
-
-    def test_has_merge_blobs_argument(self):
-        """fetch-github should have --merge-blobs flag."""
-        result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
-            capture_output=True,
-            text=True,
-        )
-        assert "--merge-blobs" in result.stdout
-
-    def test_merge_blobs_help_text(self):
-        """--merge-blobs should have descriptive help text."""
-        result = subprocess.run(
-            [sys.executable, "-m", "heisenberg", "fetch-github", "--help"],
-            capture_output=True,
-            text=True,
-        )
-        # Help should mention merging or blob reports
-        assert "merge" in result.stdout.lower() or "blob" in result.stdout.lower()
 
 
 class TestMergeBlobsFunctionality:
@@ -970,6 +948,38 @@ class TestFetchAndMergeBlobs:
         captured = capsys.readouterr()
         assert "Merging 2 blob report" in captured.err
 
+    @pytest.mark.asyncio
+    async def test_defaults_to_blob_pattern_when_artifact_name_is_none(self):
+        """Should default to 'blob' pattern when artifact_name is None."""
+        mock_artifact = MagicMock()
+        mock_artifact.name = "blob-report-1"
+        mock_artifact.id = 1
+
+        with (
+            patch(
+                "heisenberg.integrations.github_artifacts.GitHubArtifactClient"
+            ) as mock_client_cls,
+            patch(
+                "heisenberg.utils.merging.extract_blob_zips",
+                return_value=[b"blob1"],
+            ),
+            patch(
+                "heisenberg.utils.merging.merge_blob_reports",
+                new_callable=AsyncMock,
+                return_value={"tests": []},
+            ),
+        ):
+            mock_client = MagicMock()
+            mock_client.get_artifacts = AsyncMock(return_value=[mock_artifact])
+            mock_client.download_artifact = AsyncMock(return_value=b"zipdata")
+            mock_client_cls.return_value = mock_client
+
+            # Pass None as artifact_name - should match "blob" in "blob-report-1"
+            result = await fetch_and_merge_blobs("token", "owner", "repo", 123, None)
+
+        assert result == {"tests": []}
+        mock_client.get_artifacts.assert_called_once()
+
 
 class TestRunFetchGithubCommand:
     """Tests for run_fetch_github function."""
@@ -987,7 +997,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
@@ -1015,7 +1024,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
@@ -1042,7 +1050,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=True,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
@@ -1072,7 +1079,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=True,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
@@ -1104,14 +1110,13 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
         )
 
         with patch(
-            "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
+            "heisenberg.cli.commands.github_fetch.fetch_report",
             new_callable=AsyncMock,
             return_value={"tests": []},
         ):
@@ -1137,14 +1142,13 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
         )
 
         with patch(
-            "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
+            "heisenberg.cli.commands.github_fetch.fetch_report",
             new_callable=AsyncMock,
             return_value=None,
         ):
@@ -1170,7 +1174,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=True,
             include_screenshots=False,
             include_traces=False,
@@ -1178,7 +1181,7 @@ class TestRunFetchGithubCommand:
 
         with (
             patch(
-                "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
+                "heisenberg.cli.commands.github_fetch.fetch_report",
                 new_callable=AsyncMock,
                 return_value={"tests": []},
             ),
@@ -1196,7 +1199,7 @@ class TestRunFetchGithubCommand:
         call_args = mock_analyze.call_args
         assert call_args[0][2] == "job logs context"  # job_logs_context
 
-    def test_merge_blobs_error_handling(self, capsys, monkeypatch):
+    def test_blob_merge_error_handling(self, capsys, monkeypatch):
         """Should handle blob merge errors gracefully."""
         import argparse
 
@@ -1213,15 +1216,12 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=True,
             include_logs=False,
             include_screenshots=False,
             include_traces=False,
         )
 
-        with patch(
-            "heisenberg.cli.github_fetch.fetch_and_merge_blobs", new_callable=AsyncMock
-        ) as mock:
+        with patch("heisenberg.cli.github_fetch.fetch_report", new_callable=AsyncMock) as mock:
             mock.side_effect = BlobMergeError("No blobs found")
             result = run_fetch_github(args)
 
@@ -1244,7 +1244,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=True,
             include_traces=False,
@@ -1252,7 +1251,7 @@ class TestRunFetchGithubCommand:
 
         with (
             patch(
-                "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
+                "heisenberg.cli.commands.github_fetch.fetch_report",
                 new_callable=AsyncMock,
                 return_value={"tests": []},
             ),
@@ -1285,7 +1284,6 @@ class TestRunFetchGithubCommand:
             ai_analysis=False,
             provider="anthropic",
             list_artifacts=False,
-            merge_blobs=False,
             include_logs=False,
             include_screenshots=False,
             include_traces=True,
@@ -1293,7 +1291,7 @@ class TestRunFetchGithubCommand:
 
         with (
             patch(
-                "heisenberg.cli.commands.github_fetch.fetch_report_from_run",
+                "heisenberg.cli.commands.github_fetch.fetch_report",
                 new_callable=AsyncMock,
                 return_value={"tests": []},
             ),
@@ -1384,7 +1382,7 @@ class TestAnalyzeReportData:
 
             result = _analyze_report_data(report_data, args)
 
-        assert result == 1
+        assert result == 0  # Success - analysis completed
 
     def test_runs_ai_analysis_with_context(self, tmp_path, capsys):
         """Should run AI analysis with provided context."""
@@ -1467,7 +1465,7 @@ class TestAnalyzeReportData:
 
             result = _analyze_report_data(report_data, args)
 
-        assert result == 1
+        assert result == 0  # Success - analysis completed (AI failure is warning)
         captured = capsys.readouterr()
         assert "AI analysis failed" in captured.err
 
@@ -1496,6 +1494,139 @@ class TestConvertToUnified:
         assert result.branch == "main"
         assert result.total_tests == 6
         assert result.passed_tests == 5
+
+
+class TestAutoSelectArtifact:
+    """Tests for job-aware artifact auto-selection."""
+
+    @pytest.fixture
+    def mock_artifacts(self):
+        """Sample artifacts for testing auto-select."""
+        from heisenberg.integrations.github_artifacts import Artifact
+
+        return [
+            Artifact(
+                id=1001,
+                name="e2e-web-reports",
+                size_in_bytes=38800,
+                expired=False,
+                archive_download_url="https://api.github.com/...",
+            ),
+            Artifact(
+                id=1002,
+                name="blob-report-desktop-1",
+                size_in_bytes=47200,
+                expired=False,
+                archive_download_url="https://api.github.com/...",
+            ),
+            Artifact(
+                id=1003,
+                name="blob-report-desktop-2",
+                size_in_bytes=49700,
+                expired=False,
+                archive_download_url="https://api.github.com/...",
+            ),
+        ]
+
+    @pytest.fixture
+    def mock_jobs(self):
+        """Sample jobs for testing auto-select."""
+        from heisenberg.integrations.github_artifacts import Job
+
+        return [
+            Job(id=111, name="e2e-web (ubuntu-latest)", status="completed", conclusion="failure"),
+            Job(
+                id=222, name="e2e-desktop (ubuntu-latest)", status="completed", conclusion="success"
+            ),
+            Job(id=333, name="npm audit", status="completed", conclusion="failure"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_auto_select_picks_artifact_matching_failed_job(self, mock_artifacts, mock_jobs):
+        """Auto-select should pick artifact matching failed job name."""
+        mock_client = MagicMock()
+        mock_client.get_artifacts = AsyncMock(return_value=mock_artifacts)
+        mock_client.get_jobs = AsyncMock(return_value=mock_jobs)
+        mock_client.download_artifact = AsyncMock(return_value=b"zip_data")
+        mock_client.extract_playwright_report = MagicMock(return_value={"tests": []})
+
+        # Call without artifact_name to trigger auto-select
+        result = await fetch_report_from_run(
+            mock_client, "owner", "repo", 12345, artifact_name=None
+        )
+
+        # Should have selected e2e-web-reports (matches e2e-web job)
+        mock_client.download_artifact.assert_called_once_with("owner", "repo", 1001)
+        assert result == {"tests": []}
+
+    @pytest.mark.asyncio
+    async def test_artifact_name_overrides_auto_select(self, mock_artifacts, mock_jobs):
+        """Explicit --artifact-name should override auto-select."""
+        mock_client = MagicMock()
+        mock_client.get_artifacts = AsyncMock(return_value=mock_artifacts)
+        mock_client.download_artifact = AsyncMock(return_value=b"zip_data")
+        mock_client.extract_playwright_report = MagicMock(return_value={"tests": []})
+
+        # Call with explicit artifact_name
+        result = await fetch_report_from_run(
+            mock_client, "owner", "repo", 12345, artifact_name="blob-report"
+        )
+
+        # Should NOT call get_jobs when artifact_name is provided
+        mock_client.get_jobs.assert_not_called()
+        # Should have selected first matching blob-report artifact
+        mock_client.download_artifact.assert_called_once_with("owner", "repo", 1002)
+        assert result == {"tests": []}
+
+    @pytest.mark.asyncio
+    async def test_auto_select_calls_get_jobs(self, mock_artifacts, mock_jobs):
+        """Auto-select should call get_jobs to get failed job names."""
+        mock_client = MagicMock()
+        mock_client.get_artifacts = AsyncMock(return_value=mock_artifacts)
+        mock_client.get_jobs = AsyncMock(return_value=mock_jobs)
+        mock_client.download_artifact = AsyncMock(return_value=b"zip_data")
+        mock_client.extract_playwright_report = MagicMock(return_value={"tests": []})
+
+        await fetch_report_from_run(mock_client, "owner", "repo", 12345, artifact_name=None)
+
+        mock_client.get_jobs.assert_called_once_with("owner", "repo", 12345)
+
+    @pytest.mark.asyncio
+    async def test_auto_select_falls_back_when_no_job_match(self, mock_artifacts):
+        """Auto-select should fall back to pattern matching when no job matches."""
+        from heisenberg.integrations.github_artifacts import Job
+
+        # Jobs that don't match any artifact names
+        unrelated_jobs = [
+            Job(id=111, name="lint", status="completed", conclusion="failure"),
+            Job(id=222, name="typecheck", status="completed", conclusion="failure"),
+        ]
+
+        mock_client = MagicMock()
+        mock_client.get_artifacts = AsyncMock(return_value=mock_artifacts)
+        mock_client.get_jobs = AsyncMock(return_value=unrelated_jobs)
+        mock_client.download_artifact = AsyncMock(return_value=b"zip_data")
+        mock_client.extract_playwright_report = MagicMock(return_value={"tests": []})
+
+        result = await fetch_report_from_run(
+            mock_client, "owner", "repo", 12345, artifact_name=None
+        )
+
+        # Should still find an artifact (fallback to Playwright patterns)
+        assert result is not None
+        mock_client.download_artifact.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_auto_select_returns_none_when_no_artifacts(self):
+        """Auto-select should return None when no artifacts found."""
+        mock_client = MagicMock()
+        mock_client.get_artifacts = AsyncMock(return_value=[])
+
+        result = await fetch_report_from_run(
+            mock_client, "owner", "repo", 12345, artifact_name=None
+        )
+
+        assert result is None
 
 
 class TestAnalyzeTracesFromZip:

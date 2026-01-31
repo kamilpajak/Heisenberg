@@ -84,28 +84,30 @@ class TestSearchRepos:
 
     @patch("time.sleep")
     @patch("subprocess.run")
-    def test_returns_repo_names(self, mock_run, _mock_sleep):
-        """Should return list of repo names."""
+    def test_returns_repo_tuples_with_stars(self, mock_run, _mock_sleep):
+        """Should return list of (repo, stars) tuples."""
         mock_run.return_value = MagicMock(
-            stdout=json.dumps({"items": [{"repository": {"full_name": "owner/repo"}}]}),
+            stdout=json.dumps(
+                {"items": [{"repository": {"full_name": "owner/repo", "stargazers_count": 500}}]}
+            ),
             returncode=0,
         )
 
         results = search_repos("playwright", limit=10)
 
         assert len(results) == 1
-        assert results[0] == "owner/repo"
+        assert results[0] == ("owner/repo", 500)
 
     @patch("time.sleep")
     @patch("subprocess.run")
     def test_deduplicates_across_results(self, mock_run, _mock_sleep):
-        """Should deduplicate repos that appear multiple times."""
+        """Should deduplicate repos that appear multiple times, keeping highest stars."""
         mock_run.return_value = MagicMock(
             stdout=json.dumps(
                 {
                     "items": [
-                        {"repository": {"full_name": "owner/repo"}},
-                        {"repository": {"full_name": "owner/repo"}},
+                        {"repository": {"full_name": "owner/repo", "stargazers_count": 100}},
+                        {"repository": {"full_name": "owner/repo", "stargazers_count": 100}},
                     ]
                 }
             ),
@@ -115,6 +117,21 @@ class TestSearchRepos:
         results = search_repos("query", limit=10)
 
         assert len(results) == 1
+        assert results[0] == ("owner/repo", 100)
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_defaults_to_zero_stars_when_missing(self, mock_run, _mock_sleep):
+        """Should default to 0 stars when stargazers_count is missing."""
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps({"items": [{"repository": {"full_name": "owner/repo"}}]}),
+            returncode=0,
+        )
+
+        results = search_repos("query", limit=10)
+
+        assert len(results) == 1
+        assert results[0] == ("owner/repo", 0)
 
 
 class TestGetRepoStars:
@@ -203,12 +220,13 @@ class TestSubprocessTimeouts:
     @patch("time.sleep")
     @patch("subprocess.run")
     def test_search_repos_returns_empty_on_timeout(self, mock_run, _mock_sleep):
-        """search_repos should return empty list on timeout."""
+        """search_repos should return empty list of tuples on timeout."""
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
 
         result = search_repos("query", limit=10)
 
         assert result == []
+        assert isinstance(result, list)
 
     @patch("time.sleep")
     @patch("subprocess.run")
@@ -274,17 +292,19 @@ class TestRateLimitHandling:
 
     @patch("time.sleep")
     @patch("subprocess.run")
-    def test_handles_rate_limit_error_gracefully(self, mock_run, _mock_sleep):
-        """gh_api should return None after retries are exhausted."""
+    def test_raises_rate_limit_error_after_retries(self, mock_run, _mock_sleep):
+        """gh_api should raise GitHubRateLimitError after retries are exhausted."""
         from subprocess import CalledProcessError
+
+        import pytest
+
+        from heisenberg.discovery.client import gh_api
+        from heisenberg.discovery.models import GitHubRateLimitError
 
         mock_run.side_effect = CalledProcessError(1, "gh", stderr="API rate limit exceeded")
 
-        from heisenberg.discovery.client import gh_api
-
-        result = gh_api("/repos/owner/repo")
-
-        assert result is None
+        with pytest.raises(GitHubRateLimitError):
+            gh_api("/repos/owner/repo")
 
 
 class TestIsRateLimitError:
@@ -355,14 +375,16 @@ class TestGhSubprocess:
     @patch("random.uniform", return_value=0.1)
     @patch("time.sleep")
     @patch("subprocess.run")
-    def test_raises_after_max_retries(self, mock_run, mock_sleep, _mock_random):
-        """Should raise CalledProcessError after exhausting all retries."""
+    def test_raises_rate_limit_error_after_max_retries(self, mock_run, mock_sleep, _mock_random):
+        """Should raise GitHubRateLimitError after exhausting all retries."""
         import pytest
+
+        from heisenberg.discovery.models import GitHubRateLimitError
 
         rate_error = subprocess.CalledProcessError(1, "gh", stderr="rate limit exceeded")
         mock_run.side_effect = rate_error
 
-        with pytest.raises(subprocess.CalledProcessError):
+        with pytest.raises(GitHubRateLimitError):
             _gh_subprocess(["gh", "api", "/test"])
 
         assert mock_run.call_count == GH_MAX_RETRIES + 1
@@ -427,13 +449,161 @@ class TestGhSubprocess:
         """Retry backoff delays should increase exponentially."""
         import pytest
 
+        from heisenberg.discovery.models import GitHubRateLimitError
+
         rate_error = subprocess.CalledProcessError(1, "gh", stderr="rate limit")
         mock_run.side_effect = rate_error
 
-        with pytest.raises(subprocess.CalledProcessError):
+        with pytest.raises(GitHubRateLimitError):
             _gh_subprocess(["gh", "api", "/test"])
 
         backoff_delays = [call[0][0] for call in mock_sleep.call_args_list if call[0][0] >= 1.0]
         assert len(backoff_delays) == GH_MAX_RETRIES
         for i in range(1, len(backoff_delays)):
             assert backoff_delays[i] > backoff_delays[i - 1]
+
+
+# =============================================================================
+# BATCH STAR FETCHING
+# =============================================================================
+
+
+class TestFetchStarsBatch:
+    """Tests for fetch_stars_batch function."""
+
+    @patch("heisenberg.discovery.client.get_repo_stars")
+    def test_returns_dict_of_repo_to_stars(self, mock_get_stars):
+        """Should return dict mapping repo names to star counts."""
+        from heisenberg.discovery.client import fetch_stars_batch
+
+        mock_get_stars.side_effect = lambda repo: {"a/x": 100, "b/y": 200}[repo]
+
+        result = fetch_stars_batch(["a/x", "b/y"])
+
+        assert result == {"a/x": 100, "b/y": 200}
+
+    @patch("heisenberg.discovery.client.get_repo_stars")
+    def test_handles_api_failures_gracefully(self, mock_get_stars):
+        """Should use 0 for repos where API call failed (returned None)."""
+        from heisenberg.discovery.client import fetch_stars_batch
+
+        mock_get_stars.side_effect = lambda repo: 100 if repo == "a/x" else None
+
+        result = fetch_stars_batch(["a/x", "b/y"])
+
+        assert result == {"a/x": 100, "b/y": 0}
+
+    @patch("heisenberg.discovery.client.get_repo_stars")
+    def test_returns_empty_dict_for_empty_input(self, mock_get_stars):
+        """Should return empty dict when given empty list."""
+        from heisenberg.discovery.client import fetch_stars_batch
+
+        result = fetch_stars_batch([])
+
+        assert result == {}
+        mock_get_stars.assert_not_called()
+
+    @patch("heisenberg.discovery.client.get_repo_stars")
+    def test_fetches_in_parallel(self, mock_get_stars):
+        """Should use ThreadPoolExecutor for parallel fetching."""
+        from heisenberg.discovery.client import fetch_stars_batch
+
+        mock_get_stars.return_value = 50
+
+        result = fetch_stars_batch(["a/1", "b/2", "c/3"])
+
+        assert len(result) == 3
+        assert mock_get_stars.call_count == 3
+
+    @patch("heisenberg.discovery.client.get_repo_stars")
+    def test_all_failures_returns_all_zeros(self, mock_get_stars):
+        """Should return 0 for all repos when all API calls fail."""
+        from heisenberg.discovery.client import fetch_stars_batch
+
+        mock_get_stars.return_value = None
+
+        result = fetch_stars_batch(["a/x", "b/y"])
+
+        assert result == {"a/x": 0, "b/y": 0}
+
+
+# =============================================================================
+# JOB-AWARE ARTIFACT SELECTION
+# =============================================================================
+
+
+class TestGetFailedJobs:
+    """Tests for get_failed_jobs function."""
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_failed_job_names(self, mock_run, _mock_sleep):
+        """Should return list of failed job names."""
+        from heisenberg.discovery.client import get_failed_jobs
+
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps(
+                {
+                    "jobs": [
+                        {"name": "e2e-web (ubuntu-latest)", "conclusion": "failure"},
+                        {"name": "e2e-desktop [1/4]", "conclusion": "success"},
+                        {"name": "npm audit", "conclusion": "failure"},
+                    ]
+                }
+            ),
+            returncode=0,
+        )
+
+        result = get_failed_jobs("owner/repo", "12345")
+
+        assert result == ["e2e-web (ubuntu-latest)", "npm audit"]
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_empty_list_when_no_failures(self, mock_run, _mock_sleep):
+        """Should return empty list when all jobs passed."""
+        from heisenberg.discovery.client import get_failed_jobs
+
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps(
+                {
+                    "jobs": [
+                        {"name": "build", "conclusion": "success"},
+                        {"name": "test", "conclusion": "success"},
+                    ]
+                }
+            ),
+            returncode=0,
+        )
+
+        result = get_failed_jobs("owner/repo", "12345")
+
+        assert result == []
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_returns_empty_list_on_api_error(self, mock_run, _mock_sleep):
+        """Should return empty list on API error."""
+        from heisenberg.discovery.client import get_failed_jobs
+
+        mock_run.side_effect = subprocess.CalledProcessError(1, "gh")
+
+        result = get_failed_jobs("owner/repo", "12345")
+
+        assert result == []
+
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_calls_correct_api_endpoint(self, mock_run, _mock_sleep):
+        """Should call the jobs endpoint with correct parameters."""
+        from heisenberg.discovery.client import get_failed_jobs
+
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps({"jobs": []}),
+            returncode=0,
+        )
+
+        get_failed_jobs("owner/repo", "99999")
+
+        call_args = mock_run.call_args[0][0]
+        assert "repos/owner/repo/actions/runs/99999/jobs" in " ".join(call_args)

@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from heisenberg.cli import main
 from heisenberg.cli.commands import convert_to_unified, run_analyze
 
 
@@ -20,24 +19,26 @@ class TestAnalyzeOutputFormats:
 
     def test_analyze_parser_has_output_format_unified(self):
         """Analyze subparser supports unified-json output format."""
-        import sys
+        from typer.testing import CliRunner
 
-        # This should not raise - unified-json is a valid format
-        with patch.object(
-            sys,
-            "argv",
+        from heisenberg.cli.app import app
+
+        runner = CliRunner()
+
+        # Will fail due to missing file, but parser should accept the format
+        result = runner.invoke(
+            app,
             [
-                "heisenberg",
                 "analyze",
-                "--report",
                 "nonexistent.json",
                 "--output-format",
                 "unified-json",
             ],
-        ):
-            # Will fail due to missing file, but parser should accept the format
-            result = main()
-            assert result != 0  # File not found
+        )
+        # Should fail with file not found, not invalid option
+        assert result.exit_code != 0
+        # Should not complain about --output-format option
+        assert "No such option" not in result.output
 
 
 class TestFormattersModule:

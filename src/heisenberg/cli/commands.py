@@ -12,6 +12,14 @@ from pathlib import Path
 from heisenberg.analysis import analyze_unified_run, analyze_with_ai, run_analysis
 from heisenberg.cli import formatters, github_fetch
 from heisenberg.core.models import PlaywrightTransformer, UnifiedTestRun
+from heisenberg.discovery.analysis import analyze_source_with_status
+from heisenberg.discovery.display import DiscoveryDisplay
+from heisenberg.discovery.models import SourceStatus
+from heisenberg.discovery.service import (
+    _USE_DEFAULT_CACHE,
+    _USE_DEFAULT_QUARANTINE,
+    discover_sources,
+)
 from heisenberg.integrations.github_client import post_pr_comment
 from heisenberg.playground.analyze import AnalyzeConfig, ScenarioAnalyzer
 from heisenberg.playground.freeze import CaseFreezer, FreezeConfig
@@ -161,7 +169,7 @@ def run_analyze(args: argparse.Namespace) -> int:
 
     _post_github_comment(args, result)
 
-    return 1 if result.has_failures else 0
+    return 0  # Success - analysis completed
 
 
 def _run_junit_analyze(args: argparse.Namespace) -> int:
@@ -200,7 +208,7 @@ def _run_junit_analyze(args: argparse.Namespace) -> int:
     else:
         print(formatters.format_junit_text(report, ai_result))
 
-    return 1 if report.total_failed > 0 else 0
+    return 0  # Success - analysis completed
 
 
 def _analyze_report_data(
@@ -240,8 +248,8 @@ def _analyze_report_data(
             except Exception as e:
                 print(f"Warning: AI analysis failed: {e}", file=sys.stderr)
 
-        print(formatters.format_text_output(result, ai_result))
-        return 1 if result.has_failures else 0
+        print(formatters.format_output(args, result, ai_result))
+        return 0  # Success - analysis completed
     finally:
         temp_path.unlink()
 
@@ -310,20 +318,16 @@ async def run_fetch_github(args: argparse.Namespace) -> int:
         if args.list_artifacts:
             return await github_fetch.list_artifacts(token, owner, repo, args.run_id)
 
-        if args.merge_blobs:
-            report_data = await github_fetch.fetch_and_merge_blobs(
-                token, owner, repo, args.run_id, args.artifact_name
-            )
-        else:
-            client = GitHubArtifactClient(token=token)
-            if args.run_id:
-                report_data = await github_fetch.fetch_report_from_run(
-                    client, owner, repo, args.run_id, args.artifact_name
-                )
-            else:
-                report_data = await client.fetch_latest_report(
-                    owner, repo, artifact_name_pattern=args.artifact_name
-                )
+        client = GitHubArtifactClient(token=token)
+        run_id = args.run_id
+        if run_id is None:
+            run_id = await github_fetch._resolve_run_id(client, owner, repo, None)
+        if run_id is None:
+            print("No failed workflow runs found", file=sys.stderr)
+            return 1
+        report_data = await github_fetch.fetch_report(
+            client, owner, repo, run_id, args.artifact_name
+        )
 
         if not report_data:
             msg = (
@@ -521,3 +525,106 @@ def run_validate_cases(args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"Error validating cases: {e}", file=sys.stderr)
         return 1
+
+
+# Human-readable status messages for single repo mode
+_STATUS_MESSAGES: dict[SourceStatus, str] = {
+    SourceStatus.COMPATIBLE: "Compatible - has Playwright artifacts with test failures",
+    SourceStatus.NO_FAILURES: "No failures - Playwright artifacts exist but all tests pass",
+    SourceStatus.HAS_ARTIFACTS: "Not Playwright - has artifacts but not Playwright format",
+    SourceStatus.NO_ARTIFACTS: "No artifacts - workflow run exists but no artifacts found",
+    SourceStatus.NO_FAILED_RUNS: "No failed runs - no recent failed workflow runs",
+    SourceStatus.UNSUPPORTED_FORMAT: "HTML report - requires JSONL blob reporter format",
+    SourceStatus.RATE_LIMITED: "Rate limited - GitHub API rate limit exceeded",
+}
+
+
+def _check_single_repo(args: argparse.Namespace) -> int:
+    """Check a single repository for compatibility with Heisenberg."""
+    source = analyze_source_with_status(
+        repo=args.repo,
+        verify_failures=not args.quick,
+    )
+
+    # JSON output
+    if args.json_output:
+        output_data = {
+            "repo": source.repo,
+            "stars": source.stars,
+            "compatible": source.compatible,
+            "status": source.status.value,
+            "artifacts": source.artifact_names,
+            "playwright_artifacts": source.playwright_artifacts,
+            "run_id": source.run_id,
+            "run_url": source.run_url,
+        }
+        json.dump(output_data, sys.stdout, indent=2)
+        print()
+    else:
+        # Human-readable output
+        message = _STATUS_MESSAGES.get(source.status, f"Unknown status: {source.status}")
+        icon = "\u2713" if source.compatible else "\u2717"
+        print(f"\n{args.repo}")
+        print(f"  {icon} {message}")
+        if source.stars:
+            print(f"  Stars: {source.stars:,}")
+        if source.artifact_names:
+            print(f"  Artifacts: {', '.join(source.artifact_names)}")
+        if source.run_url:
+            print(f"  Run: {source.run_url}")
+        print()
+
+    return 0 if source.compatible else 1
+
+
+def run_discover(args: argparse.Namespace) -> int:
+    """Run the discover command to find GitHub repos with Playwright artifacts."""
+    # Single repo mode - check specific repository
+    if args.repo:
+        return _check_single_repo(args)
+
+    # JSON mode implies quiet
+    quiet = args.quiet or args.json_output
+
+    # Determine cache paths
+    cache_path = None if args.no_cache else _USE_DEFAULT_CACHE
+    quarantine_path = None if (args.no_cache or args.fresh) else _USE_DEFAULT_QUARANTINE
+
+    # Create display handler
+    display = DiscoveryDisplay(verbose=args.verbose, quiet=quiet)
+
+    # Run discovery
+    sources = discover_sources(
+        global_limit=args.limit,
+        verify_failures=not args.quick,
+        on_event=display.handle,
+        cache_path=cache_path,
+        quarantine_path=quarantine_path,
+        min_stars=args.min_stars,
+    )
+
+    # JSON output to stdout
+    if args.json_output:
+        output_data = [
+            {
+                "repo": s.repo,
+                "stars": s.stars,
+                "compatible": s.compatible,
+                "status": s.status.value,
+                "artifacts": s.artifact_names,
+                "playwright_artifacts": s.playwright_artifacts,
+                "run_id": s.run_id,
+                "run_url": s.run_url,
+            }
+            for s in sources
+        ]
+        json.dump(output_data, sys.stdout, indent=2)
+        print()  # Newline at end
+
+    # Save to file if requested
+    if args.output:
+        from heisenberg.discovery.ui import save_results
+
+        save_results(sources, str(args.output))
+
+    return 0

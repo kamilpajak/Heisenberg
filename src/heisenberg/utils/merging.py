@@ -4,6 +4,7 @@ Playwright blob reports contain protocol events that require merging
 via `npx playwright merge-reports` to produce a standard JSON report.
 
 This module provides functionality to:
+- Detect report type (JSON, blob, HTML)
 - Extract blob files from nested ZIP artifacts
 - Merge blob reports using Playwright CLI
 - Return parsed JSON report for analysis
@@ -16,13 +17,61 @@ import io
 import json
 import tempfile
 import zipfile
+from enum import Enum
 from pathlib import Path
+
+
+class ReportType(Enum):
+    """Type of Playwright report artifact."""
+
+    JSON = "json"
+    BLOB = "blob"
+    HTML = "html"
+    UNKNOWN = "unknown"
 
 
 class BlobMergeError(Exception):
     """Exception raised when blob merge fails."""
 
     pass
+
+
+def detect_report_type(zip_content: bytes) -> ReportType:
+    """Detect the type of Playwright report in a ZIP artifact.
+
+    Args:
+        zip_content: ZIP file content as bytes.
+
+    Returns:
+        ReportType indicating the artifact contents.
+    """
+    try:
+        zip_buffer = io.BytesIO(zip_content)
+        with zipfile.ZipFile(zip_buffer, "r") as zf:
+            names = zf.namelist()
+
+            if not names:
+                return ReportType.UNKNOWN
+
+            # Check for standard JSON report (preferred)
+            for name in names:
+                if name.endswith(".json") and "report" in name.lower():
+                    return ReportType.JSON
+                if name == "results.json":
+                    return ReportType.JSON
+
+            # Check for blob reports (report-*.zip containing .jsonl)
+            for name in names:
+                if name.endswith(".zip") and "report" in name.lower():
+                    return ReportType.BLOB
+
+            # Check for HTML report
+            if "index.html" in names:
+                return ReportType.HTML
+
+            return ReportType.UNKNOWN
+    except zipfile.BadZipFile:
+        return ReportType.UNKNOWN
 
 
 def extract_blob_files(zip_content: bytes, max_depth: int = 3) -> list[bytes]:

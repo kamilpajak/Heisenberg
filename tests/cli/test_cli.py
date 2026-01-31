@@ -157,9 +157,9 @@ class TestCliAnalyze:
         # Then
         assert result == 0
 
-    def test_analyze_returns_one_for_failing_tests(self, sample_report_path: Path):
-        """Given tests fail, should return exit code 1."""
-        # Given
+    def test_analyze_returns_zero_for_failing_tests(self, sample_report_path: Path):
+        """Given tests fail, should return exit code 0 (analysis succeeded)."""
+        # Given - heisenberg's job is to analyze, not re-report pass/fail
         args = argparse.Namespace(
             report=sample_report_path,
             output_format="text",
@@ -172,8 +172,8 @@ class TestCliAnalyze:
         # When
         result = run_analyze(args)
 
-        # Then
-        assert result == 1
+        # Then - 0 means heisenberg completed successfully
+        assert result == 0
 
     def test_analyze_returns_one_for_missing_file(self, tmp_path: Path):
         """Given report file doesn't exist, should return exit code 1."""
@@ -415,8 +415,9 @@ class TestFetchGitHubHelpers:
 
         assert result == {"suites": []}
 
-    def test_analyze_report_data_returns_exit_code(self, tmp_path):
-        """Should return exit code based on test failures."""
+    def test_analyze_report_data_returns_zero_on_success(self, tmp_path):
+        """Should return 0 when analysis completes (regardless of test results)."""
+        # Report with no failures
         report_data = {
             "suites": [],
             "stats": {"expected": 5, "unexpected": 0, "flaky": 0, "skipped": 0},
@@ -426,7 +427,45 @@ class TestFetchGitHubHelpers:
 
         result = _analyze_report_data(report_data, args)
 
-        assert result == 0  # No failures
+        assert result == 0
+
+    def test_analyze_report_data_returns_zero_even_with_failures(self, tmp_path):
+        """Should return 0 even when report contains test failures."""
+        # Report with failures - heisenberg still did its job
+        report_data = {
+            "suites": [
+                {
+                    "title": "Test Suite",
+                    "specs": [
+                        {
+                            "title": "failing test",
+                            "file": "test.spec.ts",
+                            "ok": False,
+                            "tests": [
+                                {
+                                    "projectName": "chromium",
+                                    "status": "unexpected",
+                                    "results": [
+                                        {
+                                            "status": "failed",
+                                            "duration": 100,
+                                            "errors": [{"message": "Test failed"}],
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+            "stats": {"expected": 0, "unexpected": 1, "flaky": 0, "skipped": 0},
+        }
+        args = MagicMock()
+        args.ai_analysis = False
+
+        result = _analyze_report_data(report_data, args)
+
+        assert result == 0  # Success - heisenberg analyzed the report
 
     def test_run_fetch_github_fails_without_token(self, monkeypatch):
         """Should fail when no token provided."""
@@ -697,7 +736,7 @@ class TestAIAnalysisAPIKeyValidation:
         captured = capsys.readouterr()
 
         # Then
-        assert result == 1  # Exit 1 because tests failed, but AI analysis ran
+        assert result == 0  # Success - analysis completed
         mock_ai_analyzer.assert_called_once()
         assert "Summary:" in captured.out, "Should print analysis when key is valid"
         assert "Error:" not in captured.err, "Should not print error when key is valid"

@@ -6,9 +6,8 @@ import json
 from datetime import UTC, datetime, timedelta
 
 from .models import (
-    CACHE_SCHEMA_VERSION,
     CACHE_TTL_DAYS,
-    QUARANTINE_SCHEMA_VERSION,
+    DISCOVERY_SCHEMA_VERSION,
     QUARANTINE_TTL_HOURS,
 )
 
@@ -62,7 +61,7 @@ class RunCache:
         from pathlib import Path
 
         self._path = Path(cache_path) if cache_path else None
-        self._data: dict = {"schema_version": CACHE_SCHEMA_VERSION, "runs": {}}
+        self._data: dict = {"schema_version": DISCOVERY_SCHEMA_VERSION, "runs": {}}
         # Use RLock (reentrant) because set() calls save() while holding lock
         self._lock = threading.RLock()
         self._load()
@@ -75,7 +74,7 @@ class RunCache:
         try:
             data = json.loads(self._path.read_text())
             # Ignore old schema versions
-            if data.get("schema_version") != CACHE_SCHEMA_VERSION:
+            if data.get("schema_version") != DISCOVERY_SCHEMA_VERSION:
                 return
             self._data = data
             # Prune expired/corrupt entries
@@ -193,7 +192,7 @@ class QuarantineCache:
         from pathlib import Path
 
         self._path = Path(cache_path) if cache_path else None
-        self._data: dict = {"schema_version": QUARANTINE_SCHEMA_VERSION, "repos": {}}
+        self._data: dict = {"schema_version": DISCOVERY_SCHEMA_VERSION, "repos": {}}
         self._lock = threading.RLock()
         self._load()
 
@@ -204,7 +203,7 @@ class QuarantineCache:
 
         try:
             data = json.loads(self._path.read_text())
-            if data.get("schema_version") != QUARANTINE_SCHEMA_VERSION:
+            if data.get("schema_version") != DISCOVERY_SCHEMA_VERSION:
                 return
             self._data = data
             self._prune()
